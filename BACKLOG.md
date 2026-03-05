@@ -6,24 +6,29 @@
 * **Einkaufsliste (Dashboard):** Eine eigene Übersichtsseite für alle Filamente, die auf "Nachbestellen" oder "Verbraucht" stehen.
 * **Export-Funktion:** Diese Einkaufsliste mit einem Klick als Excel/CSV exportieren, um sie schnell beim Händler abzuarbeiten.
 
-#### 📷 2. Scanner & QR-Code Features (NEU)
+#### 🏢 2. Erweiterte Lagerverwaltung
 
-* **Lesbare QR-Codes (Fürs Handy):** Der generierte QR-Code enthält nicht mehr nur die reine ID, sondern einen für den Menschen lesbaren Satz (z. B. `ID: 1 | YUANEANG | PLA | Black/Red`).
-* **Intelligentes Quick-ID-Feld:** Das Suchfeld in der App durchsucht gescannte Sätze automatisch (per Regex) nach der ID, damit Hardware-Handscanner am PC weiterhin problemlos funktionieren.
-* **Webcam-Integration:** Ein Button in der App, der die PC-Webcam aktiviert, um den QR-Code direkt am Bildschirm scannen zu können (ohne Zusatz-Hardware).
-
-#### 🧮 3. Tools & Rechner
-
-* **Druckkosten-Rechner:** Ein eingebautes Tool. Man wählt eine Rolle aus dem Bestand, tippt die Gramm-Zahl und Druckzeit aus dem Slicer ein, und das Programm berechnet anhand des hinterlegten Rollen-Preises und eines Strompreises die exakten Druckkosten.
-
-#### 🔄 4. Workflow & Handling
-
+* **Multi-Regal-System:** Statt nur einem festen Regal können Nutzer in den Einstellungen beliebig viele Regale anlegen (z. B. "Regal Keller", "Regal Büro") und für jedes Regal ein eigenes Raster (Reihen x Spalten) definieren.
 * **Spulen-Swap (AMS <-> Regal):** Ein "Tauschen"-Button. Wenn man eine Rolle aus dem Regal ins AMS legt und umgekehrt, tauschen die beiden Einträge per Klick ihre Lagerorte/Slots.
 
-#### 📱 5. Plattformen & Mobile
+#### 🎨 3. UI, Bugfixes & Quality of Life (NEU)
 
-* **Mobile Nutzung (Web-App):** Perspektivisch das Programm (z. B. mit Python Flask) als lokalen "Server" umbauen, damit man am Smartphone-Browser darauf zugreifen kann, während man vor dem Regal steht.
+* **Multi-Color Vorschau-Fix:** Das Vorschau-Kästchen neben der Farbeingabe (z.B. "Black/Red") soll nicht nur die erste Farbe anzeigen, sondern – genau wie die Tabelle – mehrfarbig geteilt sein.
 
-#### 🤖 6. Die "Industrie 4.0" Hardware-Vision
+#### 📷 4. Scanner & QR-Code Features
 
-* **IoT Smart-Scale:** Schnittstelle für eine selbstgebaute WLAN-Waage mit Kamera (ESP32 + HX711). Rolle draufstellen -> QR-Code wird gescannt -> Gewicht wird erfasst -> VibeSpool aktualisiert das Bruttogewicht vollautomatisch im Hintergrund.
+* **Lesbare QR-Codes (Fürs Handy):** Der generierte QR-Code enthält nicht mehr nur die reine ID, sondern einen für den Menschen lesbaren Satz (z. B. `ID: 1 | YUANEANG | PLA | Black/Red`).
+* **Intelligentes Quick-ID-Feld:** Das Suchfeld in der App durchsucht gescannte Sätze automatisch nach der ID, damit Hardware-Handscanner am PC weiterhin problemlos funktionieren.
+* **Webcam-Integration:** Ein Button in der App, der die PC-Webcam aktiviert, um den QR-Code direkt am Bildschirm scannen zu können.
+
+#### 🧮 5. Tools & Rechner
+
+* **Druckkosten-Rechner:** Ein eingebautes Tool. Man wählt eine Rolle aus dem Bestand, tippt die Gramm-Zahl und Druckzeit aus dem Slicer ein, und das Programm berechnet die exakten Druckkosten (inkl. Strom).
+
+#### 📱 6. Plattformen & Mobile
+
+* **Mobile Nutzung (Web-App):** Perspektivisch das Programm als lokalen "Server" umbauen, damit man am Smartphone-Browser darauf zugreifen kann, während man vor dem Regal steht.
+
+#### 🤖 7. Die "Industrie 4.0" Hardware-Vision
+
+* **IoT Smart-Scale:** Schnittstelle für eine selbstgebaute WLAN-Waage mit Kamera (ESP32 + HX711). Rolle draufstellen -> automatisch scannen -> VibeSpool aktualisiert das Gewicht.

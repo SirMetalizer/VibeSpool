@@ -1,21 +1,38 @@
 import tkinter as tk
-from tkinter import ttk, messagebox, simpledialog
+from tkinter import ttk, messagebox, simpledialog, filedialog
 import json
 import os
+import shutil
+import zipfile
 import webbrowser 
-import urllib.request # NEU: Für den Update-Checker
-import threading      # NEU: Für den Update-Checker im Hintergrund
+import urllib.request 
+import threading      
 from ctypes import windll
 from PIL import Image, ImageTk, ImageDraw
 import qrcode 
 
-# --- KONFIGURATION ---
-DATA_FILE = "inventory.json"
-SETTINGS_FILE = "settings.json"
-SPOOLS_FILE = "spools.json"
+# --- KONFIGURATION & UPDATE CHECKER ---
+APP_VERSION = "1.3"
+GITHUB_REPO = "SirMetalizer/VibeSpool"
 
-APP_VERSION = "1.2"
-GITHUB_REPO = "SirMetalizer/VibeSpool" 
+# --- SICHERER SPEICHERORT FÜR EXE & MAC APP ---
+USER_HOME = os.path.expanduser("~")
+BASE_DIR = os.path.join(USER_HOME, "Documents", "VibeSpool")
+
+if not os.path.exists(BASE_DIR):
+    os.makedirs(BASE_DIR)
+
+DATA_FILE = os.path.join(BASE_DIR, "inventory.json")
+SETTINGS_FILE = os.path.join(BASE_DIR, "settings.json")
+SPOOLS_FILE = os.path.join(BASE_DIR, "spools.json")
+
+# Migration: Falls alte Dateien noch im selben Ordner liegen, kopiere sie in die Dokumente
+if os.path.exists("inventory.json") and not os.path.exists(DATA_FILE):
+    try:
+        shutil.copy("inventory.json", DATA_FILE)
+        if os.path.exists("settings.json"): shutil.copy("settings.json", SETTINGS_FILE)
+        if os.path.exists("spools.json"): shutil.copy("spools.json", SPOOLS_FILE)
+    except: pass
 
 # --- DEFAULTS ---
 DEFAULT_SETTINGS = {
@@ -30,54 +47,32 @@ DEFAULT_SETTINGS = {
 MATERIALS = ["PLA", "PLA+", "PETG", "ABS", "ASA", "TPU", "PC", "PA-CF", "PVA", "Sonstiges"]
 SUBTYPES = ["Standard", "Matte", "Silk", "High Speed", "Dual Color", "Tri Color", "Glow in Dark", "Marmor", "Holz", "Glitzer/Sparkle", "Transparent"]
 
-# --- THEMES (Light & Dark) ---
+# --- THEMES ---
 THEMES = {
     "light": {
-        "bg": "#f0f0f0",
-        "fg": "#333333",
-        "entry_bg": "#ffffff",
-        "entry_fg": "#000000",
-        "tree_bg": "#ffffff",
-        "tree_fg": "#000000",
-        "head_bg": "#e1e1e1",
-        "head_fg": "#333333",
-        "lbl_frame": "#333333"
+        "bg": "#f0f0f0", "fg": "#333333", "entry_bg": "#ffffff", "entry_fg": "#000000",
+        "tree_bg": "#ffffff", "tree_fg": "#000000", "head_bg": "#e1e1e1", "head_fg": "#333333", "lbl_frame": "#333333"
     },
     "dark": {
-        "bg": "#2b2b2b",
-        "fg": "#e0e0e0",
-        "entry_bg": "#3c3f41",
-        "entry_fg": "#e0e0e0",
-        "tree_bg": "#3c3f41",
-        "tree_fg": "#e0e0e0",
-        "head_bg": "#4b4d4f",
-        "head_fg": "#e0e0e0",
-        "lbl_frame": "#e0e0e0"
+        "bg": "#2b2b2b", "fg": "#e0e0e0", "entry_bg": "#3c3f41", "entry_fg": "#e0e0e0",
+        "tree_bg": "#3c3f41", "tree_fg": "#e0e0e0", "head_bg": "#4b4d4f", "head_fg": "#e0e0e0", "lbl_frame": "#e0e0e0"
     }
 }
 
 COLOR_ACCENT = "#0078d7"    
 COLOR_DELETE = "#d9534f" 
-
-# --- FARBEN ---
 COLOR_MAP = {
-    "rot": "#FF0000", "red": "#FF0000", "dunkelrot": "#8B0000",
-    "blau": "#0000FF", "blue": "#0000FF", "hellblau": "#ADD8E6", "dunkelblau": "#00008B", "navy": "#000080", "indigo": "#4B0082",
-    "grün": "#008000", "green": "#008000", "hellgrün": "#90EE90", "dunkelgrün": "#006400", "army": "#4B5320", "oliv": "#808000", "forest": "#228B22",
-    "gelb": "#FFD700", "yellow": "#FFD700",
-    "orange": "#FFA500",
-    "lila": "#800080", "purple": "#800080", "violett": "#EE82EE", "lavendel": "#E6E6FA",
-    "pink": "#FFC0CB", "magenta": "#FF00FF", "rose": "#FF007F", "rosa": "#FFC0CB",
-    "schwarz": "#000000", "black": "#000000",
-    "weiß": "#F0F0F0", "white": "#F0F0F0", "ivory": "#FFFFF0",
-    "grau": "#808080", "grey": "#808080", "silber": "#C0C0C0", "silver": "#C0C0C0", "ash": "#B2BEB5",
-    "braun": "#A52A2A", "brown": "#A52A2A", "cocoa": "#D2691E", "bronze": "#CD7F32",
-    "gold": "#DAA520", "kupfer": "#B87333", "cyan": "#00FFFF", "türkis": "#40E0D0", "teal": "#008080",
-    "beige": "#F5F5DC", "khaki": "#F0E68C",
+    "rot": "#FF0000", "red": "#FF0000", "dunkelrot": "#8B0000", "blau": "#0000FF", "blue": "#0000FF", "hellblau": "#ADD8E6", 
+    "dunkelblau": "#00008B", "navy": "#000080", "indigo": "#4B0082", "grün": "#008000", "green": "#008000", "hellgrün": "#90EE90", 
+    "dunkelgrün": "#006400", "army": "#4B5320", "oliv": "#808000", "forest": "#228B22", "gelb": "#FFD700", "yellow": "#FFD700",
+    "orange": "#FFA500", "lila": "#800080", "purple": "#800080", "violett": "#EE82EE", "lavendel": "#E6E6FA", "pink": "#FFC0CB", 
+    "magenta": "#FF00FF", "rose": "#FF007F", "rosa": "#FFC0CB", "schwarz": "#000000", "black": "#000000", "weiß": "#F0F0F0", 
+    "white": "#F0F0F0", "ivory": "#FFFFF0", "grau": "#808080", "grey": "#808080", "silber": "#C0C0C0", "silver": "#C0C0C0", 
+    "ash": "#B2BEB5", "braun": "#A52A2A", "brown": "#A52A2A", "cocoa": "#D2691E", "bronze": "#CD7F32", "gold": "#DAA520", 
+    "kupfer": "#B87333", "cyan": "#00FFFF", "türkis": "#40E0D0", "teal": "#008080", "beige": "#F5F5DC", "khaki": "#F0E68C",
     "rainbow": "RAINBOW", "bunt": "RAINBOW", "regenbogen": "RAINBOW"
 }
 
-# --- HELPER ---
 def load_json(filename, default):
     if not os.path.exists(filename): return default
     try:
@@ -126,12 +121,10 @@ def create_color_icon(hex_list, size=(24, 24), outline_color="#CCCCCC"):
     draw.rectangle([0, 0, width-1, height-1], outline=outline_color, width=1)
     return ImageTk.PhotoImage(img)
 
-# --- STYLE ---
 FONT_MAIN = ("Segoe UI", 10)
 FONT_BOLD = ("Segoe UI", 10, "bold")
 ROW_HEIGHT = 30             
 
-# --- FENSTER KLASSEN ---
 class SpoolManager(tk.Toplevel):
     def __init__(self, parent, on_close_callback):
         super().__init__(parent)
@@ -142,9 +135,7 @@ class SpoolManager(tk.Toplevel):
         self.configure(bg=parent.cget('bg')) 
         
         self.spools = load_json(SPOOLS_FILE, [])
-        
         ttk.Label(self, text="Verfügbare Leerspulen", font=("Segoe UI", 10, "bold")).pack(pady=10)
-        
         frm_list = ttk.Frame(self)
         frm_list.pack(fill="both", expand=True, padx=10, pady=(0, 10))
         
@@ -164,30 +155,24 @@ class SpoolManager(tk.Toplevel):
         
         frm_input = ttk.LabelFrame(self, text="Bearbeiten / Neu")
         frm_input.pack(fill="x", padx=10, pady=10, side="bottom")
-        
         ttk.Label(frm_input, text="Name:").grid(row=0, column=0, padx=5, pady=5, sticky="w")
         self.ent_name = ttk.Entry(frm_input)
         self.ent_name.grid(row=0, column=1, padx=5, pady=5, sticky="ew")
-        
         ttk.Label(frm_input, text="Gewicht (g):").grid(row=1, column=0, padx=5, pady=5, sticky="w")
         self.ent_weight = ttk.Entry(frm_input)
         self.ent_weight.grid(row=1, column=1, padx=5, pady=5, sticky="ew")
-        
         frm_input.columnconfigure(1, weight=1)
         
         frm_btns = ttk.Frame(frm_input)
         frm_btns.grid(row=2, column=0, columnspan=2, pady=10)
-        
         ttk.Button(frm_btns, text="Neu anlegen", command=self.add_spool).pack(side="left", padx=5)
         ttk.Button(frm_btns, text="Speichern", command=self.update_spool).pack(side="left", padx=5)
         ttk.Button(frm_btns, text="Löschen", command=self.delete_spool).pack(side="left", padx=5)
-        
         self.refresh_list()
 
     def refresh_list(self):
         for item in self.tree.get_children(): self.tree.delete(item)
-        for s in self.spools:
-            self.tree.insert("", "end", iid=str(s['id']), values=(s['id'], s['name'], s['weight']))
+        for s in self.spools: self.tree.insert("", "end", iid=str(s['id']), values=(s['id'], s['name'], s['weight']))
 
     def on_select(self, event):
         sel = self.tree.selection()
@@ -441,7 +426,6 @@ class FlowCalculator(tk.Toplevel):
                 s = e.get().replace(",", ".").strip()
                 if s: vals.append(float(s))
             if not vals: return
-            
             avg = sum(vals)/len(vals)
             target = float(self.e_target.get().replace(",", "."))
             old = float(self.e_flow.get().replace(",", "."))
@@ -449,6 +433,66 @@ class FlowCalculator(tk.Toplevel):
             self.on_apply(new_flow)
             self.destroy()
         except: messagebox.showerror("Fehler", "Ungültige Eingabe")
+
+class BackupDialog(tk.Toplevel):
+    def __init__(self, parent, app_instance):
+        super().__init__(parent)
+        self.app = app_instance
+        self.title("Backup & Wiederherstellung")
+        self.geometry("400x200")
+        self.configure(bg=parent.cget('bg'))
+        
+        ttk.Label(self, text="Datenbank Backup & Restore", font=("Segoe UI", 12, "bold")).pack(pady=15)
+        
+        ttk.Button(self, text="📥 Backup erstellen (Exportieren)", command=self.export_data).pack(fill="x", padx=40, pady=10)
+        ttk.Button(self, text="📤 Backup laden (Importieren)", command=self.import_data).pack(fill="x", padx=40, pady=10)
+        
+    def export_data(self):
+        filepath = filedialog.asksaveasfilename(
+            defaultextension=".zip", 
+            filetypes=[("ZIP Archive", "*.zip")], 
+            initialfile="VibeSpool_Backup.zip",
+            title="Backup speichern unter..."
+        )
+        if not filepath: return
+        
+        try:
+            with zipfile.ZipFile(filepath, 'w') as zipf:
+                if os.path.exists(DATA_FILE): zipf.write(DATA_FILE, "inventory.json")
+                if os.path.exists(SETTINGS_FILE): zipf.write(SETTINGS_FILE, "settings.json")
+                if os.path.exists(SPOOLS_FILE): zipf.write(SPOOLS_FILE, "spools.json")
+            messagebox.showinfo("Erfolg", "Backup erfolgreich erstellt!", parent=self)
+            self.destroy()
+        except Exception as e:
+            messagebox.showerror("Fehler", f"Backup fehlgeschlagen:\n{e}", parent=self)
+
+    def import_data(self):
+        filepath = filedialog.askopenfilename(
+            filetypes=[("ZIP Archive", "*.zip")],
+            title="Backup-Datei auswählen..."
+        )
+        if not filepath: return
+        
+        if messagebox.askyesno("Warnung", "ACHTUNG: Alle aktuellen Daten werden überschrieben!\n\nWillst du das Backup wirklich laden?", parent=self):
+            try:
+                with zipfile.ZipFile(filepath, 'r') as zipf:
+                    zipf.extractall(BASE_DIR)
+                
+                # Daten neu in den Arbeitsspeicher laden
+                self.app.inventory = load_json(DATA_FILE, [])
+                self.app.settings = load_json(SETTINGS_FILE, DEFAULT_SETTINGS)
+                self.app.spools = load_json(SPOOLS_FILE, [])
+                self.app.verify_data_integrity()
+                self.app.apply_theme()
+                self.app.update_locations_dropdown()
+                self.app.update_spool_dropdown()
+                self.app.clear_inputs()
+                self.app.refresh_table()
+                
+                messagebox.showinfo("Erfolg", "Backup erfolgreich geladen! Deine Daten sind wieder da.", parent=self.app.root)
+                self.destroy()
+            except Exception as e:
+                messagebox.showerror("Fehler", f"Import fehlgeschlagen:\n{e}", parent=self)
 
 # --- MAIN APP ---
 class FilamentApp:
@@ -494,6 +538,8 @@ class FilamentApp:
         
         # --- RECHTE BUTTONS ---
         ttk.Button(top_bar, text="⚙ Einstellungen", command=self.open_settings).pack(side="right", padx=5)
+        # NEU: BACKUP BUTTON
+        ttk.Button(top_bar, text="💾 Backup", command=self.open_backup).pack(side="right", padx=5)
         ttk.Button(top_bar, text="ℹ️ Infos", command=self.show_info).pack(side="right", padx=5)
         ttk.Button(top_bar, text="☕ Spenden", command=self.open_paypal).pack(side="right", padx=5)
         
@@ -533,7 +579,6 @@ class FilamentApp:
 
         ttk.Separator(input_frame, orient="horizontal").grid(row=5, column=0, columnspan=2, sticky="ew", pady=10)
 
-        # SPULEN & GEWICHT
         ttk.Label(input_frame, text="Spule:").grid(row=6, column=0, sticky="w", pady=5)
         self.combo_spool = ttk.Combobox(input_frame, state="readonly", font=FONT_MAIN)
         self.combo_spool.grid(row=6, column=1, sticky="ew", pady=2)
@@ -551,7 +596,6 @@ class FilamentApp:
 
         ttk.Separator(input_frame, orient="horizontal").grid(row=10, column=0, columnspan=2, sticky="ew", pady=10)
 
-        # KALIBRIERUNG
         ttk.Label(input_frame, text="Flow Ratio:").grid(row=11, column=0, sticky="w", pady=5)
         flow_frame = ttk.Frame(input_frame)
         flow_frame.grid(row=11, column=1, sticky="ew", pady=2)
@@ -565,7 +609,6 @@ class FilamentApp:
 
         ttk.Separator(input_frame, orient="horizontal").grid(row=13, column=0, columnspan=2, sticky="ew", pady=10)
 
-        # ORT
         ttk.Label(input_frame, text="Lagerort:").grid(row=14, column=0, sticky="w", pady=5)
         self.combo_type = ttk.Combobox(input_frame, state="readonly", font=FONT_MAIN)
         self.combo_type.grid(row=14, column=1, sticky="ew", pady=2)
@@ -578,7 +621,6 @@ class FilamentApp:
         self.var_reorder = tk.BooleanVar()
         ttk.Checkbutton(input_frame, text="Nachbestellen!", variable=self.var_reorder).grid(row=16, column=1, sticky="w", pady=(10,5))
 
-        # BUTTONS
         btn_frame = ttk.Frame(input_frame)
         btn_frame.grid(row=17, column=0, columnspan=2, pady=(15, 0), sticky="ew")
         ttk.Button(btn_frame, text="📦 Regal & AMS Ansicht", command=self.open_shelf_visualizer).pack(fill="x", pady=2)
@@ -645,12 +687,10 @@ class FilamentApp:
                 data = json.loads(response.read().decode())
                 latest_version = data.get("tag_name", "").replace("v", "")
                 
-                # Wenn Online-Version nicht mit lokaler übereinstimmt -> Update PopUp
                 if latest_version and latest_version != APP_VERSION:
-                    # GUI Updates müssen im Main-Thread ausgeführt werden
                     self.root.after(2000, lambda: self.show_update_prompt(latest_version, data.get("html_url")))
         except Exception:
-            pass # Fail silently (kein Internet oder falscher Repo-Name stört das Programm nicht)
+            pass 
 
     def show_update_prompt(self, latest_version, url):
         msg = f"Eine neue Version von VibeSpool ({latest_version}) ist verfügbar!\nDeine Version: {APP_VERSION}\n\nMöchtest du zur Download-Seite gehen?"
@@ -735,6 +775,9 @@ class FilamentApp:
             "Erstellt von Florian Franck via Vibecoding"
         )
         messagebox.showinfo("Über das Programm", info_text)
+
+    def open_backup(self):
+        BackupDialog(self.root, self)
 
     def open_spool_manager(self):
         def on_close():

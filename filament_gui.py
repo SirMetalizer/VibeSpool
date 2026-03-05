@@ -711,6 +711,7 @@ class FilamentApp:
         colors = get_colors_from_text(text)
         self.current_color_icon = create_color_icon(colors, (30, 20), "#888888")
         self.lbl_color_preview.config(image=self.current_color_icon)
+        self.lbl_color_preview.image = self.current_color_icon
 
     def open_paypal(self):
         msg = (

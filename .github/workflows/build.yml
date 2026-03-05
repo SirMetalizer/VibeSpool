@@ -5,6 +5,10 @@ on:
     types: [published]
   workflow_dispatch: # Erlaubt den manuellen Start über einen Button!
 
+# WICHTIG: Erlaubt dem Bot, Dateien direkt ins Release hochzuladen
+permissions:
+  contents: write 
+
 jobs:
   build:
     runs-on: ${{ matrix.os }}
@@ -37,16 +41,29 @@ jobs:
         cd dist
         zip -r VibeSpool_Mac.zip VibeSpool_Mac.app
 
-    - name: Windows EXE hochladen
+    - name: Windows EXE als Artifact sichern
       if: matrix.os == 'windows-latest'
       uses: actions/upload-artifact@v4
       with:
         name: VibeSpool-Windows
         path: dist/VibeSpool_Win.exe
 
-    - name: Mac ZIP hochladen
+    - name: Mac ZIP als Artifact sichern
       if: matrix.os == 'macos-latest'
       uses: actions/upload-artifact@v4
       with:
         name: VibeSpool-Mac
         path: dist/VibeSpool_Mac.zip
+
+    # --- DIE MAGIE: AUTO-UPLOAD INS RELEASE ---
+    - name: EXE an Release anhängen (Windows)
+      if: github.event_name == 'release' && matrix.os == 'windows-latest'
+      uses: softprops/action-gh-release@v2
+      with:
+        files: dist/VibeSpool_Win.exe
+
+    - name: ZIP an Release anhängen (Mac)
+      if: github.event_name == 'release' && matrix.os == 'macos-latest'
+      uses: softprops/action-gh-release@v2
+      with:
+        files: dist/VibeSpool_Mac.zip

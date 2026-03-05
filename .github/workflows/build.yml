@@ -3,6 +3,7 @@ name: Build VibeSpool Apps
 on:
   release:
     types: [published]
+  workflow_dispatch: # Erlaubt den manuellen Start über einen Button!
 
 jobs:
   build:
@@ -29,14 +30,23 @@ jobs:
       if: matrix.os == 'windows-latest'
       run: pyinstaller --noconsole --windowed --onefile --name "VibeSpool_Win" filament_gui.py
 
-    - name: APP bauen (Mac)
+    - name: APP bauen und zippen (Mac)
       if: matrix.os == 'macos-latest'
-      run: pyinstaller --noconsole --windowed --name "VibeSpool_Mac" filament_gui.py
+      run: |
+        pyinstaller --noconsole --windowed --name "VibeSpool_Mac" filament_gui.py
+        cd dist
+        zip -r VibeSpool_Mac.zip VibeSpool_Mac.app
 
-    - name: Dateien hochladen
+    - name: Windows EXE hochladen
+      if: matrix.os == 'windows-latest'
       uses: actions/upload-artifact@v4
       with:
-        name: VibeSpool-${{ matrix.os }}
-        path: |
-          dist/*.exe
-          dist/*.app
+        name: VibeSpool-Windows
+        path: dist/VibeSpool_Win.exe
+
+    - name: Mac ZIP hochladen
+      if: matrix.os == 'macos-latest'
+      uses: actions/upload-artifact@v4
+      with:
+        name: VibeSpool-Mac
+        path: dist/VibeSpool_Mac.zip

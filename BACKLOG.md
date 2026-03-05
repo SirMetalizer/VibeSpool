@@ -1,34 +1,19 @@
-### 📋 Das VibeSpool Projekt-Backlog (Version 1.4+)
+📋 Das VibeSpool Projekt-Backlog (Stand nach v1.4)
 
-#### 🛒 1. ERP- & Material-Daten (Das kaufmännische Update)
+🔄 1. Workflow & Handling (Als Nächstes?)
+Spulen-Swap (AMS <-> Regal): Ein "Tauschen"-Button. Wenn man eine Rolle aus dem Regal ins AMS legt und umgekehrt, tauschen die beiden Einträge per Klick ihre Lagerorte/Slots, ohne dass man beide einzeln umtippen muss.
 
-* **Neue Datenfelder:** Jedes Filament bekommt Felder für **Lieferant**, **Artikelnummer (SKU)**, **Preis pro Rolle**, **Shop-Link** sowie **Drucktemperaturen** (Nozzle & Druckbett).
-* **Einkaufsliste (Dashboard):** Eine eigene Übersichtsseite für alle Filamente, die auf "Nachbestellen" oder "Verbraucht" stehen.
-* **Export-Funktion:** Diese Einkaufsliste mit einem Klick als Excel/CSV exportieren, um sie schnell beim Händler abzuarbeiten.
+📷 2. Scanner & QR-Code Features
+Lesbare QR-Codes: Der generierte QR-Code soll einen lesbaren Satz (z. B. ID: 1 | YUANEANG | PLA | Black/Red) fürs Handy enthalten, statt nur die nackte Zahl.
 
-#### 🏢 2. Erweiterte Lagerverwaltung
+Intelligentes Quick-ID-Feld: Das Suchfeld muss umprogrammiert werden, damit es die ID automatisch aus diesen neuen, langen Sätzen herausfiltert (für Hardware-Handscanner am PC).
 
-* **Multi-Regal-System:** Statt nur einem festen Regal können Nutzer beliebig viele Regale anlegen (z. B. "Regal Keller", "Büro") und für jedes ein eigenes Raster definieren.
-* **Spulen-Swap (AMS <-> Regal):** Ein Button, um zwei Rollen schnell ihre Plätze tauschen zu lassen.
-* **Logistik-Standard & Custom-Namen (NEU):** Option in den Einstellungen, ob Fächer von oben nach unten oder von unten nach oben (Logistik-Standard) gezählt werden. Zudem können die Wörter "Fach" und "Slot" umbenannt werden (z. B. in "Ebene" und "Platz").
+Webcam-Integration: Ein Button in der App, der die PC-Webcam aktiviert, um QR-Codes direkt am Bildschirm scannen zu können (ohne extra Hardware-Scanner).
 
-#### 🎨 3. UI, Bugfixes & Quality of Life
+🧮 3. Tools & Rechner
+Druckkosten-Rechner: Ein eingebautes Tool. Man wählt eine Rolle aus dem Bestand, tippt die Gramm-Zahl und Druckzeit aus dem Slicer ein, und das Programm berechnet die exakten Druckkosten (inklusive Strompreis-Kalkulation).
 
-* **Multi-Monitor Fix:** Unterfenster (wie die Regal-Ansicht) sollen sich nicht mehr auf zufälligen Monitoren öffnen, sondern immer zentriert direkt über dem Hauptfenster.
-* **Farb-Eingabe als Dropdown:** Das Farbfeld wird zu einem Dropdown mit Standard-Vorgaben, bleibt aber für eigene Namen (z.B. "Black/Red") frei beschreibbar.
-* **Multi-Color Vorschau-Fix:** Das Vorschau-Kästchen neben der Farbeingabe soll – genau wie die Tabelle – mehrfarbig geteilt sein, wenn man z.B. "Black/Red" eintippt.
+📱 4. Plattformen / IoT (Zukunftsmusik)
+Web-App / Mobile Nutzung: VibeSpool als lokalen "Server" (Flask) aufsetzen, damit man mit dem Smartphone-Browser darauf zugreifen kann.
 
-#### 📷 4. Scanner & QR-Code Features
-
-* **Lesbare QR-Codes:** QR-Codes enthalten einen lesbaren Satz (z. B. `ID: 1 | YUANEANG | PLA | Black/Red`) fürs Handy.
-* **Intelligentes Quick-ID-Feld:** Das Suchfeld filtert die ID automatisch aus gescannten Sätzen heraus.
-* **Webcam-Integration:** QR-Codes direkt über die PC-Webcam scannen.
-
-#### 🧮 5. Tools & Rechner
-
-* **Druckkosten-Rechner:** Berechnung der exakten Druckkosten (inkl. Strom) basierend auf Slicer-Daten und hinterlegtem Rollenpreis.
-
-#### 📱 6. Plattformen / IoT
-
-* **Web-App / Mobile Nutzung**
-* **IoT Smart-Scale (WLAN-Waage)**
+IoT Smart-Scale: Schnittstelle für eine WLAN-Waage mit Kamera (ESP32 + HX711). Rolle draufstellen -> automatisch scannen -> VibeSpool aktualisiert das Gewicht.

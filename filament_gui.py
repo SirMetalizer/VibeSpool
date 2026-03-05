@@ -17,7 +17,20 @@ GITHUB_REPO = "SirMetalizer/VibeSpool"
 
 # --- SICHERER SPEICHERORT FÜR EXE & MAC APP ---
 USER_HOME = os.path.expanduser("~")
-BASE_DIR = os.path.join(USER_HOME, "Documents", "VibeSpool")
+BASE_DIR = os.path.join(USER_HOME, "VibeSpool_Daten") # Absoluter Fallback
+
+# Wir suchen den "echten" Dokumente-Ordner (beachtet OneDrive und deutsche Windows-Versionen)
+possible_docs = [
+    os.path.join(USER_HOME, "OneDrive", "Documents"),
+    os.path.join(USER_HOME, "OneDrive", "Dokumente"),
+    os.path.join(USER_HOME, "Documents"),
+    os.path.join(USER_HOME, "Dokumente")
+]
+
+for path in possible_docs:
+    if os.path.exists(path):
+        BASE_DIR = os.path.join(path, "VibeSpool")
+        break
 
 if not os.path.exists(BASE_DIR):
     os.makedirs(BASE_DIR)
@@ -26,7 +39,7 @@ DATA_FILE = os.path.join(BASE_DIR, "inventory.json")
 SETTINGS_FILE = os.path.join(BASE_DIR, "settings.json")
 SPOOLS_FILE = os.path.join(BASE_DIR, "spools.json")
 
-# Migration: Falls alte Dateien noch im selben Ordner liegen, kopiere sie in die Dokumente
+# Migration: Falls alte Dateien noch im selben Ordner liegen, kopiere sie in den neuen Ordner
 if os.path.exists("inventory.json") and not os.path.exists(DATA_FILE):
     try:
         shutil.copy("inventory.json", DATA_FILE)

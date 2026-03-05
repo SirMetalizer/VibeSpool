@@ -10,10 +10,11 @@
 
 * **Multi-Regal-System:** Statt nur einem festen Regal können Nutzer beliebig viele Regale anlegen (z. B. "Regal Keller", "Büro") und für jedes ein eigenes Raster definieren.
 * **Spulen-Swap (AMS <-> Regal):** Ein Button, um zwei Rollen schnell ihre Plätze tauschen zu lassen.
+* **Logistik-Standard & Custom-Namen (NEU):** Option in den Einstellungen, ob Fächer von oben nach unten oder von unten nach oben (Logistik-Standard) gezählt werden. Zudem können die Wörter "Fach" und "Slot" umbenannt werden (z. B. in "Ebene" und "Platz").
 
 #### 🎨 3. UI, Bugfixes & Quality of Life
 
-* **Multi-Monitor Fix (NEU):** Unterfenster (wie die Regal-Ansicht) sollen sich nicht mehr auf zufälligen Monitoren öffnen, sondern immer zentriert direkt über dem Hauptfenster.
+* **Multi-Monitor Fix:** Unterfenster (wie die Regal-Ansicht) sollen sich nicht mehr auf zufälligen Monitoren öffnen, sondern immer zentriert direkt über dem Hauptfenster.
 * **Farb-Eingabe als Dropdown:** Das Farbfeld wird zu einem Dropdown mit Standard-Vorgaben, bleibt aber für eigene Namen (z.B. "Black/Red") frei beschreibbar.
 * **Multi-Color Vorschau-Fix:** Das Vorschau-Kästchen neben der Farbeingabe soll – genau wie die Tabelle – mehrfarbig geteilt sein, wenn man z.B. "Black/Red" eintippt.
 

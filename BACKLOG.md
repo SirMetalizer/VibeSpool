@@ -1,34 +1,31 @@
-### 📋 Das VibeSpool Projekt-Backlog (Version 1.4+)
+### 📋 Das aktualisierte VibeSpool Backlog (Version 1.4+)
 
 #### 🛒 1. ERP- & Material-Daten (Das kaufmännische Update)
 
 * **Neue Datenfelder:** Jedes Filament bekommt Felder für **Lieferant**, **Artikelnummer (SKU)**, **Preis pro Rolle**, **Shop-Link** sowie **Drucktemperaturen** (Nozzle & Druckbett).
-* **Einkaufsliste (Dashboard):** Eine eigene Übersichtsseite für alle Filamente, die auf "Nachbestellen" oder "Verbraucht" stehen.
-* **Export-Funktion:** Diese Einkaufsliste mit einem Klick als Excel/CSV exportieren, um sie schnell beim Händler abzuarbeiten.
+* **Einkaufsliste (Dashboard):** Übersichtsseite für alle Filamente auf "Nachbestellen". Exportierbar als Excel/CSV.
 
 #### 🏢 2. Erweiterte Lagerverwaltung
 
-* **Multi-Regal-System:** Statt nur einem festen Regal können Nutzer in den Einstellungen beliebig viele Regale anlegen (z. B. "Regal Keller", "Regal Büro") und für jedes Regal ein eigenes Raster (Reihen x Spalten) definieren.
-* **Spulen-Swap (AMS <-> Regal):** Ein "Tauschen"-Button. Wenn man eine Rolle aus dem Regal ins AMS legt und umgekehrt, tauschen die beiden Einträge per Klick ihre Lagerorte/Slots.
+* **Multi-Regal-System:** Statt nur einem festen Regal können Nutzer beliebig viele Regale anlegen (z. B. "Regal Keller", "Büro") und für jedes ein eigenes Raster definieren.
+* **Spulen-Swap (AMS <-> Regal):** Ein Button, um zwei Rollen schnell ihre Plätze tauschen zu lassen.
 
-#### 🎨 3. UI, Bugfixes & Quality of Life (NEU)
+#### 🎨 3. UI, Bugfixes & Quality of Life
 
-* **Multi-Color Vorschau-Fix:** Das Vorschau-Kästchen neben der Farbeingabe (z.B. "Black/Red") soll nicht nur die erste Farbe anzeigen, sondern – genau wie die Tabelle – mehrfarbig geteilt sein.
+* **Farb-Eingabe als Dropdown (NEU):** Das Farbfeld wird zu einem Dropdown mit Standard-Vorgaben, bleibt aber für eigene Namen (z.B. "Black/Red") frei beschreibbar.
+* **Multi-Color Vorschau-Fix:** Das Vorschau-Kästchen neben der Farbeingabe soll – genau wie die Tabelle – mehrfarbig geteilt sein, wenn man z.B. "Black/Red" eintippt.
 
 #### 📷 4. Scanner & QR-Code Features
 
-* **Lesbare QR-Codes (Fürs Handy):** Der generierte QR-Code enthält nicht mehr nur die reine ID, sondern einen für den Menschen lesbaren Satz (z. B. `ID: 1 | YUANEANG | PLA | Black/Red`).
-* **Intelligentes Quick-ID-Feld:** Das Suchfeld in der App durchsucht gescannte Sätze automatisch nach der ID, damit Hardware-Handscanner am PC weiterhin problemlos funktionieren.
-* **Webcam-Integration:** Ein Button in der App, der die PC-Webcam aktiviert, um den QR-Code direkt am Bildschirm scannen zu können.
+* **Lesbare QR-Codes:** QR-Codes enthalten einen lesbaren Satz (z. B. `ID: 1 | YUANEANG | PLA | Black/Red`) fürs Handy.
+* **Intelligentes Quick-ID-Feld:** Das Suchfeld filtert die ID automatisch aus gescannten Sätzen heraus.
+* **Webcam-Integration:** QR-Codes direkt über die PC-Webcam scannen.
 
 #### 🧮 5. Tools & Rechner
 
-* **Druckkosten-Rechner:** Ein eingebautes Tool. Man wählt eine Rolle aus dem Bestand, tippt die Gramm-Zahl und Druckzeit aus dem Slicer ein, und das Programm berechnet die exakten Druckkosten (inkl. Strom).
+* **Druckkosten-Rechner:** Berechnung der exakten Druckkosten (inkl. Strom) basierend auf Slicer-Daten und hinterlegtem Rollenpreis.
 
-#### 📱 6. Plattformen & Mobile
+#### 📱 6. Plattformen / IoT
 
-* **Mobile Nutzung (Web-App):** Perspektivisch das Programm als lokalen "Server" umbauen, damit man am Smartphone-Browser darauf zugreifen kann, während man vor dem Regal steht.
-
-#### 🤖 7. Die "Industrie 4.0" Hardware-Vision
-
-* **IoT Smart-Scale:** Schnittstelle für eine selbstgebaute WLAN-Waage mit Kamera (ESP32 + HX711). Rolle draufstellen -> automatisch scannen -> VibeSpool aktualisiert das Gewicht.
+* **Web-App / Mobile Nutzung**
+* **IoT Smart-Scale (WLAN-Waage)**

@@ -55,7 +55,6 @@ jobs:
         name: VibeSpool-Mac
         path: dist/VibeSpool_Mac.zip
 
-    # --- DIE MAGIE: AUTO-UPLOAD INS RELEASE ---
     - name: EXE an Release anhängen (Windows)
       if: github.event_name == 'release' && matrix.os == 'windows-latest'
       uses: softprops/action-gh-release@v2

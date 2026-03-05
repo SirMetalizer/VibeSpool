@@ -1,9 +1,10 @@
-### 📋 Das aktualisierte VibeSpool Backlog (Version 1.4+)
+### 📋 Das VibeSpool Projekt-Backlog (Version 1.4+)
 
 #### 🛒 1. ERP- & Material-Daten (Das kaufmännische Update)
 
 * **Neue Datenfelder:** Jedes Filament bekommt Felder für **Lieferant**, **Artikelnummer (SKU)**, **Preis pro Rolle**, **Shop-Link** sowie **Drucktemperaturen** (Nozzle & Druckbett).
-* **Einkaufsliste (Dashboard):** Übersichtsseite für alle Filamente auf "Nachbestellen". Exportierbar als Excel/CSV.
+* **Einkaufsliste (Dashboard):** Eine eigene Übersichtsseite für alle Filamente, die auf "Nachbestellen" oder "Verbraucht" stehen.
+* **Export-Funktion:** Diese Einkaufsliste mit einem Klick als Excel/CSV exportieren, um sie schnell beim Händler abzuarbeiten.
 
 #### 🏢 2. Erweiterte Lagerverwaltung
 
@@ -12,7 +13,8 @@
 
 #### 🎨 3. UI, Bugfixes & Quality of Life
 
-* **Farb-Eingabe als Dropdown (NEU):** Das Farbfeld wird zu einem Dropdown mit Standard-Vorgaben, bleibt aber für eigene Namen (z.B. "Black/Red") frei beschreibbar.
+* **Multi-Monitor Fix (NEU):** Unterfenster (wie die Regal-Ansicht) sollen sich nicht mehr auf zufälligen Monitoren öffnen, sondern immer zentriert direkt über dem Hauptfenster.
+* **Farb-Eingabe als Dropdown:** Das Farbfeld wird zu einem Dropdown mit Standard-Vorgaben, bleibt aber für eigene Namen (z.B. "Black/Red") frei beschreibbar.
 * **Multi-Color Vorschau-Fix:** Das Vorschau-Kästchen neben der Farbeingabe soll – genau wie die Tabelle – mehrfarbig geteilt sein, wenn man z.B. "Black/Red" eintippt.
 
 #### 📷 4. Scanner & QR-Code Features

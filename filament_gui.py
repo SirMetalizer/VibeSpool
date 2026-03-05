@@ -232,8 +232,9 @@ class SettingsDialog(tk.Toplevel):
     def __init__(self, parent, current_settings, on_save):
         super().__init__(parent)
         self.on_save = on_save
+        self.current_settings = current_settings # <--- WICHTIG: Alte Settings im Gedächtnis behalten!
         self.title("Einstellungen & Lagerorte")
-        self.geometry("500x600") # Etwas höher für den neuen Button
+        self.geometry("500x600")
         self.configure(bg=parent.cget('bg'))
         center_window(self, parent)
         
@@ -267,7 +268,6 @@ class SettingsDialog(tk.Toplevel):
         self.ent_custom.insert(0, current_settings.get("custom_locs", "Filamenttrockner"))
         self.ent_custom.grid(row=6, column=1, sticky="ew", pady=5)
         
-        # --- NEU: AFFILIATE EINSTELLUNG ---
         ttk.Separator(frm, orient="horizontal").grid(row=7, column=0, columnspan=2, sticky="ew", pady=15)
         self.var_affiliate = tk.BooleanVar(value=current_settings.get("use_affiliate", True))
         ttk.Checkbutton(frm, text="Entwickler mit Affiliate-Links unterstützen", variable=self.var_affiliate).grid(row=8, column=0, columnspan=2, sticky="w")
@@ -277,16 +277,16 @@ class SettingsDialog(tk.Toplevel):
 
     def save(self):
         try:
-            new_s = {
-                "shelves": self.ent_shelves.get().strip(),
-                "logistics_order": self.var_logistics.get(),
-                "label_row": self.ent_lbl_row.get().strip() or "Fach",
-                "label_col": self.ent_lbl_col.get().strip() or "Slot",
-                "num_ams": int(self.ent_ams.get()),
-                "custom_locs": self.ent_custom.get().strip(),
-                "use_affiliate": self.var_affiliate.get() # <--- NEU
-            }
-            self.on_save(new_s)
+            # --- WICHTIG: Hier aktualisieren wir die alten Settings, statt sie zu überschreiben ---
+            self.current_settings["shelves"] = self.ent_shelves.get().strip()
+            self.current_settings["logistics_order"] = self.var_logistics.get()
+            self.current_settings["label_row"] = self.ent_lbl_row.get().strip() or "Fach"
+            self.current_settings["label_col"] = self.ent_lbl_col.get().strip() or "Slot"
+            self.current_settings["num_ams"] = int(self.ent_ams.get())
+            self.current_settings["custom_locs"] = self.ent_custom.get().strip()
+            self.current_settings["use_affiliate"] = self.var_affiliate.get()
+            
+            self.on_save(self.current_settings)
             self.destroy()
         except: messagebox.showerror("Fehler", "Bitte bei AMS nur Zahlen eingeben.")
 

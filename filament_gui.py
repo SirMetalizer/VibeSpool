@@ -14,7 +14,7 @@ from PIL import Image, ImageTk, ImageDraw
 import qrcode 
 
 # --- KONFIGURATION & UPDATE CHECKER ---
-APP_VERSION = "1.4"
+APP_VERSION = "1.4.2"
 GITHUB_REPO = "SirMetalizer/VibeSpool" 
 
 # --- SICHERER SPEICHERORT FÜR EXE & MAC APP ---

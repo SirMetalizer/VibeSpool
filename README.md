@@ -2,7 +2,7 @@
 
 Willkommen bei **VibeSpool**! Dieses Tool hilft dir dabei, den ultimativen Überblick über all deine 3D-Druck Filamente zu behalten. Egal ob im Regal, im AMS oder in der Trockenbox – mit VibeSpool weißt du immer genau, wie viel Restgewicht auf welcher Spule ist und wo sie sich gerade befindet.
 
-![VibeSpool Screenshot](https://via.placeholder.com/800x450.png?text=Hier+kannst+du+später+einen+Screenshot+deiner+Software+einfügen)
+![VibeSpool Screenshot](https://metalizer.de/Vibespool.jpg)
 
 ## ✨ Die wichtigsten Features
 

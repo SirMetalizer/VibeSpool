@@ -11,6 +11,7 @@ import re
 import csv
 from ctypes import windll
 from PIL import Image, ImageTk, ImageDraw
+from datetime import datetime, timedelta
 import qrcode 
 
 # --- KONFIGURATION & UPDATE CHECKER ---
@@ -272,7 +273,12 @@ class SettingsDialog(tk.Toplevel):
         self.var_affiliate = tk.BooleanVar(value=current_settings.get("use_affiliate", True))
         ttk.Checkbutton(frm, text="Entwickler mit Affiliate-Links unterstützen", variable=self.var_affiliate).grid(row=8, column=0, columnspan=2, sticky="w")
         ttk.Label(frm, text="(Fügt in der Einkaufsliste automatisch einen Partner-Code\nbei Bambu Lab Links hinzu. Kostet dich keinen Cent!)", font=("Segoe UI", 8)).grid(row=9, column=0, columnspan=2, sticky="w", padx=20)
+        ttk.Separator(frm, orient="horizontal").grid(row=10, column=0, columnspan=2, sticky="ew", pady=15)
+        def open_github():
+            import webbrowser
+            webbrowser.open("https://github.com/SirMetalizer/VibeSpool/releases/latest")
             
+        ttk.Button(frm, text="🌐 VibeSpool auf GitHub besuchen", command=open_github).grid(row=11, column=0, columnspan=2, pady=5)
         ttk.Button(self, text="Speichern", command=self.save).pack(pady=20, fill="x", padx=20)
 
     def save(self):
@@ -724,23 +730,42 @@ class FilamentApp:
             webbrowser.open("https://paypal.me/florianfranck")
 
     def check_for_updates(self):
-        try:
-            url = f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest"
-            req = urllib.request.Request(url, headers={'User-Agent': 'VibeSpool-App'})
-            with urllib.request.urlopen(req, timeout=3) as response:
-                data = json.loads(response.read().decode())
-                latest = data.get("tag_name", "").replace("v", "")
-                
-                # DER DOWNGRADE-FIX: Echter Versionsnummern-Vergleich
-                if latest:
-                    l_parts = [int(x) for x in latest.split(".") if x.isdigit()]
-                    c_parts = [int(x) for x in APP_VERSION.split(".") if x.isdigit()]
-                    if l_parts > c_parts:
-                        self.root.after(2000, lambda: self.show_update_prompt(latest, data.get("html_url")))
-        except: pass 
+        snooze_str = self.settings.get("update_snoozed_until", "")
+        if snooze_str:
+            try:
+                snooze_date = datetime.fromisoformat(snooze_str)
+                if datetime.now() < snooze_date:
+                    return 
+            except:
+                pass
 
-    def show_update_prompt(self, latest, url):
-        if messagebox.askyesno("Update", f"Neue Version ({latest}) verfügbar!\nZur Download-Seite?"): webbrowser.open(url)
+    def show_update_prompt(self, latest_version, download_url):
+        upd_win = tk.Toplevel(self.root)
+        upd_win.title("VibeSpool Update")
+        upd_win.geometry("400x150")
+        upd_win.attributes('-topmost', True) # Bleibt immer im Vordergrund
+        center_window(upd_win, self.root)
+
+        ttk.Label(upd_win, text=f"Version {latest_version} ist verfügbar!", font=("Segoe UI", 12, "bold")).pack(pady=10)
+        ttk.Label(upd_win, text="Möchtest du das Update jetzt herunterladen?").pack(pady=5)
+
+        def open_update():
+            import webbrowser
+            webbrowser.open(download_url)
+            upd_win.destroy()
+
+        def snooze_update():
+            snooze_date = datetime.now() + timedelta(days=30)
+            self.settings["update_snoozed_until"] = snooze_date.isoformat()
+            self.save_settings() 
+            upd_win.destroy()
+
+        btn_frame = ttk.Frame(upd_win)
+        btn_frame.pack(pady=10)
+        
+        ttk.Button(btn_frame, text="Jetzt laden", command=open_update).pack(side="left", padx=5)
+        ttk.Button(btn_frame, text="Für 1 Monat pausieren", command=snooze_update).pack(side="left", padx=5)
+        ttk.Button(btn_frame, text="Später", command=upd_win.destroy).pack(side="left", padx=5)
 
     def on_closing(self):
         self.settings["geometry"] = self.root.geometry(); save_json(SETTINGS_FILE, self.settings); self.root.destroy()

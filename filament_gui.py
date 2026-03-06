@@ -14,7 +14,7 @@ from PIL import Image, ImageTk, ImageDraw
 import qrcode 
 
 # --- KONFIGURATION & UPDATE CHECKER ---
-APP_VERSION = "1.4.3"
+APP_VERSION = "1.4.5"
 GITHUB_REPO = "SirMetalizer/VibeSpool" 
 
 # --- SICHERER SPEICHERORT FÜR EXE & MAC APP ---
@@ -246,7 +246,7 @@ class SettingsDialog(tk.Toplevel):
         self.ent_shelves = ttk.Entry(frm, width=30)
         self.ent_shelves.insert(0, current_settings.get("shelves", "REGAL|4|8"))
         self.ent_shelves.grid(row=0, column=1, pady=5, sticky="w")
-        ttk.Label(frm, text="Kommagetrennt für mehrere!").grid(row=1, column=1, sticky="w")
+        ttk.Label(frm, text="Kommagetrennt für mehrere!\nBeispiel: REGAL|4|8, REGAL NEU|6|12").grid(row=1, column=1, sticky="w", pady=(0, 5))
         
         self.var_logistics = tk.BooleanVar(value=current_settings.get("logistics_order", False))
         ttk.Checkbutton(frm, text="Logistik-Standard (Zählung von unten nach oben)", variable=self.var_logistics).grid(row=2, column=0, columnspan=2, sticky="w", pady=10)
@@ -832,10 +832,22 @@ class FilamentApp:
     def treeview_sort_column(self, col, reverse):
         def sort_key(item):
             val = item.get(col, "")
-            if col == "location": return f"{item['type']}_{str(item['loc_id']).zfill(3)}"
-            if col == "weight": return self.calculate_net_weight(item)
-            if col == "id": return int(val)
-            return str(val).lower()
+            
+            # Spezielle Sortierung für das Gewicht
+            if col == "weight": 
+                return self.calculate_net_weight(item)
+                
+            # Spezielle Sortierung für reine ID-Zahlen
+            if col == "id": 
+                return int(val)
+                
+            # NATÜRLICHE SORTIERUNG für Orte (damit 2 vor 10 kommt)
+            if col == "location": 
+                val = f"{item.get('type', '')}_{item.get('loc_id', '')}"
+                
+            # Magischer Trick: Zerteilt den Text in Wörter und echte Zahlen
+            return [int(c) if c.isdigit() else c.lower() for c in re.split(r'(\d+)', str(val))]
+            
         self.inventory.sort(key=sort_key, reverse=reverse)
         self.tree.heading(col, command=lambda: self.treeview_sort_column(col, not reverse))
         self.refresh_table()

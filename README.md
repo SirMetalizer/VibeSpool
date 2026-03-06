@@ -34,9 +34,11 @@ Möchtest du am Code mitbasteln? Sehr gerne! Das Projekt ist in Python mit `Tkin
 3. Starte das Programm:
 python filament_gui.py
 
-❤️ Unterstützung & Affiliate
+## ❤️ Unterstützung & Affiliate
+
 VibeSpool ist zu 100 % kostenlos. In den Einstellungen der App kannst du optional die Funktion "Entwickler mit Affiliate-Links unterstützen" aktivieren. Dies fügt bei Links zum Bambu Lab Shop automatisch einen Partner-Code an. Das kostet dich keinen Cent extra, hilft aber enorm bei der Weiterentwicklung dieses Tools!
 
-🐛 Bugs & Feedback
+## 🐛 Bugs & Feedback
+
 Du hast einen Fehler gefunden oder eine Idee für ein neues Feature?
 Erstelle gerne einen neuen Eintrag im Reiter **[Issues](https://github.com/SirMetalizer/VibeSpool/issues)** hier auf GitHub!

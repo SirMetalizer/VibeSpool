@@ -1,6 +1,6 @@
 ### 📋 Das VibeSpool Projekt-Backlog (Roadmap für kommende Versionen)
 
-#### 🌟 1. Das "Community-Update" (Feedback von Patrick)
+#### 🌟 1. Das "Community-Update"
 
 * **Excel-Filter (Dropdowns):** Über der Haupttabelle kommen drei schicke Dropdown-Menüs hin (z. B. `[Alle Materialien]`, `[Alle Farben]`, `[Alle Orte]`), mit denen man die Liste mit einem Klick filtern kann wie in Excel.
 * **Erweiterte Regal-Ansicht:** In der grafischen Regal-Übersicht werden ganz unten auch alle "restlichen" Spulen (die in Kisten oder im Trockner liegen) übersichtlich in kleinen Boxen aufgelistet.

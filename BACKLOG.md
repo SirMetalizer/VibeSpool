@@ -1,30 +1,12 @@
-📋 Das VibeSpool Projekt-Backlog (Stand: Nach v1.4.5)
+🔄 1. Das Update-System (Fokus für v1.6)
 
-🌟 1. Das "Community-Update" (v1.5)
+* Update-Check scharfschalten: Die Hintergrund-Abfrage zu GitHub wieder einbauen, damit das Pop-up bei neuen Versionen auch wirklich erscheint.
+* Manueller "Update Check"-Button: Einen Knopf (z.B. in den Einstellungen oder oben in der Leiste) einbauen: "Nach Updates suchen", damit man nicht auf den automatischen Check warten muss.
+* Auto-Downloader (In-App Update): Das Programm lädt die neue .exe oder .zip automatisch im Hintergrund herunter und tauscht sie aus, anstatt den Nutzer nur auf die GitHub-Webseite zu leiten.
 
-* Tabellen-Zeilenhöhe (Fix): Abstand zwischen den Filamenten vergrößern, damit die Farben nicht kleben.
-* Excel-Filter (Dropdowns): Löst den kaputten Regal-Filter! Drei Dropdowns ([Material], [Farbe], [Ort]) über der Tabelle.
-* Freier Speicherort (Neu): In den Einstellungen einen eigenen Pfad für die Datenbank (.json / .db) festlegen können.
-* Füllmenge (Neu-Gewicht): Neues Eingabefeld für das Neu-Gewicht (z.B. 1000g).
-* Erweiterte Regal-Ansicht: Die grafische Übersicht zeigt unten auch "restliche" Spulen an.
+📱 2. Mobile & Hardware (Die Profi-Features)
+* Lokale Web-App (Handy / Tablet): Einen unsichtbaren Web-Server (z.B. mit Flask) in VibeSpool integrieren. Dann kann man am Tablet im Bastelkeller einfach die IP-Adresse des PCs eingeben und hat die Spulenübersicht im Touch-Format vor sich.
+* Scanner-Erweiterung: Möglichkeit, Barcodes oder die generierten QR-Codes entweder über eine Webcam oder einen USB-Handscanner direkt einzulesen, um Spulen sofort aufzurufen.
 
-🔄 2. Workflow & Handling
-
-* Spulen-Swap (AMS <-> Regal): Ein "Tauschen"-Button, um zwei Spulenplätze schnell zu tauschen.
-* 1-Klick Auto-Updater: Im Hintergrund laufendes Update-Skript, das die .exe vollautomatisch austauscht.
-
-📷 3. Scanner & QR-Code Features
-
-* Lesbare QR-Codes: Klartext (Marke, Farbe, Material) unter dem QR-Code auf dem Ausdruck.
-* Intelligentes Quick-ID-Feld: Filtert die reine ID automatisch aus den langen Handscanner-Texten heraus.
-* Webcam-Integration: QR-Codes direkt am PC-Bildschirm scannen.
-
-🧮 4. Tools & Rechner
-
-* Druckkosten-Rechner: Berechnet anhand von Restgewicht, Spulenpreis und Slicer-Daten die genauen Druckkosten.
-* Hex-Color-Picker: Eigene Spezialfarben exakt über einen Farbwähler definieren.
-
-📱 5. Plattformen / IoT (Zukunft)
-
-* Web-App / Mobile: Zugriff über den Smartphone-Browser im Heimnetzwerk.
-* IoT Smart-Scale: Schnittstelle für WLAN-Waagen (z. B. ESP32).
+💰 3. Finanzen & Auswertung
+* Druckkosten-Rechner: Wir haben durch das letzte Update jetzt das Neu-Gewicht (z.B. 1000g) und den Preis. Daraus können wir einen kleinen Rechner bauen: "Ich will 120g drucken. Was kostet mich das bei dieser Spule?" (Das Programm rechnet dann automatisch den Preis pro Gramm aus).

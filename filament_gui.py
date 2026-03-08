@@ -15,7 +15,7 @@ from datetime import datetime, timedelta
 import qrcode 
 
 # --- KONFIGURATION & UPDATE CHECKER ---
-APP_VERSION = "1.4.5"
+APP_VERSION = "1.5"
 GITHUB_REPO = "SirMetalizer/VibeSpool" 
 
 # --- SICHERER SPEICHERORT FÜR EXE & MAC APP ---
@@ -33,20 +33,43 @@ for path in possible_docs:
     if os.path.exists(path):
         BASE_DIR = os.path.join(path, "VibeSpool")
         break
+    if not os.path.exists(BASE_DIR):
+        os.makedirs(BASE_DIR)
 
-if not os.path.exists(BASE_DIR):
-    os.makedirs(BASE_DIR)
-
-DATA_FILE = os.path.join(BASE_DIR, "inventory.json")
+# Die Settings bleiben immer im Standard-Ordner, damit VibeSpool sie beim Start findet!
 SETTINGS_FILE = os.path.join(BASE_DIR, "settings.json")
-SPOOLS_FILE = os.path.join(BASE_DIR, "spools.json")
 
-if os.path.exists("inventory.json") and not os.path.exists(DATA_FILE):
+# --- NEU: Prüfen, ob ein eigener Speicherort eingestellt wurde ---
+_temp_set = {}
+if os.path.exists(SETTINGS_FILE):
     try:
-        shutil.copy("inventory.json", DATA_FILE)
-        if os.path.exists("settings.json"): shutil.copy("settings.json", SETTINGS_FILE)
-        if os.path.exists("spools.json"): shutil.copy("spools.json", SPOOLS_FILE)
+        with open(SETTINGS_FILE, "r", encoding="utf-8") as f: _temp_set = json.load(f)
     except: pass
+
+CUSTOM_DB_PATH = _temp_set.get("custom_db_path", "")
+if CUSTOM_DB_PATH and os.path.exists(CUSTOM_DB_PATH):
+    DATA_FILE = os.path.join(CUSTOM_DB_PATH, "inventory.json")
+    SPOOLS_FILE = os.path.join(CUSTOM_DB_PATH, "spools.json")
+else:
+    DATA_FILE = os.path.join(BASE_DIR, "inventory.json")
+    SPOOLS_FILE = os.path.join(BASE_DIR, "spools.json")
+
+# --- NEU: Automatischer Daten-Umzug! ---
+old_data = os.path.join(BASE_DIR, "inventory.json")
+if CUSTOM_DB_PATH and os.path.exists(old_data) and not os.path.exists(DATA_FILE):
+    try:
+        shutil.copy(old_data, DATA_FILE)
+        if os.path.exists(os.path.join(BASE_DIR, "spools.json")): 
+            shutil.copy(os.path.join(BASE_DIR, "spools.json"), SPOOLS_FILE)
+    except: pass
+
+    # (Dein alter Kompatibilitäts-Check für ganz alte Versionen)
+    if os.path.exists("inventory.json") and not os.path.exists(DATA_FILE) and not CUSTOM_DB_PATH:
+        try:
+            shutil.copy("inventory.json", DATA_FILE)
+            if os.path.exists("settings.json"): shutil.copy("settings.json", SETTINGS_FILE)
+            if os.path.exists("spools.json"): shutil.copy("spools.json", SPOOLS_FILE)
+        except: pass
 
 # --- DEFAULTS ---
 DEFAULT_SETTINGS = {
@@ -187,6 +210,7 @@ class SpoolManager(tk.Toplevel):
     def refresh_list(self):
         for item in self.tree.get_children(): self.tree.delete(item)
         for s in self.spools: self.tree.insert("", "end", iid=str(s['id']), values=(s['id'], s['name'], s['weight']))
+        self.on_close_callback()
 
     def on_select(self, event):
         sel = self.tree.selection()
@@ -233,9 +257,9 @@ class SettingsDialog(tk.Toplevel):
     def __init__(self, parent, current_settings, on_save):
         super().__init__(parent)
         self.on_save = on_save
-        self.current_settings = current_settings # <--- WICHTIG: Alte Settings im Gedächtnis behalten!
+        self.current_settings = current_settings
         self.title("Einstellungen & Lagerorte")
-        self.geometry("500x600")
+        self.geometry("500x680")
         self.configure(bg=parent.cget('bg'))
         center_window(self, parent)
         
@@ -269,16 +293,48 @@ class SettingsDialog(tk.Toplevel):
         self.ent_custom.insert(0, current_settings.get("custom_locs", "Filamenttrockner"))
         self.ent_custom.grid(row=6, column=1, sticky="ew", pady=5)
         
-        ttk.Separator(frm, orient="horizontal").grid(row=7, column=0, columnspan=2, sticky="ew", pady=15)
+        # --- NEU: Beispiel für Weitere Orte ---
+        ttk.Label(frm, text="Beispiel: Samla Box, Filamenttrockner, Keller").grid(row=7, column=1, sticky="w", pady=(0, 10))
+        
+        # --- NEU: Eigener Speicherort für die Datenbank ---
+        ttk.Label(frm, text="Datenbank-Ordner:").grid(row=8, column=0, sticky="nw", pady=5)
+        path_frm = ttk.Frame(frm)
+        path_frm.grid(row=8, column=1, sticky="ew", pady=5)
+        
+        show_path = current_settings.get("custom_db_path", "") or "Standard (Dokumente)"
+        self.lbl_path = ttk.Label(path_frm, text=show_path, font=("Segoe UI", 8, "italic"), wraplength=260)
+        self.lbl_path.pack(fill="x", pady=(0, 5))
+        
+        btn_path_frm = ttk.Frame(path_frm)
+        btn_path_frm.pack(fill="x")
+        
+        def choose_path():
+            d = filedialog.askdirectory(title="Neuen Speicherort für Datenbank wählen")
+            if d:
+                self.current_settings["custom_db_path"] = d
+                self.lbl_path.config(text=d)
+                messagebox.showinfo("Wichtig", "Der neue Pfad wird beim Speichern übernommen.\nBitte starte VibeSpool danach einmal neu!", parent=self)
+                
+        def reset_path():
+            self.current_settings["custom_db_path"] = ""
+            self.lbl_path.config(text="Standard (Dokumente)")
+            messagebox.showinfo("Wichtig", "Pfad wurde zurückgesetzt.\nBitte starte VibeSpool nach dem Speichern neu!", parent=self)
+                
+        ttk.Button(btn_path_frm, text="Ordner ändern", command=choose_path).pack(side="left", padx=(0, 5))
+        ttk.Button(btn_path_frm, text="Standard verwenden", command=reset_path).pack(side="left")
+        
+        ttk.Separator(frm, orient="horizontal").grid(row=9, column=0, columnspan=2, sticky="ew", pady=15)
         self.var_affiliate = tk.BooleanVar(value=current_settings.get("use_affiliate", True))
-        ttk.Checkbutton(frm, text="Entwickler mit Affiliate-Links unterstützen", variable=self.var_affiliate).grid(row=8, column=0, columnspan=2, sticky="w")
-        ttk.Label(frm, text="(Fügt in der Einkaufsliste automatisch einen Partner-Code\nbei Bambu Lab Links hinzu. Kostet dich keinen Cent!)", font=("Segoe UI", 8)).grid(row=9, column=0, columnspan=2, sticky="w", padx=20)
-        ttk.Separator(frm, orient="horizontal").grid(row=10, column=0, columnspan=2, sticky="ew", pady=15)
+        ttk.Checkbutton(frm, text="Entwickler mit Affiliate-Links unterstützen", variable=self.var_affiliate).grid(row=10, column=0, columnspan=2, sticky="w")
+        ttk.Label(frm, text="(Fügt in der Einkaufsliste automatisch einen Partner-Code\nbei Bambu Lab Links hinzu. Kostet dich keinen Cent!)", font=("Segoe UI", 8)).grid(row=11, column=0, columnspan=2, sticky="w", padx=20)
+        
+        ttk.Separator(frm, orient="horizontal").grid(row=12, column=0, columnspan=2, sticky="ew", pady=15)
+        
         def open_github():
             import webbrowser
             webbrowser.open("https://github.com/SirMetalizer/VibeSpool/releases/latest")
             
-        ttk.Button(frm, text="🌐 VibeSpool auf GitHub besuchen", command=open_github).grid(row=11, column=0, columnspan=2, pady=5)
+        ttk.Button(frm, text="🌐 VibeSpool auf GitHub besuchen", command=open_github).grid(row=13, column=0, columnspan=2, pady=5)
         ttk.Button(self, text="Speichern", command=self.save).pack(pady=20, fill="x", padx=20)
 
     def save(self):
@@ -312,13 +368,19 @@ class ShelfVisualizer(tk.Toplevel):
         
         self.shelf_data = {}
         self.ams_data = {}
+        self.other_data = {}
         for item in self.inventory:
             try:
                 t = str(item.get('type', ''))
                 loc = str(item.get('loc_id', ''))
                 if t in [s['name'] for s in self.parsed_shelves]:
                     self.shelf_data[f"{t}_{loc}"] = item
-                elif t.startswith("AMS"): self.ams_data[f"{t}_{loc}"] = item
+                elif t.startswith("AMS"): 
+                    self.ams_data[f"{t}_{loc}"] = item
+                elif t and t != "VERBRAUCHT": # <--- NEU: Sammelt alles, was nicht verbraucht ist!
+                    if t not in self.other_data:
+                        self.other_data[t] = []
+                    self.other_data[t].append(item)
             except: pass
 
         canvas = tk.Canvas(self, bg=parent.cget('bg'), highlightthickness=0)
@@ -365,6 +427,35 @@ class ShelfVisualizer(tk.Toplevel):
                 cont.pack(side="left", fill="y", expand=True, padx=10)
                 ttk.Label(cont, text=f"Slot {i}", foreground="white", background="#444444").pack(pady=(0, 5))
                 self.draw_slot(cont, str(i), item, True, 120, 100)
+# --- NEU: Weitere Lagerorte (Trockner, Kisten, Lager) zeichnen ---
+            if self.other_data:
+                ttk.Separator(pad, orient="horizontal").pack(fill="x", pady=20)
+                ttk.Label(pad, text="📦 Weitere Lagerorte & Kisten", font=("Segoe UI", 16, "bold")).pack(anchor="w", pady=(10, 5))
+                
+                for loc_name, items in self.other_data.items():
+                    ttk.Label(pad, text=loc_name, font=("Segoe UI", 12, "bold")).pack(anchor="w", pady=(10, 2))
+                    
+                    # Ein dunkler Rahmen für diese spezielle Kiste/Ort
+                    loc_frame = tk.Frame(pad, bg="#333333", padx=5, pady=5)
+                    loc_frame.pack(fill="x", pady=2, anchor="w")
+                    
+                    col_count = 0
+                    row_frame = tk.Frame(loc_frame, bg="#333333")
+                    row_frame.pack(fill="x", anchor="w")
+                    
+                    for item in items:
+                        # Maximal 10 Spulen pro Reihe, dann fangen wir eine neue Reihe an
+                        if col_count >= 10: 
+                            col_count = 0
+                            row_frame = tk.Frame(loc_frame, bg="#333333")
+                            row_frame.pack(fill="x", anchor="w", pady=(5,0))
+                        
+                        # Wenn kein Slot eingetragen ist, nennen wir es einfach "-"
+                        slot_name = item.get("loc_id", "") or "-"
+                        
+                        # Wir zeichnen die Spule (ein bisschen kleiner als im Regal, damit mehr hinpassen)
+                        self.draw_slot(row_frame, slot_name, item, False, 80, 70)
+                    col_count += 1
 
     def parse_shelves(self):
         self.parsed_shelves = []
@@ -556,6 +647,7 @@ class FilamentApp:
         self.style = ttk.Style()
         self.style.theme_use("clam")
         self.apply_theme()
+        self.style.configure("Treeview", rowheight=26)
 
         self.inventory = load_json(DATA_FILE, [])
         self.verify_data_integrity() 
@@ -567,12 +659,27 @@ class FilamentApp:
         self.search_var = tk.StringVar()
         self.search_var.trace_add("write", lambda name, index, mode: self.refresh_table())
         ttk.Entry(top_bar, textvariable=self.search_var, width=15).pack(side="left", padx=5)
-        
-        ttk.Label(top_bar, text=" Filter:").pack(side="left")
-        self.filter_var = tk.StringVar(value="ALL")
-        for mode in ["ALL", "REGAL", "AMS", "LAGER", "VERBRAUCHT"]:
-            ttk.Radiobutton(top_bar, text=mode if mode != "ALL" else "Alle", variable=self.filter_var, value=mode, command=self.refresh_table).pack(side="left", padx=2)
-            
+
+# --- NEUE EXCEL FILTER ---
+        self.filter_mat_var = tk.StringVar(value="Alle Materialien")
+        self.filter_color_var = tk.StringVar(value="Alle Farben")
+        self.filter_loc_var = tk.StringVar(value="Alle Orte")
+
+        self.combo_filter_mat = ttk.Combobox(top_bar, textvariable=self.filter_mat_var, state="readonly", width=15)
+        self.combo_filter_mat.pack(side="left", padx=5)
+        self.combo_filter_mat.bind("<<ComboboxSelected>>", lambda e: self.refresh_table())
+
+        self.combo_filter_color = ttk.Combobox(top_bar, textvariable=self.filter_color_var, state="readonly", width=15)
+        self.combo_filter_color.pack(side="left", padx=5)
+        self.combo_filter_color.bind("<<ComboboxSelected>>", lambda e: self.refresh_table())
+
+        self.combo_filter_loc = ttk.Combobox(top_bar, textvariable=self.filter_loc_var, state="readonly", width=15)
+        self.combo_filter_loc.pack(side="left", padx=5)
+        self.combo_filter_loc.bind("<<ComboboxSelected>>", lambda e: self.refresh_table())
+
+        ttk.Button(top_bar, text="🔄 Reset", command=self.reset_filters).pack(side="left", padx=5)        
+
+
         ttk.Label(top_bar, text=" Quick-ID:").pack(side="left", padx=(10,0))
         self.entry_scan = ttk.Entry(top_bar, width=8)
         self.entry_scan.pack(side="left", padx=5)
@@ -629,35 +736,40 @@ class FilamentApp:
         self.combo_subtype = ttk.Combobox(tab_basis, values=SUBTYPES, font=FONT_MAIN); self.combo_subtype.grid(row=4, column=1, sticky="ew", pady=2)
         
         ttk.Separator(tab_basis, orient="horizontal").grid(row=5, column=0, columnspan=2, sticky="ew", pady=10)
-        
+
         ttk.Label(tab_basis, text="Spule:").grid(row=6, column=0, sticky="w", pady=5)
         self.combo_spool = ttk.Combobox(tab_basis, state="readonly", font=FONT_MAIN)
         self.combo_spool.grid(row=6, column=1, sticky="ew", pady=2); self.combo_spool.bind("<<ComboboxSelected>>", self.update_net_weight_display)
         
-        ttk.Label(tab_basis, text="Brutto Gew.:").grid(row=7, column=0, sticky="w", pady=5)
-        self.entry_gross = ttk.Entry(tab_basis, font=FONT_MAIN); self.entry_gross.grid(row=7, column=1, sticky="ew", pady=2)
+        # --- NEU: Füllmenge (Neu-Gewicht) ---
+        ttk.Label(tab_basis, text="Original-Inhalt ohne Spule (g):").grid(row=7, column=0, sticky="w", pady=5)
+        self.entry_capacity = ttk.Entry(tab_basis, font=FONT_MAIN)
+        self.entry_capacity.grid(row=7, column=1, sticky="ew", pady=2)
+        
+        ttk.Label(tab_basis, text="Gewicht auf Waage:").grid(row=8, column=0, sticky="w", pady=5)
+        self.entry_gross = ttk.Entry(tab_basis, font=FONT_MAIN); self.entry_gross.grid(row=8, column=1, sticky="ew", pady=2)
         self.entry_gross.bind("<KeyRelease>", self.update_net_weight_display)
         
         self.lbl_net_weight = ttk.Label(tab_basis, text="Netto: 0 g", font=("Segoe UI", 9, "bold"), foreground=COLOR_ACCENT)
-        self.lbl_net_weight.grid(row=8, column=1, sticky="w", pady=(0, 5))
+        self.lbl_net_weight.grid(row=9, column=1, sticky="w", pady=(0, 5))
 
-        ttk.Separator(tab_basis, orient="horizontal").grid(row=9, column=0, columnspan=2, sticky="ew", pady=10)
+        ttk.Separator(tab_basis, orient="horizontal").grid(row=10, column=0, columnspan=2, sticky="ew", pady=10)
         
-        ttk.Label(tab_basis, text="Flow Ratio:").grid(row=10, column=0, sticky="w", pady=5)
-        self.entry_flow = ttk.Entry(tab_basis, width=10); self.entry_flow.grid(row=10, column=1, sticky="w", pady=2)
-        ttk.Label(tab_basis, text="Pressure Adv:").grid(row=11, column=0, sticky="w", pady=5)
-        self.entry_pa = ttk.Entry(tab_basis); self.entry_pa.grid(row=11, column=1, sticky="ew", pady=2)
+        ttk.Label(tab_basis, text="Flow Ratio:").grid(row=11, column=0, sticky="w", pady=5)
+        self.entry_flow = ttk.Entry(tab_basis, width=10); self.entry_flow.grid(row=11, column=1, sticky="w", pady=2)
+        ttk.Label(tab_basis, text="Pressure Adv:").grid(row=12, column=0, sticky="w", pady=5)
+        self.entry_pa = ttk.Entry(tab_basis); self.entry_pa.grid(row=12, column=1, sticky="ew", pady=2)
 
-        ttk.Separator(tab_basis, orient="horizontal").grid(row=12, column=0, columnspan=2, sticky="ew", pady=10)
+        ttk.Separator(tab_basis, orient="horizontal").grid(row=13, column=0, columnspan=2, sticky="ew", pady=10)
         
-        ttk.Label(tab_basis, text="Lagerort:").grid(row=13, column=0, sticky="w", pady=5)
+        ttk.Label(tab_basis, text="Lagerort:").grid(row=14, column=0, sticky="w", pady=5)
         self.combo_type = ttk.Combobox(tab_basis, state="readonly", font=FONT_MAIN)
-        self.combo_type.grid(row=13, column=1, sticky="ew", pady=2); self.combo_type.bind("<<ComboboxSelected>>", self.update_slot_dropdown)
-        ttk.Label(tab_basis, text="Slot / Nr.:").grid(row=14, column=0, sticky="w", pady=5)
-        self.combo_loc_id = ttk.Combobox(tab_basis, font=FONT_MAIN); self.combo_loc_id.grid(row=14, column=1, sticky="ew", pady=2)
+        self.combo_type.grid(row=14, column=1, sticky="ew", pady=2); self.combo_type.bind("<<ComboboxSelected>>", self.update_slot_dropdown)
+        ttk.Label(tab_basis, text="Slot / Nr.:").grid(row=15, column=0, sticky="w", pady=5)
+        self.combo_loc_id = ttk.Combobox(tab_basis, font=FONT_MAIN); self.combo_loc_id.grid(row=15, column=1, sticky="ew", pady=2)
         
         self.var_reorder = tk.BooleanVar()
-        ttk.Checkbutton(tab_basis, text="Auf Einkaufsliste setzen!", variable=self.var_reorder).grid(row=15, column=0, columnspan=2, sticky="w", pady=10)
+        ttk.Checkbutton(tab_basis, text="Auf Einkaufsliste setzen!", variable=self.var_reorder).grid(row=16, column=0, columnspan=2, sticky="w", pady=10)
 
         # TAB 2: ERP (Kaufmännisch)
         ttk.Label(tab_erp, text="Lieferant / Shop:").grid(row=0, column=0, sticky="w", pady=5)
@@ -709,6 +821,7 @@ class FilamentApp:
         self.tree.bind("<<TreeviewSelect>>", self.on_select)
         
         self.update_locations_dropdown(); self.update_spool_dropdown() 
+        self.update_filter_dropdowns()
         self.clear_inputs(); self.refresh_table()
         threading.Thread(target=self.check_for_updates, daemon=True).start()
 
@@ -806,6 +919,7 @@ class FilamentApp:
     def update_locations_dropdown(self): self.combo_type['values'] = self.get_dynamic_locations()
 
     def update_spool_dropdown(self):
+        self.spools = load_json(SPOOLS_FILE, [])
         values = ["-"] + [f"{s['id']} - {s['name']}" for s in self.spools]
         curr = self.combo_spool.get()
         self.combo_spool['values'] = values
@@ -830,13 +944,14 @@ class FilamentApp:
             sid = self.get_selected_spool_id()
             spool = next((s for s in self.spools if s['id'] == sid), None)
             net = gross - (spool['weight'] if spool else 0)
-            self.lbl_net_weight.config(text=f"Netto: {max(0, int(net))} g")
+            self.lbl_net_weight.config(text=f"Netto (Restfilament in g): {max(0, int(net))} g")
         except: self.lbl_net_weight.config(text="Netto: 0 g")
 
     def open_settings(self):
         def on_save(new_settings):
             self.settings = new_settings; save_json(SETTINGS_FILE, self.settings)
             self.update_locations_dropdown(); self.update_slot_dropdown()
+            self.update_filter_dropdowns()
         SettingsDialog(self.root, self.settings, on_save)
 
     def update_slot_dropdown(self, event=None):
@@ -889,12 +1004,53 @@ class FilamentApp:
                 max_id += 1; item['id'] = max_id; changed = True
         if changed: self.save_data()
 
+    def update_filter_dropdowns(self):
+        # Sammelt alle Materialien und Farben, die wirklich im Bestand sind
+        materials = sorted(list(set(i.get("material", "") for i in self.inventory if i.get("material"))))
+        colors = sorted(list(set(i.get("color", "") for i in self.inventory if i.get("color"))))
+        
+        if hasattr(self, 'combo_filter_mat'):
+            self.combo_filter_mat['values'] = ["Alle Materialien"] + materials
+            self.combo_filter_color['values'] = ["Alle Farben"] + colors
+            # Zieht sich die Liste der Regale dynamisch aus deinen Einstellungen!
+            self.combo_filter_loc['values'] = ["Alle Orte"] + self.get_dynamic_locations()
+
+    def reset_filters(self):
+        self.filter_mat_var.set("Alle Materialien")
+        self.filter_color_var.set("Alle Farben")
+        self.filter_loc_var.set("Alle Orte")
+        self.search_var.set("")
+        self.refresh_table()
+
     def get_filtered_inventory(self):
-        search, mode = self.search_var.get().lower(), self.filter_var.get()
-        return [i for i in self.inventory if 
-                (mode == "ALL" or (mode == "AMS" and str(i["type"]).startswith("AMS")) or i["type"] == mode) and 
-                (not search or search in f"{i['id']} {i['brand']} {i['color']} {i['material']}".lower()) and
-                (mode in ["VERBRAUCHT", "ALL"] or i["type"] != "VERBRAUCHT")]
+        search = self.search_var.get().lower()
+        f_mat = self.filter_mat_var.get()
+        f_col = self.filter_color_var.get()
+        f_loc = self.filter_loc_var.get()
+
+        result = []
+        for i in self.inventory:
+            # 1. Material & Farbe
+            if f_mat != "Alle Materialien" and i.get("material") != f_mat: continue
+            if f_col != "Alle Farben" and i.get("color") != f_col: continue
+            
+            # 2. Ort Filter (Löst das Ostfriesland-Problem!)
+            loc_type = i.get("type", "")
+            if f_loc != "Alle Orte":
+                if f_loc.startswith("AMS") and loc_type.startswith("AMS"):
+                    if f_loc != loc_type and f_loc != "AMS": continue
+                elif loc_type != f_loc: continue
+            else:
+                # Versteckt leere Spulen in der "Alle Orte" Ansicht
+                if loc_type == "VERBRAUCHT": continue
+
+            # 3. Suchleiste
+            if search and search not in f"{i.get('id','')} {i.get('brand','')} {i.get('color','')} {i.get('material','')}".lower():
+                continue
+                
+            result.append(i)
+            
+        return result
 
     def refresh_table(self, *args):
         self.icon_cache = []
@@ -920,6 +1076,7 @@ class FilamentApp:
                 "type": self.combo_type.get(), "loc_id": self.combo_loc_id.get().strip(),
                 "flow": self.entry_flow.get().strip(), "pa": self.entry_pa.get().strip(),
                 "spool_id": self.get_selected_spool_id(), "weight_gross": float(self.entry_gross.get().strip().replace(',', '.') or 0),
+                "capacity": int(self.entry_capacity.get().strip() or 1000),
                 "is_empty": self.combo_type.get() == "VERBRAUCHT", "reorder": self.var_reorder.get(),
                 "supplier": self.entry_supplier.get().strip(), "sku": self.entry_sku.get().strip(),
                 "price": self.entry_price.get().strip(), "link": self.entry_link.get().strip(),
@@ -967,6 +1124,8 @@ class FilamentApp:
         
         for val in self.combo_spool['values']:
             if val.startswith(f"{i.get('spool_id', -1)} -"): self.combo_spool.set(val); break
+        self.entry_capacity.delete(0, tk.END)
+        self.entry_capacity.insert(0, str(i.get('capacity', 1000)))
         gross_val = str(i.get('weight_gross', '0')).replace(',', '.').strip()
         try:
             if gross_val and float(gross_val) > 0: 
@@ -981,9 +1140,10 @@ class FilamentApp:
         self.entry_temp_n.insert(0, i.get('temp_n', '')); self.entry_temp_b.insert(0, i.get('temp_b', ''))
 
     def clear_inputs(self, deselect=True):
-        for e in [self.entry_id, self.entry_brand, self.entry_flow, self.entry_pa, self.entry_gross, 
+        for e in [self.entry_id, self.entry_brand, self.entry_flow, self.entry_pa, self.entry_gross, self.entry_capacity,
                   self.entry_supplier, self.entry_sku, self.entry_price, self.entry_link, self.entry_temp_n, self.entry_temp_b]:
             e.delete(0, tk.END)
+        self.entry_capacity.insert(0, "1000")
         self.combo_color.set(""); self.combo_loc_id.set("")
         self.combo_material.current(0); self.combo_subtype.current(0); self.combo_type.current(0); self.combo_spool.current(0)
         self.update_net_weight_display(); self.update_slot_dropdown(); self.var_reorder.set(False); self.update_color_preview()
@@ -1016,7 +1176,9 @@ class FilamentApp:
         lbl = tk.Label(qr_win, image=img, bg=self.root.cget('bg')); lbl.image = img; lbl.pack(pady=10)
         ttk.Label(qr_win, text=f"ID: {i['id']}\n{i['brand']} {i['color']}", font=FONT_BOLD).pack()
 
-    def save_data(self): save_json(DATA_FILE, self.inventory)
+    def save_data(self): 
+        save_json(DATA_FILE, self.inventory)
+        self.update_filter_dropdowns()
 
 if __name__ == "__main__":
     try: windll.shcore.SetProcessDpiAwareness(1)

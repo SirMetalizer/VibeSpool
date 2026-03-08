@@ -4,14 +4,13 @@ Willkommen bei **VibeSpool**! Dieses Tool hilft dir dabei, den ultimativen Über
 
 ![VibeSpool Screenshot](https://metalizer.de/Vibespool.jpg)
 
-## ✨ Die wichtigsten Features
+## ✨ Die Highlights (Neu in v1.5)
 
-* 📦 **Multi-Regal & AMS-Verwaltung:** Lege beliebig viele Regale an und bestimme selbst, wie viele Fächer sie haben. Deine Spulen werden in einer schicken grafischen Übersicht dargestellt.
-* ⚖️ **Automatische Restgewicht-Berechnung:** Gib das Leergewicht der Spule und das aktuelle Bruttogewicht ein – VibeSpool berechnet auf das Gramm genau, wie viel Filament noch nutzbar ist.
-* 🛒 **Integrierte Einkaufsliste & ERP-Daten:** Pflege Preise, Lieferanten und Links. Mit einem Klick landen leere Spulen auf der Einkaufsliste, die du direkt anklicken oder als CSV exportieren kannst.
-* 📱 **QR-Code Generator:** Erstelle für jede Spule einen eigenen QR-Code für den schnellen Abruf und die Integration in dein lokales System.
-* 🔄 **Smarte Sortierung & Updates:** "Natural Sorting" sorgt dafür, dass Fächer logisch sortiert werden (1, 2, 3... 10, 11). Mit dem integrierten Update-Checker bleibst du auf Knopfdruck immer auf dem neuesten Stand.
-* 🌙 **Dark Mode & Multi-Monitor-Support:** Ergonomische Oberfläche, die deine Augen schont und sich perfekt auf verschiedenen Monitoren verhält.
+* **📊 Smarte Excel-Filter:** Vergiss starre Buttons! Nutze dynamische Dropdown-Filter für Material, Farbe und Lagerort. Das System lernt mit: Neue Materialien oder Farben werden automatisch erkannt und dem Filter hinzugefügt.
+* **💾 NAS & Cloud-Support:** Du kannst den Speicherort deiner Datenbank (`inventory.json`) jetzt frei wählen. Perfekt, um deine Bestände über OneDrive, Dropbox oder ein lokales Netzlaufwerk (NAS) zwischen mehreren PCs zu synchronisieren.
+* **📦 Erweiterte visuelle Übersicht:** Die grafische Regal- & AMS-Ansicht zeigt dir jetzt nicht mehr nur feste Fächer. Auch "lose" Lagerorte wie Filamenttrockner, Samla-Boxen oder Kellerkisten werden jetzt schick grafisch am Ende der Liste dargestellt.
+* **⚖️ Idiotensichere Gewichts-Logik:** Trage einfach das "Gewicht auf der Waage" ein und wähle den Spulentyp (Pappe, Plastik, Honeycomb etc.) aus. VibeSpool berechnet anhand des hinterlegten Original-Inhalts sofort dein Netto-Restgewicht.
+* **🎨 UI & Ergonomie-Update:** Dank optimierter Zeilenabstände kommen deine Farbkacheln in der Liste jetzt richtig zur Geltung. Die Benutzeroberfläche wurde für eine noch intuitivere Bedienung komplett überarbeitet.
 
 ## 🚀 Installation & Start (Für Endanwender)
 
@@ -19,26 +18,32 @@ Du musst nicht programmieren können, um VibeSpool zu nutzen!
 
 1. Gehe rechts auf dieser Seite unter **[Releases](https://github.com/SirMetalizer/VibeSpool/releases)**.
 2. Lade dir die neueste Version für dein Betriebssystem herunter:
-   * **Windows:** Lade die `VibeSpool_Win.exe` herunter und starte sie einfach. (Es ist keine Installation nötig!)
-   * **Mac:** Lade die `VibeSpool_Mac.zip` herunter, entpacke sie und starte die App.
-3. Die App legt automatisch einen Ordner `VibeSpool_Daten` in deinem Benutzerverzeichnis an. Dort wird deine Datenbank sicher lokal auf deinem PC gespeichert.
+    * **Windows:** Lade die `VibeSpool_Win.exe` herunter und starte sie einfach. (Keine Installation nötig!)
+    * **Mac:** Lade die `VibeSpool_Mac.zip` herunter, entpacke sie und starte die App.
+3. **Daten-Sicherheit:** Standardmäßig speichert die App alles lokal in deinem Benutzerverzeichnis unter `VibeSpool_Daten`. Du kannst diesen Pfad jederzeit in den Einstellungen ändern.
 
 ## 🛠️ Für Entwickler
 
 Möchtest du am Code mitbasteln? Sehr gerne! Das Projekt ist in Python mit `Tkinter` (UI) geschrieben.
 
-1. Klone das Repository: `git clone https://github.com/SirMetalizer/VibeSpool.git`
+1. Klone das Repository:
+    ```bash
+    git clone [https://github.com/SirMetalizer/VibeSpool.git](https://github.com/SirMetalizer/VibeSpool.git)
+    ```
 2. Installiere die nötigen Pakete:
-   ```bash
-   pip install pillow qrcode
+    ```bash
+    pip install pillow qrcode
+    ```
 3. Starte das Programm:
-python filament_gui.py
+    ```bash
+    python filament_gui.py
+    ```
 
 ## ❤️ Unterstützung & Affiliate
 
-VibeSpool ist zu 100 % kostenlos. In den Einstellungen der App kannst du optional die Funktion "Entwickler mit Affiliate-Links unterstützen" aktivieren. Dies fügt bei Links zum Bambu Lab Shop automatisch einen Partner-Code an. Das kostet dich keinen Cent extra, hilft aber enorm bei der Weiterentwicklung dieses Tools!
+VibeSpool ist zu 100 % kostenlos und ein Community-Projekt. In den Einstellungen der App kannst du optional die Funktion "Entwickler mit Affiliate-Links unterstützen" aktivieren. Dies fügt bei Links zum Bambu Lab Shop automatisch einen Partner-Code an. Das kostet dich keinen Cent extra, hilft aber enorm bei der Deckung der Serverkosten und der Weiterentwicklung!
 
 ## 🐛 Bugs & Feedback
 
-Du hast einen Fehler gefunden oder eine Idee für ein neues Feature?
+Du hast eine Idee aus Ostfriesland oder einen Fehler gefunden? 
 Erstelle gerne einen neuen Eintrag im Reiter **[Issues](https://github.com/SirMetalizer/VibeSpool/issues)** hier auf GitHub!

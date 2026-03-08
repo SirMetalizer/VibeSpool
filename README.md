@@ -1,62 +1,44 @@
-Quick-Start Anleitung
+# 🧵 VibeSpool - Das smarte Filament-Management-System
 
-Willkommen zum Filament Manager! Dieses Tool hilft dir, offline und lokal den kompletten Überblick über deine Filament-Rollen, deren Restgewicht und ihre genauen Lagerorte zu behalten.
+Willkommen bei **VibeSpool**! Dieses Tool hilft dir dabei, den ultimativen Überblick über all deine 3D-Druck Filamente zu behalten. Egal ob im Regal, im AMS oder in der Trockenbox – mit VibeSpool weißt du immer genau, wie viel Restgewicht auf welcher Spule ist und wo sie sich gerade befindet.
 
-Schritt 1: Das Regal konfigurieren
+![VibeSpool Screenshot](https://metalizer.de/Vibespool.jpg)
 
-Bevor du loslegst, solltest du das Programm an dein physisches Regal anpassen.
+## ✨ Die wichtigsten Features
 
-1. Klicke oben rechts auf ⚙ Einstellungen
-2. Trage ein, wie dein Regal aufgebaut ist:
-Fächer (Zeilen): Wie viele Regalböden hast du übereinander?
-Slots pro Fach: Wie viele Rollen passen nebeneinander auf einen Boden?
-AMS Slots: Standardmäßig 4 (für ein AMS / AMS Lite).
+* 📦 **Multi-Regal & AMS-Verwaltung:** Lege beliebig viele Regale an und bestimme selbst, wie viele Fächer sie haben. Deine Spulen werden in einer schicken grafischen Übersicht dargestellt.
+* ⚖️ **Automatische Restgewicht-Berechnung:** Gib das Leergewicht der Spule und das aktuelle Bruttogewicht ein – VibeSpool berechnet auf das Gramm genau, wie viel Filament noch nutzbar ist.
+* 🛒 **Integrierte Einkaufsliste & ERP-Daten:** Pflege Preise, Lieferanten und Links. Mit einem Klick landen leere Spulen auf der Einkaufsliste, die du direkt anklicken oder als CSV exportieren kannst.
+* 📱 **QR-Code Generator:** Erstelle für jede Spule einen eigenen QR-Code für den schnellen Abruf und die Integration in dein lokales System.
+* 🔄 **Smarte Sortierung & Updates:** "Natural Sorting" sorgt dafür, dass Fächer logisch sortiert werden (1, 2, 3... 10, 11). Mit dem integrierten Update-Checker bleibst du auf Knopfdruck immer auf dem neuesten Stand.
+* 🌙 **Dark Mode & Multi-Monitor-Support:** Ergonomische Oberfläche, die deine Augen schont und sich perfekt auf verschiedenen Monitoren verhält.
 
-3. Klicke auf "Speichern". Das Dropdown-Menü für die Slot-Auswahl im Hauptfenster passt sich nun automatisch an deine Regalgröße an!
+## 🚀 Installation & Start (Für Endanwender)
 
-Schritt 2: Leerspulen anlegen (Wichtig für das Gewicht!)
+Du musst nicht programmieren können, um VibeSpool zu nutzen!
 
-Damit das Programm den Filament-Rest berechnen kann, muss es wissen, wie viel die leeren Spulen wiegen.
+1. Gehe rechts auf dieser Seite unter **[Releases](https://github.com/SirMetalizer/VibeSpool/releases)**.
+2. Lade dir die neueste Version für dein Betriebssystem herunter:
+   * **Windows:** Lade die `VibeSpool_Win.exe` herunter und starte sie einfach. (Es ist keine Installation nötig!)
+   * **Mac:** Lade die `VibeSpool_Mac.zip` herunter, entpacke sie und starte die App.
+3. Die App legt automatisch einen Ordner `VibeSpool_Daten` in deinem Benutzerverzeichnis an. Dort wird deine Datenbank sicher lokal auf deinem PC gespeichert.
 
-1. Klicke im Hauptfenster auf den Button "🧵 Spulen verwalten"
-2. Trage eine Bezeichnung ein (z.B. "Bambu Reusable" oder "Sunlu Pappe").
-3. Trage das Leergewicht in Gramm ein (z.B. "250" oder "140").
-4. Klicke auf "Neu anlegen". Du kannst hier so viele Spulentypen anlegen, wie du möchtest.
+## 🛠️ Für Entwickler
 
-Schritt 3: Filamente eintragen
+Möchtest du am Code mitbasteln? Sehr gerne! Das Projekt ist in Python mit `Tkinter` (UI) geschrieben.
 
-Jetzt kannst du dein erstes Filament anlegen. Die linke Spalte ist dein Arbeitsbereich.
+1. Klone das Repository: `git clone https://github.com/SirMetalizer/VibeSpool.git`
+2. Installiere die nötigen Pakete:
+   ```bash
+   pip install pillow qrcode
+3. Starte das Programm:
+python filament_gui.py
 
-1. Trage Marke, Material, Farbe und Finish ein.
-Magie: Wenn du bei Farbe "Grün Blau" oder "Regenbogen" einträgst, generiert das Programm automatisch gestreifte Icons!
+## ❤️ Unterstützung & Affiliate
 
+VibeSpool ist zu 100 % kostenlos. In den Einstellungen der App kannst du optional die Funktion "Entwickler mit Affiliate-Links unterstützen" aktivieren. Dies fügt bei Links zum Bambu Lab Shop automatisch einen Partner-Code an. Das kostet dich keinen Cent extra, hilft aber enorm bei der Weiterentwicklung dieses Tools!
 
-Spule & Gewicht: Wähle aus dem Dropdown die Spule, auf der das Filament aufgewickelt ist. Lege die komplette Rolle auf die Waage und trage diesen Wert bei "Brutto Gew. (g)" ein. Das Programm zieht das Leergewicht der Spule live ab und zeigt dir das reine Netto-Gewicht in Blau an.
-3. Wähle den Lagerort (REGAL, AMS oder LAGER) und den genauen Slot.
-4. Klicke auf den blauen Button "Hinzufügen". Das Programm vergibt automatisch eine fortlaufende ID (1, 2, 3...).
+## 🐛 Bugs & Feedback
 
-Die coolen Sonderfunktionen
-
-Regal & AMS Ansicht (Visualisierung)
-Klicke auf diesen Button, um eine grafische Darstellung deines Regals zu öffnen. Das Programm zeichnet bunte Kästen an exakt der Position, an der deine Rollen liegen. Die Kästen haben die Farbe des Filaments (auch gestreift bei Multicolor!). Fährst du mit der Maus über ein Kästchen, siehst du alle Details inkl. Restgewicht.
-
-Flow-Rechner
-Du kalibrierst dein Filament mit dem Messschieber (Cube-Methode)?
-Klicke neben dem "Flow Ratio" Feld auf das kleine Werkzeug-Symbol (🛠). Trage deinen alten Flow, den Zielwert der Wand (z.B. 0.45) und deine Messungen ein. Klicke auf "Übernehmen" und das Tool berechnet den neuen Flow und trägt ihn direkt ins Hauptfenster ein.
-
-QR Code & Quick Scan
-Jedes Filament hat eine feste ID.
-
-1. Klicke auf "QR Code", um dir ein Bild anzeigen zu lassen. Diesen Code kannst du ausdrucken und auf die Spule kleben.
-2. Wenn du die Rolle später in die Hand nimmst: Klicke oben im Hauptfenster in das Feld "Quick-ID" und tippe die Nummer ein (oder scanne den QR Code mit einem Barcode-Scanner). Das Programm wählt das Filament sofort in der Liste aus!
-
-Als Ersatz ins Lager kopieren
-Du hast eine Rolle im Drucker und genau dieselbe Rolle noch eingeschweißt im Schrank?
-Wähle das Filament in der Liste aus und klicke auf "Als Ersatz ins Lager kopieren". Das Programm dupliziert alle Werte (Flow, Marke, etc.), vergibt eine neue ID und setzt den Ort automatisch auf "LAGER" (Verpackt).
-
-
-Für dich als Tester:
-
-Probier aus, ob das Layout auf euren Bildschirmen gut aussieht.
-Testet die Eingabe von Kommazahlen (z.B. 1002,5) beim Gewicht.
-Wenn dir Fehler (Bugs) auffallen oder du Ideen für Verbesserungen hast, schreib gerne
+Du hast einen Fehler gefunden oder eine Idee für ein neues Feature?
+Erstelle gerne einen neuen Eintrag im Reiter **[Issues](https://github.com/SirMetalizer/VibeSpool/issues)** hier auf GitHub!

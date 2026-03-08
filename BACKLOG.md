@@ -2,11 +2,11 @@
 
 🌟 1. Das "Community-Update" (v1.5)
 
-* Tabellen-Zeilenhöhe (Neu): Den Abstand zwischen den Zeilen in der Haupttabelle leicht vergrößern, damit die Farbkacheln Luft zum Atmen haben und sich nicht überschneiden.
-* Excel-Filter (Dropdowns): Drei schicke Dropdown-Menüs über der Tabelle ([Material], [Farbe], [Ort]), um die Liste mit einem Klick zu filtern.
-* Erweiterte Regal-Ansicht: Die grafische Regal-Übersicht zeigt ganz unten auch "restliche" Spulen (Kisten, Trockner) in kleinen Boxen an.
-* Füllmenge (Neu-Gewicht): Neues Eingabefeld für das Neu-Gewicht der gekauften Spule (z.B. 1000g).
-* Dynamische Material-Liste: Das Programm merkt sich manuell eingetippte neue Materialien dauerhaft für das Dropdown-Menü.
+* Tabellen-Zeilenhöhe (Fix): Abstand zwischen den Filamenten vergrößern, damit die Farben nicht kleben.
+* Excel-Filter (Dropdowns): Löst den kaputten Regal-Filter! Drei Dropdowns ([Material], [Farbe], [Ort]) über der Tabelle.
+* Freier Speicherort (Neu): In den Einstellungen einen eigenen Pfad für die Datenbank (.json / .db) festlegen können.
+* Füllmenge (Neu-Gewicht): Neues Eingabefeld für das Neu-Gewicht (z.B. 1000g).
+* Erweiterte Regal-Ansicht: Die grafische Übersicht zeigt unten auch "restliche" Spulen an.
 
 🔄 2. Workflow & Handling
 

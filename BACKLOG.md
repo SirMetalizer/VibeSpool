@@ -1,12 +1,32 @@
-🔄 1. Das Update-System (Fokus für v1.6)
+## 📋 VibeSpool Master-Backlog (v1.6 - v2.0)
 
-* Update-Check scharfschalten: Die Hintergrund-Abfrage zu GitHub wieder einbauen, damit das Pop-up bei neuen Versionen auch wirklich erscheint.
-* Manueller "Update Check"-Button: Einen Knopf (z.B. in den Einstellungen oder oben in der Leiste) einbauen: "Nach Updates suchen", damit man nicht auf den automatischen Check warten muss.
-* Auto-Downloader (In-App Update): Das Programm lädt die neue .exe oder .zip automatisch im Hintergrund herunter und tauscht sie aus, anstatt den Nutzer nur auf die GitHub-Webseite zu leiten.
+### 🚀 Prio 1: Das "Wartungs- & Update" Paket (v1.6)
 
-📱 2. Mobile & Hardware (Die Profi-Features)
-* Lokale Web-App (Handy / Tablet): Einen unsichtbaren Web-Server (z.B. mit Flask) in VibeSpool integrieren. Dann kann man am Tablet im Bastelkeller einfach die IP-Adresse des PCs eingeben und hat die Spulenübersicht im Touch-Format vor sich.
-* Scanner-Erweiterung: Möglichkeit, Barcodes oder die generierten QR-Codes entweder über eine Webcam oder einen USB-Handscanner direkt einzulesen, um Spulen sofort aufzurufen.
+* **GitHub-Update-Motor:** Reaktivierung der automatischen Abfrage der neuesten Version.
+* **Update-Button:** Manueller Check in den Settings.
+* **In-App Updater:** Automatischer Download und Austausch der `.exe`.
+* **Fixes:** Fenster-Skalierung bei extrem langen Pfaden (OneDrive-Bug).
 
-💰 3. Finanzen & Auswertung
-* Druckkosten-Rechner: Wir haben durch das letzte Update jetzt das Neu-Gewicht (z.B. 1000g) und den Preis. Daraus können wir einen kleinen Rechner bauen: "Ich will 120g drucken. Was kostet mich das bei dieser Spule?" (Das Programm rechnet dann automatisch den Preis pro Gramm aus).
+### 📡 Prio 2: Der "Universal-Identifikations" Hub (v1.7)
+
+* **Hybrid-Modus (RFID & Quick-ID):** * Umschalter in den Settings: "RFID-Modus" vs. "Manueller Modus".
+* Im RFID-Modus wird das Quick-ID Feld für Tastatur-Eingaben gesperrt und wartet rein auf den "Input" des Readers.
+
+
+* **RFID-Tag-Kopplung:** Neues Feld im Bearbeitungs-Menü, um eine eindeutige RFID-Seriennummer fest mit einer Spule zu verknüpfen.
+* **QR-Code Scan via Webcam:** Integration einer einfachen Kamera-Bibliothek (z.B. `opencv`), um QR-Codes direkt am PC zu scannen, falls kein RFID vorhanden ist.
+
+### 🌐 Prio 3: Connectivity & Standards (v1.8)
+
+* **Spoolman / OpenSpool API:** Synchronisation deiner lokalen Datenbank mit dem Open-Source Standard für 3D-Drucker.
+* **Klipper/Moonraker Integration:** Automatisches Abziehen des Gewichts nach einem beendeten Druckauftrag via API-Abfrage.
+
+### 📱 Prio 4: Mobile & Web (v1.9)
+
+* **VibeSpool Remote:** Kleiner lokaler Webserver (Flask), um den Bestand auf dem Handy im WLAN anzuzeigen.
+* **Touch-Optimierung:** Eine spezielle Ansicht für Tablets im Werkstatt-Modus.
+
+### 💰 Prio 5: Smart Financials (v2.0)
+
+* **Druckkosten-Rechner:** Preis pro Gramm Berechnung basierend auf den v1.5 Kaufdaten.
+* **Bestands-Statistik:** Grafische Auswertung: Welches Material drucke ich am meisten? Wie viel Geld liegt gerade in meinem Regal?

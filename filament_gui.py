@@ -1,5 +1,5 @@
 import tkinter as tk
-from tkinter import ttk, messagebox, simpledialog, filedialog
+from tkinter import ttk, messagebox, simpledialog, filedialog, colorchooser
 import json
 import os
 import shutil
@@ -15,7 +15,7 @@ from datetime import datetime, timedelta
 import qrcode 
 
 # --- KONFIGURATION & UPDATE CHECKER ---
-APP_VERSION = "1.5"
+APP_VERSION = "1.6"
 GITHUB_REPO = "SirMetalizer/VibeSpool" 
 
 # --- SICHERER SPEICHERORT FÜR EXE & MAC APP ---
@@ -81,12 +81,22 @@ DEFAULT_SETTINGS = {
     "custom_locs": "Filamenttrockner",
     "geometry": "1500x850",
     "theme": "dark",
-    "use_affiliate": True  # <--- NEU: Affiliate
+    "use_affiliate": True
 }
 
 MATERIALS = ["PLA", "PLA+", "PETG", "ABS", "ASA", "TPU", "PC", "PA-CF", "PVA", "Sonstiges"]
 SUBTYPES = ["Standard", "Matte", "Silk", "High Speed", "Dual Color", "Tri Color", "Glow in Dark", "Marmor", "Holz", "Glitzer/Sparkle", "Transparent"]
-COMMON_COLORS = ["Black", "White", "Red", "Blue", "Green", "Yellow", "Orange", "Grey", "Transparent", "Black/Red", "Rainbow"]
+COMMON_COLORS = [
+    "Black", "White", "Grey", "Silver", "Ash Gray", 
+    "Red", "Maroon Red", "Blue", "Light Blue", "Navy", 
+    "Green", "Dark Green", "Mint", "Olive",
+    "Yellow", "Orange", "Terracotta", 
+    "Purple", "Plum", "Lavender", "Pink", "Magenta", 
+    "Brown", "Beige", "Turquoise", "Cyan",
+    "Gold", "Copper", "Bronze", 
+    "Transparent", "Translucent", 
+    "Glow in Dark", "Rainbow", "Marble", "Wood"
+]
 
 THEMES = {
     "light": {
@@ -102,10 +112,23 @@ THEMES = {
 COLOR_ACCENT = "#0078d7"    
 COLOR_DELETE = "#d9534f" 
 COLOR_MAP = {
-    "rot": "#FF0000", "red": "#FF0000", "blau": "#0000FF", "blue": "#0000FF", "grün": "#008000", "green": "#008000", 
-    "gelb": "#FFD700", "yellow": "#FFD700", "orange": "#FFA500", "lila": "#800080", "purple": "#800080", "pink": "#FFC0CB", 
-    "schwarz": "#000000", "black": "#000000", "weiß": "#F0F0F0", "white": "#F0F0F0", "grau": "#808080", "grey": "#808080", 
-    "silber": "#C0C0C0", "braun": "#A52A2A", "brown": "#A52A2A", "gold": "#DAA520", "cyan": "#00FFFF", "rainbow": "RAINBOW"
+    "rot": "#FF0000", "red": "#FF0000", "maroon": "#800000", 
+    "blau": "#0000FF", "blue": "#0000FF", "navy": "#000080", "light blue": "#ADD8E6",
+    "grün": "#008000", "green": "#008000", "dark green": "#006400", "olive": "#808000", "mint": "#98FF98", "jade": "#00A86B",
+    "gelb": "#FFD700", "yellow": "#FFD700", 
+    "orange": "#FFA500", "terracotta": "#E2725B", 
+    "lila": "#800080", "purple": "#800080", "plum": "#8E4585", "pflaume": "#8E4585", "lavendel": "#E6E6FA", "lavender": "#E6E6FA",
+    "pink": "#FFC0CB", "rosa": "#FFC0CB", "rose": "#FF007F", "magenta": "#FF00FF", 
+    "schwarz": "#000000", "black": "#000000", 
+    "weiß": "#F0F0F0", "white": "#F0F0F0", 
+    "grau": "#808080", "grey": "#808080", "gray": "#808080", "ash": "#B2BEB5", 
+    "silber": "#C0C0C0", "silver": "#C0C0C0", 
+    "braun": "#A52A2A", "brown": "#A52A2A", "beige": "#F5F5DC", "wood": "#D2B48C", "holz": "#D2B48C",
+    "gold": "#DAA520", "bronze": "#CD7F32", "kupfer": "#B87333", "copper": "#B87333", 
+    "cyan": "#00FFFF", "türkis": "#40E0D0", "turquoise": "#40E0D0", 
+    "rainbow": "RAINBOW", "regenbogen": "RAINBOW",
+    "transparent": "#E8F4F8", "translucent": "#E8F4F8", "clear": "#E8F4F8",
+    "marmor": "#E0E0E0", "marble": "#E0E0E0", "glow": "#CCFF00"
 }
 
 # --- HELPER ---
@@ -127,6 +150,10 @@ def save_json(filename, data):
     except Exception as e: print(e)
 
 def get_colors_from_text(text):
+    # --- NEU: Prüfen, ob der Nutzer manuell einen Hex-Code (z.B. #FF0055) gewählt hat ---
+    hex_matches = re.findall(r'(#[0-9a-fA-F]{6})', text)
+    if hex_matches:
+        return hex_matches # Gibt einfach die gewählte Farbe zurück!
     text_lower = text.lower().strip()
     if any(x in text_lower for x in ["regenbogen", "rainbow", "bunt"]):
         return ["#FF0000", "#FFA500", "#FFFF00", "#008000", "#0000FF", "#4B0082", "#EE82EE"]
@@ -259,7 +286,7 @@ class SettingsDialog(tk.Toplevel):
         self.on_save = on_save
         self.current_settings = current_settings
         self.title("Einstellungen & Lagerorte")
-        self.geometry("500x680")
+        self.geometry("500x780")
         self.configure(bg=parent.cget('bg'))
         center_window(self, parent)
         
@@ -328,14 +355,41 @@ class SettingsDialog(tk.Toplevel):
         ttk.Checkbutton(frm, text="Entwickler mit Affiliate-Links unterstützen", variable=self.var_affiliate).grid(row=10, column=0, columnspan=2, sticky="w")
         ttk.Label(frm, text="(Fügt in der Einkaufsliste automatisch einen Partner-Code\nbei Bambu Lab Links hinzu. Kostet dich keinen Cent!)", font=("Segoe UI", 8)).grid(row=11, column=0, columnspan=2, sticky="w", padx=20)
         
+        # --- NEU: Update-Check & GitHub Bereich ---
         ttk.Separator(frm, orient="horizontal").grid(row=12, column=0, columnspan=2, sticky="ew", pady=15)
+        
+        btn_action_frm = ttk.Frame(frm)
+        btn_action_frm.grid(row=13, column=0, columnspan=2, pady=5)
         
         def open_github():
             import webbrowser
             webbrowser.open("https://github.com/SirMetalizer/VibeSpool/releases/latest")
-            
-        ttk.Button(frm, text="🌐 VibeSpool auf GitHub besuchen", command=open_github).grid(row=13, column=0, columnspan=2, pady=5)
+
+        def manual_update_check():
+            try:
+                import urllib.request, json
+                url = f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest"
+                req = urllib.request.Request(url, headers={'User-Agent': 'VibeSpool-App'})
+                with urllib.request.urlopen(req, timeout=5) as response:
+                    data = json.loads(response.read().decode('utf-8'))
+                    latest_tag = data.get("tag_name", "").lstrip("vV")
+                    current_ver = APP_VERSION.lstrip("vV")
+                    
+                    def parse_ver(v): return [int(x) for x in v.replace('-', '.').split('.') if x.isdigit()]
+                    
+                    if parse_ver(latest_tag) > parse_ver(current_ver):
+                        if messagebox.askyesno("Update verfügbar!", f"Version {latest_tag} ist online!\nDu hast aktuell v{current_ver}.\n\nMöchtest du die Download-Seite jetzt öffnen?", parent=self):
+                            open_github()
+                    else:
+                        messagebox.showinfo("Aktuell", f"Du bist auf dem neuesten Stand!\nInstallierte Version: v{current_ver}", parent=self)
+            except Exception as e:
+                messagebox.showerror("Fehler", f"Keine Verbindung zu GitHub möglich:\n{e}", parent=self)
+                
+        ttk.Button(btn_action_frm, text="🔄 Nach Updates suchen", command=manual_update_check).pack(side="left", padx=5)
+        ttk.Button(btn_action_frm, text="🌐 GitHub besuchen", command=open_github).pack(side="left", padx=5)
+        
         ttk.Button(self, text="Speichern", command=self.save).pack(pady=20, fill="x", padx=20)
+        # ------------------------------------------
 
     def save(self):
         try:
@@ -383,15 +437,23 @@ class ShelfVisualizer(tk.Toplevel):
                     self.other_data[t].append(item)
             except: pass
 
+    # --- NEU: Leinwand mit VERTIKALEM und HORIZONTALEM Scrollbalken ---
         canvas = tk.Canvas(self, bg=parent.cget('bg'), highlightthickness=0)
-        scroll = ttk.Scrollbar(self, orient="vertical", command=canvas.yview)
+        
+        v_scroll = ttk.Scrollbar(self, orient="vertical", command=canvas.yview)
+        h_scroll = ttk.Scrollbar(self, orient="horizontal", command=canvas.xview)
+        
+        canvas.configure(yscrollcommand=v_scroll.set, xscrollcommand=h_scroll.set)
+        
+        # Erst unten, dann rechts, dann die Leinwand in die Mitte packen
+        h_scroll.pack(side="bottom", fill="x")
+        v_scroll.pack(side="right", fill="y")
+        canvas.pack(side="left", fill="both", expand=True)
+        
         frame = ttk.Frame(canvas)
         frame.bind("<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
         canvas.create_window((0, 0), window=frame, anchor="nw")
-        canvas.configure(yscrollcommand=scroll.set)
-        
-        canvas.pack(side="left", fill="both", expand=True)
-        scroll.pack(side="right", fill="y")
+        # -----------------------------------------------------------------
         
         pad = ttk.Frame(frame, padding=20)
         pad.pack(fill="both", expand=True)
@@ -407,11 +469,11 @@ class ShelfVisualizer(tk.Toplevel):
             for r in row_range:
                 ttk.Label(pad, text=f"{lbl_r} {r}", font=("Segoe UI", 10, "bold")).pack(anchor="w", pady=(5, 2))
                 row_frame = tk.Frame(pad, bg="#8B4513", padx=5, pady=5)
-                row_frame.pack(fill="x", pady=2)
+                row_frame.pack(anchor="w", pady=2)
                 for c in range(1, shelf['cols'] + 1):
                     slot_name = f"{lbl_r} {r} - {lbl_c} {c}"
                     item = self.shelf_data.get(f"{shelf['name']}_{slot_name}")
-                    self.draw_slot(row_frame, str(c), item, False)
+                    self.draw_slot(row_frame, str(c), item, False, w=70, h=70)
 
         num_ams = self.settings.get("num_ams", 1)
         ttk.Separator(pad, orient="horizontal").pack(fill="x", pady=20)
@@ -420,11 +482,11 @@ class ShelfVisualizer(tk.Toplevel):
             ams_name = f"AMS {a}"
             ttk.Label(pad, text=ams_name, font=("Segoe UI", 14, "bold")).pack(anchor="w", pady=(10, 5))
             ams_frame = tk.Frame(pad, bg="#444444", padx=10, pady=10)
-            ams_frame.pack(fill="x")
+            ams_frame.pack(anchor="w")
             for i in range(1, 5): 
                 item = self.ams_data.get(f"{ams_name}_{i}")
                 cont = tk.Frame(ams_frame, bg="#444444")
-                cont.pack(side="left", fill="y", expand=True, padx=10)
+                cont.pack(side="left", fill="y", padx=10)
                 ttk.Label(cont, text=f"Slot {i}", foreground="white", background="#444444").pack(pady=(0, 5))
                 self.draw_slot(cont, str(i), item, True, 120, 100)
 # --- NEU: Weitere Lagerorte (Trockner, Kisten, Lager) zeichnen ---
@@ -500,7 +562,7 @@ class ShelfVisualizer(tk.Toplevel):
         img = create_color_icon(bg_colors, (w, h), "black")
         self.image_cache.append(img)
         lbl = tk.Label(parent, image=img, text=txt, compound="center", fg=fg_col, font=("Segoe UI", 8, "bold"), borderwidth=0)
-        lbl.pack(side="left", padx=5, fill="y", expand=True)
+        lbl.pack(side="left", padx=2, fill="y")
         lbl.bind("<Enter>", lambda e: self.show_tip(e, tooltip))
         lbl.bind("<Leave>", self.hide_tip)
 
@@ -727,7 +789,23 @@ class FilamentApp:
         self.combo_color = ttk.Combobox(color_container, values=COMMON_COLORS, font=FONT_MAIN)
         self.combo_color.pack(side="left", fill="x", expand=True)
         self.combo_color.bind("<KeyRelease>", self.update_color_preview); self.combo_color.bind("<<ComboboxSelected>>", self.update_color_preview)
-        
+        # --- NEU: Manueller Color-Picker Button ---
+        def pick_color():
+            # Öffnet das Windows-Farbauswahl-Fenster
+            color_code = colorchooser.askcolor(title="Eigene Farbe wählen", parent=self.root)[1]
+            if color_code:
+                current_text = self.combo_color.get().strip()
+                # Entfernt alte Farbcodes, falls der Nutzer es sich anders überlegt
+                current_text = re.sub(r'\s*\(?#[0-9a-fA-F]{6}\)?', '', current_text).strip()
+                
+                if current_text:
+                    self.combo_color.set(f"{current_text} ({color_code.upper()})")
+                else:
+                    self.combo_color.set(color_code.upper())
+                self.update_color_preview()
+
+        ttk.Button(color_container, text="🎨", width=3, command=pick_color).pack(side="left", padx=(5,0))
+        # ------------------------------------------
         self.lbl_color_preview = tk.Label(color_container, borderwidth=0)
         self.lbl_color_preview.pack(side="right", padx=(5,0))
         self.update_color_preview()
@@ -843,6 +921,7 @@ class FilamentApp:
             webbrowser.open("https://paypal.me/florianfranck")
 
     def check_for_updates(self):
+        # 1. Prüfen, ob der Nutzer das Update auf "Snooze" (Pausiert) gesetzt hat
         snooze_str = self.settings.get("update_snoozed_until", "")
         if snooze_str:
             try:
@@ -851,6 +930,32 @@ class FilamentApp:
                     return 
             except:
                 pass
+                
+        # 2. Bei GitHub anklopfen und nach der neuesten Version fragen
+        try:
+            url = f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest"
+            # Ein User-Agent ist Pflicht, sonst blockt GitHub die Anfrage manchmal
+            req = urllib.request.Request(url, headers={'User-Agent': 'VibeSpool-App'})
+            
+            with urllib.request.urlopen(req, timeout=5) as response:
+                data = json.loads(response.read().decode('utf-8'))
+                latest_tag = data.get("tag_name", "")
+                download_url = data.get("html_url", f"https://github.com/{GITHUB_REPO}/releases/latest")
+                
+                # Das "v" entfernen, falls du deine Releases z.B. "v1.6" nennst
+                latest_version = latest_tag.lstrip("vV")
+                current_version = APP_VERSION.lstrip("vV")
+                
+                # Clevere Methode, um Versionsnummern zu vergleichen (damit 1.10 größer als 1.9 ist)
+                def parse_ver(v): return [int(x) for x in v.replace('-', '.').split('.') if x.isdigit()]
+                
+                if parse_ver(latest_version) > parse_ver(current_version):
+                    # WICHTIG: Tkinter mag es nicht, wenn Hintergrund-Threads Fenster öffnen.
+                    # Mit 'root.after' geben wir den Befehl sicher an das Hauptfenster zurück!
+                    self.root.after(0, lambda: self.show_update_prompt(latest_version, download_url))
+        except Exception as e:
+            # Falls kein Internet da ist oder GitHub zickt, stürzt das Programm nicht ab, sondern schweigt einfach.
+            print(f"Update-Check fehlgeschlagen: {e}")
 
     def show_update_prompt(self, latest_version, download_url):
         upd_win = tk.Toplevel(self.root)

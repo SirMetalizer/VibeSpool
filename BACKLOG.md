@@ -2,6 +2,7 @@
 
 ### 🚀 Prio 1: Das "Wartungs- & Update" Paket (v1.6)
 
+* **Bugfix (Tester-Feedback):** Regal-Ansicht horizontal scrollbar machen (für Regale mit > 15 Slots).
 * **GitHub-Update-Motor:** Reaktivierung der automatischen Abfrage der neuesten Version.
 * **Update-Button:** Manueller Check in den Settings.
 * **In-App Updater:** Automatischer Download und Austausch der `.exe`.
@@ -9,10 +10,7 @@
 
 ### 📡 Prio 2: Der "Universal-Identifikations" Hub (v1.7)
 
-* **Hybrid-Modus (RFID & Quick-ID):** * Umschalter in den Settings: "RFID-Modus" vs. "Manueller Modus".
-* Im RFID-Modus wird das Quick-ID Feld für Tastatur-Eingaben gesperrt und wartet rein auf den "Input" des Readers.
-
-
+* **Hybrid-Modus (RFID & Quick-ID):** Umschalter in den Settings: "RFID-Modus" vs. "Manueller Modus". Im RFID-Modus wird das Quick-ID Feld für Tastatur-Eingaben gesperrt und wartet rein auf den "Input" des Readers.
 * **RFID-Tag-Kopplung:** Neues Feld im Bearbeitungs-Menü, um eine eindeutige RFID-Seriennummer fest mit einer Spule zu verknüpfen.
 * **QR-Code Scan via Webcam:** Integration einer einfachen Kamera-Bibliothek (z.B. `opencv`), um QR-Codes direkt am PC zu scannen, falls kein RFID vorhanden ist.
 

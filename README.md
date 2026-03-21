@@ -4,13 +4,14 @@ Willkommen bei **VibeSpool**! Dieses Tool hilft dir dabei, den ultimativen Über
 
 ![VibeSpool Screenshot](https://metalizer.de/Vibespool.jpg)
 
-## ✨ Die Highlights (Neu in v1.5)
+## ✨ Die Highlights (Neu in v1.6)
 
-* **📊 Smarte Excel-Filter:** Vergiss starre Buttons! Nutze dynamische Dropdown-Filter für Material, Farbe und Lagerort. Das System lernt mit: Neue Materialien oder Farben werden automatisch erkannt und dem Filter hinzugefügt.
-* **💾 NAS & Cloud-Support:** Du kannst den Speicherort deiner Datenbank (`inventory.json`) jetzt frei wählen. Perfekt, um deine Bestände über OneDrive, Dropbox oder ein lokales Netzlaufwerk (NAS) zwischen mehreren PCs zu synchronisieren.
-* **📦 Erweiterte visuelle Übersicht:** Die grafische Regal- & AMS-Ansicht zeigt dir jetzt nicht mehr nur feste Fächer. Auch "lose" Lagerorte wie Filamenttrockner, Samla-Boxen oder Kellerkisten werden jetzt schick grafisch am Ende der Liste dargestellt.
-* **⚖️ Idiotensichere Gewichts-Logik:** Trage einfach das "Gewicht auf der Waage" ein und wähle den Spulentyp (Pappe, Plastik, Honeycomb etc.) aus. VibeSpool berechnet anhand des hinterlegten Original-Inhalts sofort dein Netto-Restgewicht.
-* **🎨 UI & Ergonomie-Update:** Dank optimierter Zeilenabstände kommen deine Farbkacheln in der Liste jetzt richtig zur Geltung. Die Benutzeroberfläche wurde für eine noch intuitivere Bedienung komplett überarbeitet.
+* **💻 Cross-Platform Sync:** VibeSpool speichert alles in universellen JSON-Dateien. Lege deinen Datenbank-Ordner einfach auf ein NAS, OneDrive oder einen USB-Stick und greife von überall darauf zu.
+* **🎨 Grenzenlose Farbwahl:** Neben den Standardfarben gibt es jetzt einen manuellen Color-Picker. Klicke auf das "🎨"-Symbol, wähle deine exakte Herstellerfarbe (z.B. "Tiefsee-Blau") und VibeSpool merkt sich den Code für die grafische Ansicht.
+* **📊 Smarte Excel-Filter:** Vergiss starre Buttons! Nutze dynamische Dropdown-Filter für Material, Farbe und Lagerort. Das System lernt mit: Neue Materialien werden automatisch erkannt und dem Filter hinzugefügt.
+* **📦 Erweiterte, scrollbare Übersicht:** Die grafische Regal- & AMS-Ansicht skaliert jetzt intelligent mit deinen Beständen. XXL-Regale (20+ Fächer) lassen sich bequem per horizontalem Scrollbalken bedienen. Auch Kisten, Trockner oder Lager werden sauber visualisiert.
+* **⚖️ Idiotensichere Gewichts-Logik:** Trage einfach das "Gewicht auf der Waage" ein und wähle den Spulentyp (Pappe, Plastik, etc.) aus. VibeSpool berechnet anhand des hinterlegten Original-Inhalts sofort dein Netto-Restgewicht.
+* **🔄 In-App Updates:** Das Programm prüft ab sofort selbstständig auf GitHub, ob eine neue Version verfügbar ist, und informiert dich bequem per Pop-up.
 
 ## 🚀 Installation & Start (Für Endanwender)
 
@@ -20,7 +21,7 @@ Du musst nicht programmieren können, um VibeSpool zu nutzen!
 2. Lade dir die neueste Version für dein Betriebssystem herunter:
     * **Windows:** Lade die `VibeSpool_Win.exe` herunter und starte sie einfach. (Keine Installation nötig!)
     * **Mac:** Lade die `VibeSpool_Mac.zip` herunter, entpacke sie und starte die App.
-3. **Daten-Sicherheit:** Standardmäßig speichert die App alles lokal in deinem Benutzerverzeichnis unter `VibeSpool_Daten`. Du kannst diesen Pfad jederzeit in den Einstellungen ändern.
+3. **Daten-Sicherheit:** Standardmäßig speichert die App alles lokal in deinem Benutzerverzeichnis unter `VibeSpool_Daten`. Du kannst diesen Pfad in den Einstellungen jederzeit auf dein NAS oder eine Cloud (Dropbox/OneDrive) ändern.
 
 ## 🛠️ Für Entwickler
 
@@ -45,5 +46,5 @@ VibeSpool ist zu 100 % kostenlos und ein Community-Projekt. In den Einstellungen
 
 ## 🐛 Bugs & Feedback
 
-Du hast eine Idee aus Ostfriesland oder einen Fehler gefunden? 
+Du hast eine Idee oder einen Fehler gefunden? 
 Erstelle gerne einen neuen Eintrag im Reiter **[Issues](https://github.com/SirMetalizer/VibeSpool/issues)** hier auf GitHub!

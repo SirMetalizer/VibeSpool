@@ -1,22 +1,21 @@
-## 📋 VibeSpool Master-Backlog (v1.6 - v2.0)
+📋 Der NEUE VibeSpool Master-Backlog (v1.8 - v2.0)
 
-### 📡 Prio 2: Der "Universal-Identifikations" Hub (v1.7)
+📡 Prio 1: Der "Hardware & ID" Hub (v1.8)
 
-* **Hybrid-Modus (RFID & Quick-ID):** Umschalter in den Settings: "RFID-Modus" vs. "Manueller Modus". Im RFID-Modus wird das Quick-ID Feld für Tastatur-Eingaben gesperrt und wartet rein auf den "Input" des Readers.
-* **RFID-Tag-Kopplung:** Neues Feld im Bearbeitungs-Menü, um eine eindeutige RFID-Seriennummer fest mit einer Spule zu verknüpfen.
-* **QR-Code Scan via Webcam:** Integration einer einfachen Kamera-Bibliothek (z.B. `opencv`), um QR-Codes direkt am PC zu scannen, falls kein RFID vorhanden ist.
+Hybrid-Modus (RFID & Quick-ID): Umschalter in den Settings: "RFID-Modus" vs. "Manueller Modus". Im RFID-Modus wartet das Quick-ID Feld rein auf den "Input" des USB-Readers.
 
-### 🌐 Prio 3: Connectivity & Standards (v1.8)
+RFID-Tag-Kopplung: Neues Feld im Menü, um eine eindeutige RFID-Seriennummer fest mit einer Spule zu verknüpfen.
 
-* **Spoolman / OpenSpool API:** Synchronisation deiner lokalen Datenbank mit dem Open-Source Standard für 3D-Drucker.
-* **Klipper/Moonraker Integration:** Automatisches Abziehen des Gewichts nach einem beendeten Druckauftrag via API-Abfrage.
+QR-Code Scan via Webcam: Integration einer einfachen Kamera-Bibliothek (opencv), um QR-Codes direkt am PC zu scannen, falls kein RFID-Reader vorhanden ist.
 
-### 📱 Prio 4: Mobile & Web (v1.9)
+🌐 Prio 2: Connectivity & Standards (v1.9)
 
-* **VibeSpool Remote:** Kleiner lokaler Webserver (Flask), um den Bestand auf dem Handy im WLAN anzuzeigen.
-* **Touch-Optimierung:** Eine spezielle Ansicht für Tablets im Werkstatt-Modus.
+Spoolman / OpenSpool API: Synchronisation deiner lokalen VibeSpool-Datenbank mit dem Open-Source Standard für 3D-Drucker.
 
-### 💰 Prio 5: Smart Financials (v2.0)
+Klipper/Moonraker Integration: Automatisches Abziehen des verbrauchten Gewichts nach einem beendeten Druckauftrag via API-Abfrage an deinen Drucker.
 
-* **Druckkosten-Rechner:** Preis pro Gramm Berechnung basierend auf den v1.5 Kaufdaten.
-* **Bestands-Statistik:** Grafische Auswertung: Welches Material drucke ich am meisten? Wie viel Geld liegt gerade in meinem Regal?
+📱 Prio 3: Mobile & Web (v2.0)
+
+VibeSpool Remote: Ein kleiner, optionaler lokaler Webserver (Flask) in der App, um den Bestand bequem auf dem Handy im selben WLAN anzuzeigen.
+
+Touch-Optimierung: Eine spezielle "Werkstatt-Ansicht" mit riesigen Buttons für Tablets.

@@ -1,13 +1,5 @@
 ## 📋 VibeSpool Master-Backlog (v1.6 - v2.0)
 
-### 🚀 Prio 1: Das "Wartungs- & Update" Paket (v1.6)
-
-* **Bugfix (Tester-Feedback):** Regal-Ansicht horizontal scrollbar machen (für Regale mit > 15 Slots).
-* **GitHub-Update-Motor:** Reaktivierung der automatischen Abfrage der neuesten Version.
-* **Update-Button:** Manueller Check in den Settings.
-* **In-App Updater:** Automatischer Download und Austausch der `.exe`.
-* **Fixes:** Fenster-Skalierung bei extrem langen Pfaden (OneDrive-Bug).
-
 ### 📡 Prio 2: Der "Universal-Identifikations" Hub (v1.7)
 
 * **Hybrid-Modus (RFID & Quick-ID):** Umschalter in den Settings: "RFID-Modus" vs. "Manueller Modus". Im RFID-Modus wird das Quick-ID Feld für Tastatur-Eingaben gesperrt und wartet rein auf den "Input" des Readers.

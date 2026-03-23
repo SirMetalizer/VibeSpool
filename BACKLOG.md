@@ -2,6 +2,8 @@
 
 ✅ Refactoring 2.0: Modularisierung der App (core/ Verzeichnis, DataManager Klasse) abgeschlossen.
 
+✅ Automatisierte Tests: Test-Framework (pytest) eingerichtet und Unit-Tests für core/ Module erstellt.
+
 ✅ Hardware & ID Hub (v1.8): Hybrid-Modus, RFID-Tag-Kopplung und QR-Code Webcam Scan implementiert.
 
 🌐 Prio 2: Connectivity & Standards (v1.9)

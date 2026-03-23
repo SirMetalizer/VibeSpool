@@ -18,7 +18,7 @@ from core.logic import calculate_net_weight, check_for_updates
 from core.data_manager import DataManager
 
 # --- KONFIGURATION ---
-APP_VERSION = "1.7.1 (Modular)"
+APP_VERSION = "1.7"
 GITHUB_REPO = "SirMetalizer/VibeSpool" 
 
 # --- DEFAULTS ---
@@ -31,7 +31,8 @@ DEFAULT_SETTINGS = {
     "custom_locs": "Filamenttrockner",
     "geometry": "1500x980", 
     "theme": "dark",
-    "use_affiliate": True
+    "use_affiliate": True,
+    "rfid_mode": False
 }
 
 MATERIALS = ["PLA", "PLA+", "PETG", "ABS", "ASA", "TPU", "PC", "PA-CF", "PVA", "Sonstiges"]
@@ -160,7 +161,11 @@ class SettingsDialog(tk.Toplevel):
         self.var_affiliate = tk.BooleanVar(value=self.current_settings.get("use_affiliate", True)); ttk.Checkbutton(frm, text="Entwickler mit Affiliate-Links unterstützen", variable=self.var_affiliate).grid(row=10, column=0, columnspan=2, sticky="w"); ttk.Label(frm, text="(Fügt in der Einkaufsliste automatisch einen Partner-Code\nbei Bambu Lab Links hinzu. Kostet dich keinen Cent!)", font=("Segoe UI", 8)).grid(row=11, column=0, columnspan=2, sticky="w", padx=20)
         
         ttk.Separator(frm, orient="horizontal").grid(row=12, column=0, columnspan=2, sticky="ew", pady=15)
-        btn_action_frm = ttk.Frame(frm); btn_action_frm.grid(row=13, column=0, columnspan=2, pady=5)
+        self.var_rfid_mode = tk.BooleanVar(value=self.current_settings.get("rfid_mode", False)); ttk.Checkbutton(frm, text="RFID-Modus aktivieren (Quick-ID nutzt RFID-Tags)", variable=self.var_rfid_mode).grid(row=13, column=0, columnspan=2, sticky="w")
+        ttk.Label(frm, text="(Im RFID-Modus wartet das Quick-ID Feld auf den Input\ndeines USB-RFID-Readers.)", font=("Segoe UI", 8)).grid(row=14, column=0, columnspan=2, sticky="w", padx=20)
+        
+        ttk.Separator(frm, orient="horizontal").grid(row=15, column=0, columnspan=2, sticky="ew", pady=15)
+        btn_action_frm = ttk.Frame(frm); btn_action_frm.grid(row=16, column=0, columnspan=2, pady=5)
         def open_github(): webbrowser.open(f"https://github.com/{GITHUB_REPO}/releases/latest")
         def manual_update_check():
             try:
@@ -176,7 +181,7 @@ class SettingsDialog(tk.Toplevel):
         ttk.Button(self, text="Speichern", command=self.save).pack(pady=20, fill="x", padx=20)
     def save(self):
         try:
-            self.current_settings.update({"shelves": self.ent_shelves.get().strip(), "logistics_order": self.var_logistics.get(), "label_row": self.ent_lbl_row.get().strip() or "Fach", "label_col": self.ent_lbl_col.get().strip() or "Slot", "num_ams": int(self.ent_ams.get()), "custom_locs": self.ent_custom.get().strip(), "use_affiliate": self.var_affiliate.get()})
+            self.current_settings.update({"shelves": self.ent_shelves.get().strip(), "logistics_order": self.var_logistics.get(), "label_row": self.ent_lbl_row.get().strip() or "Fach", "label_col": self.ent_lbl_col.get().strip() or "Slot", "num_ams": int(self.ent_ams.get()), "custom_locs": self.ent_custom.get().strip(), "use_affiliate": self.var_affiliate.get(), "rfid_mode": self.var_rfid_mode.get()})
             self.on_save(self.current_settings); self.destroy()
         except: messagebox.showerror("Fehler", "Bitte bei AMS nur Zahlen eingeben.")
 
@@ -363,6 +368,7 @@ class FilamentApp:
         self.combo_filter_color = ttk.Combobox(top_bar, textvariable=self.filter_color_var, state="readonly", width=15); self.combo_filter_color.pack(side="left", padx=5); self.combo_filter_color.bind("<<ComboboxSelected>>", lambda e: self.refresh_table())
         self.combo_filter_loc = ttk.Combobox(top_bar, textvariable=self.filter_loc_var, state="readonly", width=15); self.combo_filter_loc.pack(side="left", padx=5); self.combo_filter_loc.bind("<<ComboboxSelected>>", lambda e: self.refresh_table())
         ttk.Button(top_bar, text="🔄 Reset", command=self.reset_filters).pack(side="left", padx=5); ttk.Label(top_bar, text=" Quick-ID:").pack(side="left", padx=(10,0)); self.entry_scan = ttk.Entry(top_bar, width=8); self.entry_scan.pack(side="left", padx=5); self.entry_scan.bind("<Return>", self.on_quick_scan)
+        ttk.Button(top_bar, text="📷", width=3, command=self.scan_qr_webcam).pack(side="left")
         ttk.Button(top_bar, text="⚙ Settings", command=self.open_settings).pack(side="right", padx=5); ttk.Button(top_bar, text="💾 Backup", command=lambda: BackupDialog(self.root, self.data_manager, self)).pack(side="right", padx=5); ttk.Button(top_bar, text="🛒 Einkaufsliste", command=lambda: ShoppingListDialog(self.root, self.inventory, self)).pack(side="right", padx=5); ttk.Button(top_bar, text="☕ Spenden", command=self.open_paypal).pack(side="right", padx=5); self.btn_theme = ttk.Button(top_bar, text="...", command=self.toggle_theme); self.btn_theme.pack(side="right", padx=5); self.update_theme_button_text()
         
         main_frame = ttk.Frame(root, padding=10); main_frame.pack(fill="both", expand=True)
@@ -371,6 +377,7 @@ class FilamentApp:
         tab_basis, tab_erp = ttk.Frame(self.notebook, padding=10), ttk.Frame(self.notebook, padding=10); self.notebook.add(tab_basis, text="Basis & Lager"); self.notebook.add(tab_erp, text="Kaufmännisch")
 
         frm_id = ttk.Frame(tab_basis); frm_id.pack(fill="x", pady=2); ttk.Label(frm_id, text="ID:").pack(side="left"); self.entry_id = ttk.Entry(frm_id, width=10, font=FONT_BOLD); self.entry_id.pack(side="left", padx=5)
+        ttk.Label(frm_id, text="RFID:").pack(side="left", padx=(10, 0)); self.entry_rfid = ttk.Entry(frm_id, width=15); self.entry_rfid.pack(side="left", padx=5)
         ttk.Label(tab_basis, text="Marke:").pack(anchor="w", pady=(10,0)); self.entry_brand = ttk.Entry(tab_basis, font=FONT_MAIN); self.entry_brand.pack(fill="x", pady=2)
         ttk.Label(tab_basis, text="Material:").pack(anchor="w", pady=(10,0)); self.combo_material = ttk.Combobox(tab_basis, values=MATERIALS, font=FONT_MAIN); self.combo_material.pack(fill="x", pady=2)
         ttk.Label(tab_basis, text="Farbe:").pack(anchor="w", pady=(10,0)); frm_col = ttk.Frame(tab_basis); frm_col.pack(fill="x", pady=2); self.combo_color = ttk.Combobox(frm_col, values=COMMON_COLORS, font=FONT_MAIN); self.combo_color.pack(side="left", fill="x", expand=True); self.combo_color.bind("<KeyRelease>", self.update_color_preview); self.combo_color.bind("<<ComboboxSelected>>", self.update_color_preview)
@@ -525,7 +532,7 @@ class FilamentApp:
         self.tree.tag_configure("alert", background="#ffe6e6", foreground="#d9534f"); self.tree.tag_configure("grayed", foreground="#999999")
     def get_input_data(self):
         try:
-            return {"id": int(self.entry_id.get().strip()) if self.entry_id.get().strip() else None, "brand": self.entry_brand.get().strip(), "material": self.combo_material.get().strip(), "color": self.combo_color.get().strip(), "subtype": self.combo_subtype.get().strip(), "type": self.combo_type.get(), "loc_id": self.combo_loc_id.get().strip(), "flow": self.entry_flow.get().strip(), "pa": self.entry_pa.get().strip(), "spool_id": self.get_selected_spool_id(), "weight_gross": float(self.var_gross.get().strip().replace(',', '.') or 0), "capacity": int(self.var_capacity.get().strip() or 1000), "is_empty": self.combo_type.get() == "VERBRAUCHT", "reorder": self.var_reorder.get(), "supplier": self.entry_supplier.get().strip(), "sku": self.entry_sku.get().strip(), "price": self.var_price.get().strip(), "link": self.entry_link.get().strip(), "temp_n": self.entry_temp_n.get().strip(), "temp_b": self.entry_temp_b.get().strip()}
+            return {"id": int(self.entry_id.get().strip()) if self.entry_id.get().strip() else None, "rfid": self.entry_rfid.get().strip(), "brand": self.entry_brand.get().strip(), "material": self.combo_material.get().strip(), "color": self.combo_color.get().strip(), "subtype": self.combo_subtype.get().strip(), "type": self.combo_type.get(), "loc_id": self.combo_loc_id.get().strip(), "flow": self.entry_flow.get().strip(), "pa": self.entry_pa.get().strip(), "spool_id": self.get_selected_spool_id(), "weight_gross": float(self.var_gross.get().strip().replace(',', '.') or 0), "capacity": int(self.var_capacity.get().strip() or 1000), "is_empty": self.combo_type.get() == "VERBRAUCHT", "reorder": self.var_reorder.get(), "supplier": self.entry_supplier.get().strip(), "sku": self.entry_sku.get().strip(), "price": self.var_price.get().strip(), "link": self.entry_link.get().strip(), "temp_n": self.entry_temp_n.get().strip(), "temp_b": self.entry_temp_b.get().strip()}
         except: messagebox.showwarning("Fehler", "Zahlenformat ungültig."); return None
     def add_filament(self):
         d = self.get_input_data()
@@ -546,12 +553,12 @@ class FilamentApp:
         if not sel: return
         i = next((x for x in self.inventory if x['id'] == int(sel[0])), None)
         if not i: return
-        self.clear_inputs(deselect=False); self.entry_id.insert(0, str(i['id'])); self.entry_brand.insert(0, i['brand']); self.combo_material.set(i.get('material', 'PLA')); self.combo_color.set(i['color']); self.combo_subtype.set(i.get('subtype', 'Standard')); self.update_color_preview(); self.combo_type.set(i['type']); self.update_slot_dropdown(); self.combo_loc_id.set(i.get('loc_id', '')); self.entry_flow.insert(0, i.get('flow', '')); self.entry_pa.insert(0, i.get('pa', '')); self.var_reorder.set(i.get('reorder', False))
+        self.clear_inputs(deselect=False); self.entry_id.insert(0, str(i['id'])); self.entry_rfid.insert(0, i.get('rfid', '')); self.entry_brand.insert(0, i['brand']); self.combo_material.set(i.get('material', 'PLA')); self.combo_color.set(i['color']); self.combo_subtype.set(i.get('subtype', 'Standard')); self.update_color_preview(); self.combo_type.set(i['type']); self.update_slot_dropdown(); self.combo_loc_id.set(i.get('loc_id', '')); self.entry_flow.insert(0, i.get('flow', '')); self.entry_pa.insert(0, i.get('pa', '')); self.var_reorder.set(i.get('reorder', False))
         for val in self.combo_spool['values']:
             if val.startswith(f"{i.get('spool_id', -1)} -"): self.combo_spool.set(val); break
         self.var_capacity.set(str(i.get('capacity', 1000))); gross = str(i.get('weight_gross', '0')).replace(',', '.'); float_g = float(gross) if gross else 0; self.var_gross.set(str(float_g).rstrip('0').rstrip('.') if float_g > 0 else ""); self.var_price.set(str(i.get('price', ''))); self.update_net_weight_display(); self.entry_supplier.insert(0, i.get('supplier', '')); self.entry_sku.insert(0, i.get('sku', '')); self.entry_link.insert(0, i.get('link', '')); self.entry_temp_n.insert(0, i.get('temp_n', '')); self.entry_temp_b.insert(0, i.get('temp_b', ''))
     def clear_inputs(self, deselect=True):
-        for e in [self.entry_id, self.entry_brand, self.entry_flow, self.entry_pa, self.entry_supplier, self.entry_sku, self.entry_link, self.entry_temp_n, self.entry_temp_b]: e.delete(0, tk.END)
+        for e in [self.entry_id, self.entry_rfid, self.entry_brand, self.entry_flow, self.entry_pa, self.entry_supplier, self.entry_sku, self.entry_link, self.entry_temp_n, self.entry_temp_b]: e.delete(0, tk.END)
         self.var_capacity.set("1000"); self.var_gross.set(""); self.var_price.set(""); self.combo_color.set(""); self.combo_loc_id.set(""); self.combo_material.current(0); self.combo_subtype.current(0); self.combo_type.current(0); self.combo_spool.current(0); self.update_net_weight_display(); self.update_slot_dropdown(); self.var_reorder.set(False); self.update_color_preview()
         if deselect: self.tree.selection_remove(self.tree.selection())
     def quick_swap_dialog(self):
@@ -572,9 +579,42 @@ class FilamentApp:
             self.data_manager.save_inventory(self.inventory); self.refresh_table(); self.tree.selection_set(str(s_a['id'])); self.on_select(None); win.destroy(); messagebox.showinfo("Quick-Swap Erfolgreich", f"{s_a['brand']} ist im {t_am} (Slot {t_sl})." + (f"\n\nDie alte Spule ({s_b['brand']}) wurde in {o_t} {o_l} gelegt!" if s_b else ""), parent=self.root)
         ttk.Button(win, text="🔄 Tauschen", command=do_swap, style="Accent.TButton").pack(pady=15)
     def on_quick_scan(self, event=None):
-        scan = self.entry_scan.get().strip(); match = re.search(r'(?:ID:\s*|FIL_)?(\d+)', scan, re.IGNORECASE)
-        if match and self.tree.exists(match.group(1)): self.tree.selection_set(match.group(1)); self.tree.see(match.group(1)); self.on_select(None); self.entry_scan.delete(0, tk.END)
-        else: messagebox.showerror("Fehler", "Keine gültige ID im System gefunden.")
+        scan = self.entry_scan.get().strip()
+        if not scan: return
+        found_id = None
+        if self.settings.get("rfid_mode", False):
+            item = next((i for i in self.inventory if i.get('rfid') == scan), None)
+            if item: found_id = str(item['id'])
+        else:
+            match = re.search(r'(?:ID:\s*|FIL_)?(\d+)', scan, re.IGNORECASE)
+            if match: found_id = match.group(1)
+        
+        if found_id and self.tree.exists(found_id):
+            self.tree.selection_set(found_id); self.tree.see(found_id); self.on_select(None); self.entry_scan.delete(0, tk.END)
+        else:
+            messagebox.showerror("Fehler", f"Keine Spule mit {'RFID' if self.settings.get('rfid_mode') else 'ID'} '{scan}' gefunden.")
+            self.entry_scan.delete(0, tk.END)
+    def scan_qr_webcam(self):
+        try:
+            import cv2
+            from pyzbar import pyzbar
+        except ImportError:
+            messagebox.showerror("Fehler", "Für den QR-Scan werden 'opencv-python' und 'pyzbar' benötigt.\nBitte installiere diese via pip:\npip install opencv-python pyzbar")
+            return
+        cap = cv2.VideoCapture(0)
+        if not cap.isOpened(): messagebox.showerror("Fehler", "Kamera konnte nicht geöffnet werden."); return
+        win_name = "VibeSpool QR-Scanner (ESC zum Schließen)"; found_id = None
+        while True:
+            ret, frame = cap.read()
+            if not ret: break
+            for barcode in pyzbar.decode(frame):
+                barcode_data = barcode.data.decode("utf-8"); match = re.search(r'(?:ID:\s*|FIL_)?(\d+)', barcode_data, re.IGNORECASE)
+                if match: found_id = match.group(1); break
+            cv2.imshow(win_name, frame)
+            if found_id or cv2.waitKey(1) & 0xFF == 27: break
+        cap.release(); cv2.destroyAllWindows()
+        if found_id: self.entry_scan.delete(0, tk.END); self.entry_scan.insert(0, found_id); self.on_quick_scan()
+
     def refresh_all_data(self): self.inventory, self.settings, self.spools = self.data_manager.load_all(DEFAULT_SETTINGS); self.apply_theme(); self.update_locations_dropdown(); self.refresh_table()
 
 if __name__ == "__main__":

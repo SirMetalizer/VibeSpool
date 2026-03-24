@@ -1,34 +1,58 @@
 # 🧵 VibeSpool - Das smarte Filament-Management-System
 
-![Version](https://img.shields.io/badge/version-1.7-blue.svg)
+![Version](https://img.shields.io/badge/version-1.8-blue.svg)
 ![Python](https://img.shields.io/badge/python-3.10%2B-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
-**Die smarte Schaltzentrale für dein 3D-Druck Filament-Lager.** Schluss mit dem *"Wie viel ist da noch drauf?"*-Raten und dem Excel-Chaos in der Werkstatt. VibeSpool ist ein leichtgewichtiges, lokales Desktop-Tool (Python/Tkinter), das dir die volle visuelle und kaufmännische Kontrolle über deine Spulen gibt.
+**Die smarte Schaltzentrale für dein 3D-Druck Filament-Lager.** VibeSpool ist ein leichtgewichtiges, lokales Desktop-Tool (Python/Tkinter), das dir die volle visuelle und kaufmännische Kontrolle über deine Spulen gibt.
 
 ![VibeSpool Screenshot](https://metalizer.de/Vibespool.jpg)
 
 ---
 
-## ✨ Features (v1.7)
+## 🚀 NEU in v1.8: Der "Connectivity & Workflow" Hub
 
-### 📦 Visuelles Lager & AMS Management
-* **Regal-Visualizer:** Erstelle dein eigenes Layout (z.B. 4 Reihen, 8 Slots). VibeSpool zeichnet dein Regal nach und zeigt dir exakt an, wo welche Spule liegt. XXL-Regale werden dank dynamischem Scrollen problemlos unterstützt.
-* **🔄 Quick-Swap Magie:** Tausche Spulen mit einem Klick zwischen Regal und dem Bambu Lab AMS. Das Tool merkt sich den alten Platz und räumt die ausgewechselte Spule virtuell exakt dorthin zurück.
+Dieses Update macht VibeSpool intelligenter, kommunikativer und deutlich komfortabler!
 
-### 💰 Smart Financials (Kaufmännisches Dashboard)
-* **Live-Wertberechnung:** Trage den Kaufpreis und die Kapazität ein. VibeSpool berechnet bei jedem Wiegen im Hintergrund den auf den Cent genauen Restwert der Spule.
-* **Finanz-Statistik:** Ein Klick und du siehst den Gesamtwert (in €) und das Gesamtgewicht (in kg) deines gesamten Lagers, aufgeschlüsselt nach Materialien.
-
-### 🛠️ Workflow & QoL (Quality of Life)
-* **QR-Codes:** Generiere auf Knopfdruck QR-Codes für deine Spulen zur schnellen Identifikation.
-* **Einkaufsliste & CSV-Export:** Markiere leere oder fast leere Spulen für die Einkaufsliste und exportiere sie für Excel.
-* **Auto-Updater:** VibeSpool checkt (sanft und unaufdringlich) über die GitHub-API, ob eine neue Version verfügbar ist.
-* **Flawless Dark/Light Mode:** Perfekt abgestimmte UI, egal ob du nachts oder tagsüber druckst.
+*   **🤖 Klipper/Moonraker Sync:** Ziehe das verbrauchte Gewicht direkt von deinem Drucker ab. Wähle aus den letzten 10 Druckaufträgen exakt den passenden aus.
+*   **🧵 Leerspulen-Presets:** Über 40 Marken-Vorlagen (Bambu Lab, Prusa, etc.) mit hinterlegten Gewichten für den Blitz-Import.
+*   **⚙️ UX-Boost:** Neues Tab-basiertes Einstellungsmenü und ein smartes Optionen-Dropdown für schnellen Zugriff.
+*   **🛠️ Local-First:** Automatische Erkennung deiner Daten im Programmordner oder Dokumente-Verzeichnis.
 
 ---
 
-## 🚀 Installation & Start
+## ✨ Features (v1.8)
+
+### 📦 Visuelles Lager & AMS Management
+* **Regal-Visualizer:** Erstelle dein eigenes Layout (z.B. 4 Reihen, 8 Slots). VibeSpool zeichnet dein Regal nach und zeigt dir exakt an, wo welche Spule liegt.
+* **🤖 Drucker-Historie:** Direkte Anbindung an Klipper (Moonraker API), um Filamentverbräuche ohne Nachwiegen zu übernehmen.
+* **🔄 Quick-Swap Magie:** Tausche Spulen mit einem Klick zwischen Regal und dem AMS.
+
+### 💰 Smart Financials (Kaufmännisches Dashboard)
+* **Live-Wertberechnung:** VibeSpool berechnet bei jedem Wiegen im Hintergrund den auf den Cent genauen Restwert der Spule.
+* **Finanz-Statistik:** Gesamtwert (in €) und Gewicht (in kg) deines Lagers auf einen Blick.
+
+### 🛠️ Workflow & QoL (Quality of Life)
+* **Webcam QR-Scan & RFID:** Schnelle Identifikation deiner Spulen via Kamera oder RFID-Reader.
+* **Einkaufsliste & CSV-Export:** Markiere leere Spulen und exportiere deine Liste für Excel.
+* **Flawless Dark/Light Mode:** Perfekt abgestimmte UI für jede Tageszeit.
+
+---
+
+## 🧵 Leerspulen-Datenbank & Gewichte
+
+VibeSpool enthält eine integrierte Datenbank für Leerspulen-Gewichte, basierend auf dem großartigen Community-Spreadsheet:
+👉 [Unofficial Filament Spool Compatibility Spreadsheet](https://docs.google.com/spreadsheets/d/1LGVjAbGjvIjvOFQsDi8lSK9-vy7GfGhgVP41sNffh6I/edit?gid=1679778390#gid=1679778390)
+
+### So nutzt du die Vorlagen:
+1. Klicke in der Sidebar auf **"🧵 Leerspulen verwalten"**.
+2. Klicke unten auf **"📋 Vorlagen"**.
+3. Wähle deine Spule aus der Liste aus (z.B. "Bambu Lab (Reusable) (250g)") und klicke auf **"Übernehmen"**.
+4. Klicke auf **"Neu anlegen"**, um sie dauerhaft in deine persönliche Liste zu übernehmen.
+
+---
+
+## 🛠️ Installation & Start
 
 VibeSpool benötigt keine komplizierten Datenbank-Server. Alle deine Daten liegen sicher in einer lokalen `inventory.json` Datei (auf Wunsch auch synchronisiert via OneDrive/Dropbox).
 

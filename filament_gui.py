@@ -1,6 +1,7 @@
 import tkinter as tk
 from tkinter import ttk, messagebox, simpledialog, filedialog, colorchooser
 import os
+import json
 import zipfile
 import webbrowser 
 import urllib.request 
@@ -14,11 +15,13 @@ import qrcode
 
 # --- MODULE IMPORT ---
 from core.utils import load_json, save_json, get_colors_from_text, create_color_icon, center_window
-from core.logic import calculate_net_weight, check_for_updates
+from core.logic import calculate_net_weight, check_for_updates, parse_shelves_string, serialize_shelves
 from core.data_manager import DataManager
+from core.printer_sync import fetch_last_print_usage, fetch_recent_jobs
+from core.spool_presets import SPOOL_PRESETS
 
 # --- KONFIGURATION ---
-APP_VERSION = "1.7"
+APP_VERSION = "1.8"
 GITHUB_REPO = "SirMetalizer/VibeSpool" 
 
 # --- DEFAULTS ---
@@ -32,7 +35,9 @@ DEFAULT_SETTINGS = {
     "geometry": "1500x980", 
     "theme": "dark",
     "use_affiliate": True,
-    "rfid_mode": False
+    "rfid_mode": False,
+    "printer_url": "",
+    "printer_api_key": ""
 }
 
 MATERIALS = ["PLA", "PLA+", "PETG", "ABS", "ASA", "TPU", "PC", "PA-CF", "PVA", "Sonstiges"]
@@ -94,7 +99,21 @@ class SpoolManager(tk.Toplevel):
         ttk.Button(frm_btns, text="Neu anlegen", command=self.add_spool).pack(side="left", padx=5)
         ttk.Button(frm_btns, text="Speichern", command=self.update_spool).pack(side="left", padx=5)
         ttk.Button(frm_btns, text="Löschen", command=self.delete_spool).pack(side="left", padx=5)
+        ttk.Button(frm_btns, text="📋 Vorlagen", command=self.import_preset).pack(side="left", padx=5)
         self.refresh_list()
+    def import_preset(self):
+        win = tk.Toplevel(self); win.title("Spulen-Vorlagen"); win.geometry("400x500"); center_window(win, self)
+        ttk.Label(win, text="Wähle eine Standardspule:", font=FONT_BOLD).pack(pady=10)
+        lb = tk.Listbox(win, font=FONT_MAIN); lb.pack(fill="both", expand=True, padx=10, pady=5)
+        for p in SPOOL_PRESETS: lb.insert(tk.END, f"{p['name']} ({p['weight']}g)")
+        def do_import():
+            sel = lb.curselection()
+            if not sel: return
+            p = SPOOL_PRESETS[sel[0]]
+            self.ent_name.delete(0, tk.END); self.ent_name.insert(0, p['name'])
+            self.ent_weight.delete(0, tk.END); self.ent_weight.insert(0, str(p['weight']))
+            win.destroy()
+        ttk.Button(win, text="Übernehmen", command=do_import, style="Accent.TButton").pack(pady=10, fill="x", padx=20)
     def refresh_list(self):
         for item in self.tree.get_children(): self.tree.delete(item)
         for s in self.spools: self.tree.insert("", "end", iid=str(s['id']), values=(s['id'], s['name'], s['weight']))
@@ -127,63 +146,207 @@ class SpoolManager(tk.Toplevel):
         self.spools = [s for s in self.spools if s['id'] != int(sel[0])]; self.data_manager.save_spools(self.spools); self.refresh_list()
     def destroy(self): self.on_close_callback(); super().destroy()
 
-class SettingsDialog(tk.Toplevel):
-    def __init__(self, parent, data_manager, on_save):
-        super().__init__(parent)
-        self.data_manager = data_manager
-        self.on_save = on_save; _, self.current_settings, _ = self.data_manager.load_all(DEFAULT_SETTINGS); self.title("Einstellungen & Lagerorte")
-        self.geometry("500x820"); self.configure(bg=parent.cget('bg')); center_window(self, parent)
+class ShelfPlannerDialog(tk.Toplevel):
+    def __init__(self, parent, initial_value, on_confirm):
+        super().__init__(parent); self.on_confirm = on_confirm; self.title("Regal-Planer"); self.geometry("500x450"); self.configure(bg=parent.cget('bg')); center_window(self, parent)
+        self.transient(parent); self.grab_set()
         
-        ttk.Label(self, text="Multi-Regal Layout & Lagerorte", font=("Segoe UI", 12, "bold")).pack(pady=10)
-        frm = ttk.Frame(self); frm.pack(padx=20, pady=5, fill="both", expand=True)
-        ttk.Label(frm, text="Regale (Name|Zeilen|Spalten):").grid(row=0, column=0, sticky="w", pady=5)
-        self.ent_shelves = ttk.Entry(frm, width=30); self.ent_shelves.insert(0, self.current_settings.get("shelves", "REGAL|4|8")); self.ent_shelves.grid(row=0, column=1, pady=5, sticky="w")
-        ttk.Label(frm, text="Kommagetrennt für mehrere!\nBeispiel: REGAL|4|8, REGAL NEU|6|12").grid(row=1, column=1, sticky="w", pady=(0, 5))
-        self.var_logistics = tk.BooleanVar(value=self.current_settings.get("logistics_order", False)); ttk.Checkbutton(frm, text="Logistik-Standard (Zählung von unten nach oben)", variable=self.var_logistics).grid(row=2, column=0, columnspan=2, sticky="w", pady=10)
-        ttk.Label(frm, text="Benennung Zeile:").grid(row=3, column=0, sticky="w", pady=5)
-        self.ent_lbl_row = ttk.Entry(frm, width=15); self.ent_lbl_row.insert(0, self.current_settings.get("label_row", "Fach")); self.ent_lbl_row.grid(row=3, column=1, sticky="w")
-        ttk.Label(frm, text="Benennung Spalte:").grid(row=4, column=0, sticky="w", pady=5)
-        self.ent_lbl_col = ttk.Entry(frm, width=15); self.ent_lbl_col.insert(0, self.current_settings.get("label_col", "Slot")); self.ent_lbl_col.grid(row=4, column=1, sticky="w")
-        ttk.Label(frm, text="Anzahl AMS Geräte:").grid(row=5, column=0, sticky="w", pady=(20,5))
-        self.ent_ams = ttk.Entry(frm, width=10); self.ent_ams.insert(0, str(self.current_settings.get("num_ams", 1))); self.ent_ams.grid(row=5, column=1, sticky="w", pady=(20,5))
-        ttk.Label(frm, text="Weitere Orte (Kommagetrennt):").grid(row=6, column=0, sticky="w", pady=5)
-        self.ent_custom = ttk.Entry(frm); self.ent_custom.insert(0, self.current_settings.get("custom_locs", "Filamenttrockner")); self.ent_custom.grid(row=6, column=1, sticky="ew", pady=5)
-        ttk.Label(frm, text="Beispiel: Samla Box, Filamenttrockner, Keller").grid(row=7, column=1, sticky="w", pady=(0, 10))
-        ttk.Label(frm, text="Datenbank-Ordner:").grid(row=8, column=0, sticky="nw", pady=5); path_frm = ttk.Frame(frm); path_frm.grid(row=8, column=1, sticky="ew", pady=5)
-        show_path = self.current_settings.get("custom_db_path", "") or "Standard (Dokumente)"; self.lbl_path = ttk.Label(path_frm, text=show_path, font=("Segoe UI", 8, "italic"), wraplength=350); self.lbl_path.pack(fill="x", pady=(0, 5))
-        btn_path_frm = ttk.Frame(path_frm); btn_path_frm.pack(fill="x")
-        def choose_path():
-            d = filedialog.askdirectory(title="Neuen Speicherort für Datenbank wählen")
-            if d: self.current_settings["custom_db_path"] = d; self.lbl_path.config(text=d); messagebox.showinfo("Wichtig", "Der neue Pfad wird beim Speichern übernommen.\nBitte starte VibeSpool danach einmal neu!", parent=self)
-        def reset_path(): self.current_settings["custom_db_path"] = ""; self.lbl_path.config(text="Standard (Dokumente)"); messagebox.showinfo("Wichtig", "Pfad wurde zurückgesetzt.\nBitte starte VibeSpool nach dem Speichern neu!", parent=self)
-        ttk.Button(btn_path_frm, text="Ordner ändern", command=choose_path).pack(side="left", padx=(0, 5)); ttk.Button(btn_path_frm, text="Standard verwenden", command=reset_path).pack(side="left")
-        ttk.Separator(frm, orient="horizontal").grid(row=9, column=0, columnspan=2, sticky="ew", pady=15)
-        self.var_affiliate = tk.BooleanVar(value=self.current_settings.get("use_affiliate", True)); ttk.Checkbutton(frm, text="Entwickler mit Affiliate-Links unterstützen", variable=self.var_affiliate).grid(row=10, column=0, columnspan=2, sticky="w"); ttk.Label(frm, text="(Fügt in der Einkaufsliste automatisch einen Partner-Code\nbei Bambu Lab Links hinzu. Kostet dich keinen Cent!)", font=("Segoe UI", 8)).grid(row=11, column=0, columnspan=2, sticky="w", padx=20)
+        from core.logic import parse_shelves_string, serialize_shelves
+        self.shelves = parse_shelves_string(initial_value) or [{"name": "REGAL", "rows": 4, "cols": 8}]
+        self.current_idx, self._lock = 0, False
+        self.var_name, self.var_rows, self.var_cols = tk.StringVar(), tk.IntVar(), tk.IntVar()
         
-        ttk.Separator(frm, orient="horizontal").grid(row=12, column=0, columnspan=2, sticky="ew", pady=15)
-        self.var_rfid_mode = tk.BooleanVar(value=self.current_settings.get("rfid_mode", False)); ttk.Checkbutton(frm, text="RFID-Modus aktivieren (Quick-ID nutzt RFID-Tags)", variable=self.var_rfid_mode).grid(row=13, column=0, columnspan=2, sticky="w")
-        ttk.Label(frm, text="(Im RFID-Modus wartet das Quick-ID Feld auf den Input\ndeines USB-RFID-Readers.)", font=("Segoe UI", 8)).grid(row=14, column=0, columnspan=2, sticky="w", padx=20)
+        main = ttk.Frame(self); main.pack(fill="both", expand=True, padx=20, pady=10)
+        left = ttk.Frame(main, width=200); left.pack(side="left", fill="y", padx=(0, 20))
+        ttk.Label(left, text="Regal-Liste:", font=FONT_BOLD).pack(anchor="w")
+        self.listbox = tk.Listbox(left, height=10, font=FONT_MAIN, bg=parent.cget('bg'), fg="white" if "dark" in str(parent.cget('bg')) else "black", selectbackground=COLOR_ACCENT)
+        self.listbox.pack(fill="both", expand=True, pady=5); self.listbox.bind("<<ListboxSelect>>", self.on_select)
         
-        ttk.Separator(frm, orient="horizontal").grid(row=15, column=0, columnspan=2, sticky="ew", pady=15)
-        btn_action_frm = ttk.Frame(frm); btn_action_frm.grid(row=16, column=0, columnspan=2, pady=5)
-        def open_github(): webbrowser.open(f"https://github.com/{GITHUB_REPO}/releases/latest")
-        def manual_update_check():
-            try:
-                url = f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest"; req = urllib.request.Request(url, headers={'User-Agent': 'VibeSpool-App'})
-                with urllib.request.urlopen(req, timeout=5) as response:
-                    data = json.loads(response.read().decode('utf-8')); latest_tag = data.get("tag_name", "").lstrip("vV"); current_ver = APP_VERSION.split(" ")[0].lstrip("vV")
-                    def parse_ver(v): return [int(x) for x in v.replace('-', '.').split('.') if x.isdigit()]
-                    if parse_ver(latest_tag) > parse_ver(current_ver):
-                        if messagebox.askyesno("Update verfügbar!", f"Version {latest_tag} ist online!\nDu hast aktuell v{current_ver}.\n\nMöchtest du die Download-Seite jetzt öffnen?", parent=self): open_github()
-                    else: messagebox.showinfo("Aktuell", f"Du bist auf dem neuesten Stand!\nInstallierte Version: v{current_ver}", parent=self)
-            except Exception as e: messagebox.showerror("Fehler", f"Keine Verbindung zu GitHub möglich:\n{e}", parent=self)
-        ttk.Button(btn_action_frm, text="🔄 Nach Updates suchen", command=manual_update_check).pack(side="left", padx=5); ttk.Button(btn_action_frm, text="🌐 GitHub besuchen", command=open_github).pack(side="left", padx=5)
-        ttk.Button(self, text="Speichern", command=self.save).pack(pady=20, fill="x", padx=20)
-    def save(self):
+        btn_frm = ttk.Frame(left); btn_frm.pack(fill="x")
+        ttk.Button(btn_frm, text="➕ Neu", command=self.add_new, width=8).pack(side="left")
+        ttk.Button(btn_frm, text="❌ Lösch", command=self.delete_current, width=8).pack(side="left", padx=2)
+        
+        right = ttk.Frame(main); right.pack(side="left", fill="both", expand=True)
+        inf = ttk.LabelFrame(right, text="Konfiguration", padding=15); inf.pack(fill="x")
+        ttk.Label(inf, text="Regal Name:").pack(anchor="w"); ttk.Entry(inf, textvariable=self.var_name).pack(fill="x", pady=5)
+        ttk.Label(inf, text="Anzahl Reihen:").pack(anchor="w"); ttk.Spinbox(inf, from_=1, to=50, textvariable=self.var_rows).pack(fill="x", pady=5)
+        ttk.Label(inf, text="Anzahl Spalten:").pack(anchor="w"); ttk.Spinbox(inf, from_=1, to=50, textvariable=self.var_cols).pack(fill="x", pady=5)
+        
+        # --- SICHERES LADEN ---
+        self._lock = True
+        self.refresh_listbox()
+        if self.shelves:
+            self.listbox.selection_set(0); self.current_idx = 0
+            s = self.shelves[0]
+            self.var_name.set(s['name']); self.var_rows.set(s['rows']); self.var_cols.set(s['cols'])
+        self._lock = False
+        
+        ttk.Button(self, text="Konfiguration Speichern", command=self.final, style="Accent.TButton").pack(pady=20, fill="x", padx=40)
+
+    def refresh_listbox(self):
+        self.listbox.delete(0, tk.END)
+        for s in self.shelves: self.listbox.insert(tk.END, f"📦 {s['name']} ({s['rows']}x{s['cols']})")
+
+    def save_current(self):
         try:
-            self.current_settings.update({"shelves": self.ent_shelves.get().strip(), "logistics_order": self.var_logistics.get(), "label_row": self.ent_lbl_row.get().strip() or "Fach", "label_col": self.ent_lbl_col.get().strip() or "Slot", "num_ams": int(self.ent_ams.get()), "custom_locs": self.ent_custom.get().strip(), "use_affiliate": self.var_affiliate.get(), "rfid_mode": self.var_rfid_mode.get()})
-            self.on_save(self.current_settings); self.destroy()
-        except: messagebox.showerror("Fehler", "Bitte bei AMS nur Zahlen eingeben.")
+            name = self.var_name.get().strip().replace(",", "").replace("|", "") or "REGAL"
+            rows = max(1, int(self.var_rows.get()))
+            cols = max(1, int(self.var_cols.get()))
+            self.shelves[self.current_idx] = {"name": name, "rows": rows, "cols": cols}
+        except: pass
+
+    def on_select(self, e):
+        if self._lock: return
+        sel = self.listbox.curselection()
+        if not sel: return
+        self.save_current() 
+        self._lock = True
+        self.current_idx = sel[0]
+        self.refresh_listbox(); self.listbox.selection_set(self.current_idx)
+        s = self.shelves[self.current_idx]
+        self.var_name.set(s['name']); self.var_rows.set(s['rows']); self.var_cols.set(s['cols'])
+        self.listbox.see(self.current_idx)
+        self._lock = False
+
+    def add_new(self): 
+        self.save_current() 
+        self.shelves.append({"name": f"REGAL {len(self.shelves)+1}", "rows": 4, "cols": 8})
+        self._lock = True
+        self.refresh_listbox(); self.current_idx = len(self.shelves) - 1
+        self.listbox.selection_set(self.current_idx); self.listbox.see(self.current_idx)
+        s = self.shelves[self.current_idx]
+        self.var_name.set(s['name']); self.var_rows.set(s['rows']); self.var_cols.set(s['cols'])
+        self._lock = False
+
+    def delete_current(self):
+        if len(self.shelves) > 1: 
+            del self.shelves[self.current_idx]
+            self._lock = True
+            self.refresh_listbox(); self.current_idx = max(0, self.current_idx - 1)
+            self.listbox.selection_set(self.current_idx)
+            s = self.shelves[self.current_idx]
+            self.var_name.set(s['name']); self.var_rows.set(s['rows']); self.var_cols.set(s['cols'])
+            self._lock = False
+
+    def final(self): 
+        from core.logic import serialize_shelves
+        self.save_current(); res = serialize_shelves(self.shelves); self.on_confirm(res); self.destroy()
+
+class SettingsDialog(tk.Toplevel):
+    def __init__(self, parent, data_manager, on_save, start_tab=0):
+        super().__init__(parent)
+        self.data_manager = data_manager; self.on_save = on_save
+        _, self.settings, _ = self.data_manager.load_all(DEFAULT_SETTINGS)
+        self.title("VibeSpool Einstellungen"); self.geometry("550x500"); self.configure(bg=parent.cget('bg')); center_window(self, parent)
+        self.transient(parent); self.grab_set()
+        
+        self.nb = ttk.Notebook(self); self.nb.pack(fill="both", expand=True, padx=10, pady=10)
+        
+        # TAB 1: LAGER
+        tab_lager = ttk.Frame(self.nb, padding=15); self.nb.add(tab_lager, text="📦 Lager")
+        ttk.Label(tab_lager, text="Regal-Konfiguration", font=FONT_BOLD).pack(anchor="w")
+        self.var_shelves = tk.StringVar(value=self.settings.get("shelves", "REGAL|4|8"))
+        self.shelf_list = tk.Listbox(tab_lager, height=6, font=("Segoe UI", 9))
+        self.shelf_list.pack(fill="x", pady=10)
+        self.refresh_settings_shelf_list()
+        
+        def run_planner():
+            def on_plan_done(val): self.var_shelves.set(val); self.refresh_settings_shelf_list()
+            ShelfPlannerDialog(self, self.var_shelves.get(), on_plan_done)
+        ttk.Button(tab_lager, text="🔧 Regal-Konfigurator öffnen", command=run_planner).pack(fill="x")
+
+        # TAB 2: HARDWARE
+        tab_hw = ttk.Frame(self.nb, padding=15); self.nb.add(tab_hw, text="🔌 Hardware")
+        self.var_logistics = tk.BooleanVar(value=self.settings.get("logistics_order", False))
+        ttk.Checkbutton(tab_hw, text="Logistik-Modus (unten = Reihe 1)", variable=self.var_logistics).pack(anchor="w", pady=5)
+        
+        f_names = ttk.Frame(tab_hw); f_names.pack(fill="x", pady=5)
+        ttk.Label(f_names, text="Reihen-Name:").grid(row=0, column=0, sticky="w")
+        self.ent_row = ttk.Entry(f_names, width=15); self.ent_row.insert(0, self.settings.get("label_row", "Fach")); self.ent_row.grid(row=0, column=1, sticky="w", pady=2, padx=5)
+        ttk.Label(f_names, text="Spalten-Name:").grid(row=1, column=0, sticky="w")
+        self.ent_col = ttk.Entry(f_names, width=15); self.ent_col.insert(0, self.settings.get("label_col", "Slot")); self.ent_col.grid(row=1, column=1, sticky="w", pady=2, padx=5)
+        
+        ttk.Label(tab_hw, text="Anzahl AMS Einheiten:").pack(anchor="w", pady=(10,0))
+        self.ent_ams = ttk.Entry(tab_hw, width=10); self.ent_ams.insert(0, str(self.settings.get("num_ams", 1))); self.ent_ams.pack(anchor="w", pady=2)
+        ttk.Label(tab_hw, text="Zusatz-Orte (kommagetrennt):").pack(anchor="w", pady=(10,0))
+        self.ent_custom = ttk.Entry(tab_hw); self.ent_custom.insert(0, self.settings.get("custom_locs", "")); self.ent_custom.pack(fill="x", pady=2)
+
+        # TAB 3: DRUCKER
+        tab_prn = ttk.Frame(self.nb, padding=15); self.nb.add(tab_prn, text="🤖 Drucker")
+        ttk.Label(tab_prn, text="Klipper / Moonraker Sync", font=FONT_BOLD).pack(anchor="w")
+        ttk.Label(tab_prn, text="Drucker-URL:").pack(anchor="w", pady=(10,0))
+        self.ent_prn_url = ttk.Entry(tab_prn); self.ent_prn_url.insert(0, self.settings.get("printer_url", "")); self.ent_prn_url.pack(fill="x", pady=2)
+        ttk.Label(tab_prn, text="API Key (optional):").pack(anchor="w", pady=(10,0))
+        self.ent_prn_key = ttk.Entry(tab_prn); self.ent_prn_key.insert(0, self.settings.get("printer_api_key", "")); self.ent_prn_key.pack(fill="x", pady=2)
+
+        # TAB 4: SYSTEM
+        tab_sys = ttk.Frame(self.nb, padding=15); self.nb.add(tab_sys, text="⚙ System")
+        self.var_affiliate = tk.BooleanVar(value=self.settings.get("use_affiliate", True))
+        ttk.Checkbutton(tab_sys, text="Entwickler unterstützen (Affiliate)", variable=self.var_affiliate).pack(anchor="w", pady=2)
+        self.var_rfid = tk.BooleanVar(value=self.settings.get("rfid_mode", False))
+        ttk.Checkbutton(tab_sys, text="RFID-Reader Modus aktiv", variable=self.var_rfid).pack(anchor="w", pady=2)
+        
+        ttk.Separator(tab_sys, orient="horizontal").pack(fill="x", pady=10)
+        path_show = self.settings.get("custom_db_path", "") or "Standard-Ordner"
+        self.lbl_path = ttk.Label(tab_sys, text=f"Daten-Pfad:\n{path_show}", font=("Segoe UI", 8, "italic"), wraplength=450)
+        self.lbl_path.pack(fill="x", pady=5)
+        
+        p_btn_frm = ttk.Frame(tab_sys); p_btn_frm.pack(fill="x", pady=5)
+        def change_path():
+            d = filedialog.askdirectory(title="Datenbank-Ordner wählen")
+            if d: self.settings["custom_db_path"] = d; self.lbl_path.config(text=f"Daten-Pfad:\n{d}")
+        ttk.Button(p_btn_frm, text="Ordner ändern", command=change_path).pack(side="left", padx=2)
+        ttk.Button(p_btn_frm, text="Standard", command=lambda: [self.settings.update({"custom_db_path":""}), self.lbl_path.config(text="Daten-Pfad:\nStandard-Ordner")]).pack(side="left")
+
+        # FOOTER
+        btn_frm = ttk.Frame(self, padding=10); btn_frm.pack(fill="x", side="bottom")
+        ttk.Button(btn_frm, text="Abbrechen", command=self.destroy).pack(side="right", padx=5)
+        ttk.Button(btn_frm, text="Änderungen Speichern", style="Accent.TButton", command=self.do_save).pack(side="right", padx=5)
+        
+        self.nb.select(start_tab)
+
+    def refresh_settings_shelf_list(self):
+        self.shelf_list.delete(0, tk.END)
+        for s in parse_shelves_string(self.var_shelves.get()): self.shelf_list.insert(tk.END, f"📦 {s['name']} ({s['rows']}x{s['cols']})")
+
+    def do_save(self):
+        try:
+            self.settings.update({
+                "shelves": self.var_shelves.get(),
+                "logistics_order": self.var_logistics.get(),
+                "label_row": self.ent_row.get().strip() or "Fach",
+                "label_col": self.ent_col.get().strip() or "Slot",
+                "num_ams": int(self.ent_ams.get()),
+                "custom_locs": self.ent_custom.get().strip(),
+                "use_affiliate": self.var_affiliate.get(),
+                "rfid_mode": self.var_rfid.get(),
+                "printer_url": self.ent_prn_url.get().strip(),
+                "printer_api_key": self.ent_prn_key.get().strip()
+            })
+            self.on_save(self.settings); self.destroy()
+        except: messagebox.showerror("Fehler", "AMS Anzahl muss eine Zahl sein.")
+
+    def refresh_settings_shelf_list(self):
+        self.shelf_list.delete(0, tk.END)
+        for s in parse_shelves_string(self.var_shelves.get()): self.shelf_list.insert(tk.END, f"📦 {s['name']} ({s['rows']}x{s['cols']})")
+
+    def do_save(self):
+        try:
+            print(f"DEBUG Save FINAL: {self.var_shelves.get()}")
+            self.settings.update({
+                "shelves": self.var_shelves.get(),
+                "logistics_order": self.var_logistics.get(),
+                "label_row": self.ent_row.get().strip() or "Fach",
+                "label_col": self.ent_col.get().strip() or "Slot",
+                "num_ams": int(self.ent_ams.get()),
+                "custom_locs": self.ent_custom.get().strip(),
+                "use_affiliate": self.var_affiliate.get(),
+                "rfid_mode": self.var_rfid.get(),
+                "printer_url": self.ent_prn_url.get().strip(),
+                "printer_api_key": self.ent_prn_key.get().strip()
+            })
+            self.on_save(self.settings); self.destroy()
+        except: messagebox.showerror("Fehler", "AMS Anzahl muss eine Zahl sein.")
 
 class ShelfVisualizer(tk.Toplevel):
     def __init__(self, parent, inventory, settings, spools):
@@ -233,9 +396,7 @@ class ShelfVisualizer(tk.Toplevel):
                     if col_count >= 10: col_count = 0; row_frame = tk.Frame(loc_frame, bg="#333333"); row_frame.pack(anchor="w", pady=(5,0))
                     self.draw_slot(row_frame, item.get("loc_id", "") or "-", item, False, 80, 70); col_count += 1
     def parse_shelves(self):
-        self.parsed_shelves = []
-        matches = re.findall(r'([^,|]+)\|\s*(\d+)\s*\|\s*(\d+)', self.settings.get("shelves", "REGAL|4|8"))
-        for name, r_s, c_s in matches: self.parsed_shelves.append({"name": name.strip(), "rows": int(r_s), "cols": int(c_s)})
+        self.parsed_shelves = parse_shelves_string(self.settings.get("shelves", "REGAL|4|8"))
     def draw_slot(self, parent, label, item, is_ams, w=90, h=80):
         bg_colors, fg_col, txt, tooltip = ["#D2B48C"] if not is_ams else ["#666666"], "#555" if not is_ams else "#CCC", f"{label}\nLEER", "Leer"
         if item:
@@ -348,6 +509,31 @@ class BackupDialog(tk.Toplevel):
                 self.app.refresh_all_data(); messagebox.showinfo("Erfolg", "Backup geladen!", parent=self.app.root); self.destroy()
             except Exception as e: messagebox.showerror("Fehler", str(e), parent=self)
 
+class PrinterJobDialog(tk.Toplevel):
+    def __init__(self, parent, jobs, on_select_job):
+        super().__init__(parent); self.on_select_job = on_select_job; self.title("Drucker-Historie"); self.geometry("600x450"); center_window(self, parent)
+        self.transient(parent); self.grab_set()
+        ttk.Label(self, text="Wähle einen Druckauftrag aus:", font=FONT_BOLD).pack(pady=10)
+        
+        frm = ttk.Frame(self); frm.pack(fill="both", expand=True, padx=10, pady=5)
+        self.tree = ttk.Treeview(frm, columns=("file", "status", "used"), show="headings")
+        self.tree.heading("file", text="Datei"); self.tree.heading("status", text="Status"); self.tree.heading("used", text="Verbrauch (g)")
+        self.tree.column("file", width=300); self.tree.column("status", width=100, anchor="center"); self.tree.column("used", width=100, anchor="center")
+        
+        scroll = ttk.Scrollbar(frm, orient="vertical", command=self.tree.yview); self.tree.configure(yscroll=scroll.set); self.tree.pack(side="left", fill="both", expand=True); scroll.pack(side="right", fill="y")
+        
+        for i, j in enumerate(jobs):
+            used = f"{j.get('filament_used', 0):.1f}g"
+            self.tree.insert("", "end", iid=str(i), values=(j.get('filename', 'Unbekannt'), j.get('status', '-'), used))
+        
+        def confirm():
+            sel = self.tree.selection()
+            if not sel: return
+            job = jobs[int(sel[0])]
+            self.on_select_job(job.get('filament_used', 0)); self.destroy()
+            
+        ttk.Button(self, text="Diesen Verbrauch abziehen", command=confirm, style="Accent.TButton").pack(pady=15, fill="x", padx=20)
+
 class FilamentApp:
     def __init__(self, root):
         self.root = root; 
@@ -369,7 +555,20 @@ class FilamentApp:
         self.combo_filter_loc = ttk.Combobox(top_bar, textvariable=self.filter_loc_var, state="readonly", width=15); self.combo_filter_loc.pack(side="left", padx=5); self.combo_filter_loc.bind("<<ComboboxSelected>>", lambda e: self.refresh_table())
         ttk.Button(top_bar, text="🔄 Reset", command=self.reset_filters).pack(side="left", padx=5); ttk.Label(top_bar, text=" Quick-ID:").pack(side="left", padx=(10,0)); self.entry_scan = ttk.Entry(top_bar, width=8); self.entry_scan.pack(side="left", padx=5); self.entry_scan.bind("<Return>", self.on_quick_scan)
         ttk.Button(top_bar, text="📷", width=3, command=self.scan_qr_webcam).pack(side="left")
-        ttk.Button(top_bar, text="⚙ Settings", command=self.open_settings).pack(side="right", padx=5); ttk.Button(top_bar, text="💾 Backup", command=lambda: BackupDialog(self.root, self.data_manager, self)).pack(side="right", padx=5); ttk.Button(top_bar, text="🛒 Einkaufsliste", command=lambda: ShoppingListDialog(self.root, self.inventory, self)).pack(side="right", padx=5); ttk.Button(top_bar, text="☕ Spenden", command=self.open_paypal).pack(side="right", padx=5); self.btn_theme = ttk.Button(top_bar, text="...", command=self.toggle_theme); self.btn_theme.pack(side="right", padx=5); self.update_theme_button_text()
+        self.btn_opts = ttk.Menubutton(top_bar, text="⚙ Optionen")
+        self.menu_opts = tk.Menu(self.btn_opts, tearoff=0)
+        self.menu_opts.add_command(label="⚙ Alle Einstellungen öffnen", command=self.open_settings)
+        self.menu_opts.add_separator()
+        self.menu_opts.add_command(label="📦 Lager-Layout planen", command=lambda: self.open_settings(0))
+        self.menu_opts.add_command(label="🔌 Hardware & AMS", command=lambda: self.open_settings(1))
+        self.menu_opts.add_command(label="🤖 Drucker-Anbindung", command=lambda: self.open_settings(2))
+        self.menu_opts.add_command(label="⚙ System-Optionen", command=lambda: self.open_settings(3))
+        self.menu_opts.add_separator()
+        self.menu_opts.add_command(label="🔄 Update-Check", command=self.manual_update_check)
+        self.btn_opts["menu"] = self.menu_opts
+        self.btn_opts.pack(side="right", padx=5)
+        
+        ttk.Button(top_bar, text="💾 Backup", command=lambda: BackupDialog(self.root, self.data_manager, self)).pack(side="right", padx=5); ttk.Button(top_bar, text="🛒 Einkaufsliste", command=lambda: ShoppingListDialog(self.root, self.inventory, self)).pack(side="right", padx=5); ttk.Button(top_bar, text="☕ Spenden", command=self.open_paypal).pack(side="right", padx=5); self.btn_theme = ttk.Button(top_bar, text="...", command=self.toggle_theme); self.btn_theme.pack(side="right", padx=5); self.update_theme_button_text()
         
         main_frame = ttk.Frame(root, padding=10); main_frame.pack(fill="both", expand=True)
         sidebar = ttk.Frame(main_frame, width=350); sidebar.pack(side="left", fill="y", padx=(0, 10))
@@ -391,7 +590,15 @@ class FilamentApp:
         ttk.Separator(tab_basis, orient="horizontal").pack(fill="x", pady=15)
         ttk.Label(tab_basis, text="Spule / Leergewicht:").pack(anchor="w", pady=(5,0)); self.combo_spool = ttk.Combobox(tab_basis, state="readonly", font=FONT_MAIN); self.combo_spool.pack(fill="x", pady=2); self.combo_spool.bind("<<ComboboxSelected>>", lambda e: self.update_net_weight_display())
         ttk.Label(tab_basis, text="Original-Inhalt (Netto g):").pack(anchor="w", pady=(10,0)); self.entry_capacity = ttk.Entry(tab_basis, font=FONT_MAIN, textvariable=self.var_capacity); self.entry_capacity.pack(fill="x", pady=2)
-        ttk.Label(tab_basis, text="Gewicht auf Waage (Brutto g):").pack(anchor="w", pady=(10,0)); self.entry_gross = ttk.Entry(tab_basis, font=FONT_MAIN, textvariable=self.var_gross); self.entry_gross.pack(fill="x", pady=2)
+        ttk.Label(tab_basis, text="Gewicht auf Waage (Brutto g):").pack(anchor="w", pady=(10,0))
+        frm_gross = ttk.Frame(tab_basis); frm_gross.pack(fill="x", pady=2)
+        self.entry_gross = ttk.Entry(frm_gross, font=FONT_MAIN, textvariable=self.var_gross)
+        self.entry_gross.pack(side="left", fill="x", expand=True)
+        btn_sync = ttk.Button(frm_gross, text="🤖 Sync", width=8, command=self.subtract_printer_usage)
+        btn_sync.pack(side="left", padx=(5,0))
+        btn_sync.bind("<Enter>", lambda e: self.show_tip(e, "Letzten Druckverbrauch von Moonraker abrufen"))
+        btn_sync.bind("<Leave>", self.hide_tip)
+        
         self.lbl_net_weight = ttk.Label(tab_basis, text="Netto (Rest): 0 g | Wert: -", font=("Segoe UI", 10, "bold"), foreground=COLOR_ACCENT); self.lbl_net_weight.pack(anchor="w", pady=(10,5))
         ttk.Separator(tab_basis, orient="horizontal").pack(fill="x", pady=15)
         ttk.Label(tab_basis, text="Flow Ratio:").pack(anchor="w"); self.entry_flow = ttk.Entry(tab_basis, width=10); self.entry_flow.pack(anchor="w", pady=2)
@@ -443,6 +650,14 @@ class FilamentApp:
         img = create_color_icon(cols, (30, 20), "#888888")
         self.lbl_color_preview.config(image=img); self.lbl_color_preview.image = img
 
+    def show_tip(self, event, text):
+        self.tip = tk.Toplevel(self.root); self.tip.wm_overrideredirect(True)
+        self.tip.wm_geometry(f"+{event.x_root+15}+{event.y_root+10}")
+        tk.Label(self.tip, text=text, bg="#FFFFE0", relief="solid", borderwidth=1, padx=5, pady=2).pack()
+
+    def hide_tip(self, event=None):
+        if hasattr(self, 'tip') and self.tip: self.tip.destroy()
+
     def open_paypal(self):
         if messagebox.askyesno("☕ Kaffee spendieren", "Möchtest du zur PayPal-Seite weitergeleitet werden?"): webbrowser.open("https://paypal.me/florianfranck")
 
@@ -481,7 +696,7 @@ class FilamentApp:
     def toggle_theme(self): self.settings["theme"] = "dark" if self.settings.get("theme") == "light" else "light"; self.data_manager.save_settings(self.settings); self.apply_theme(); self.update_theme_button_text()
     def update_theme_button_text(self): self.btn_theme.config(text="☀️" if self.settings.get("theme") == "dark" else "🌙")
     def get_dynamic_locations(self):
-        locs = [m.strip() for m in re.findall(r'([^,|]+)\|\s*\d+\s*\|\s*\d+', self.settings.get("shelves", "REGAL|4|8"))]
+        locs = [s['name'] for s in parse_shelves_string(self.settings.get("shelves", "REGAL|4|8"))]
         for i in range(1, self.settings.get("num_ams", 1) + 1): locs.append(f"AMS {i}")
         for c in self.settings.get("custom_locs", "").split(","):
             if c.strip(): locs.append(c.strip())
@@ -505,16 +720,44 @@ class FilamentApp:
                 except: pass
             self.lbl_net_weight.config(text=f"Netto: {int(net)} g{val_str}")
         except: self.lbl_net_weight.config(text="Netto: 0 g | Wert: -")
-    def open_settings(self):
+    def open_settings(self, start_tab=0):
         def on_save(s): self.settings = s; self.data_manager.save_settings(s); self.update_locations_dropdown(); self.update_slot_dropdown(); self.update_filter_dropdowns()
-        SettingsDialog(self.root, self.data_manager, on_save)
+        SettingsDialog(self.root, self.data_manager, on_save, start_tab)
+    def manual_update_check(self):
+        latest, url = check_for_updates(GITHUB_REPO, APP_VERSION) or (None, None)
+        if latest: self.show_update_prompt(latest, url)
+        else: messagebox.showinfo("Aktuell", f"Du nutzt bereits die aktuellste Version (v{APP_VERSION}).")
     def update_slot_dropdown(self, event=None):
         loc = self.combo_type.get()
         if loc.startswith("AMS"): self.combo_loc_id['values'] = ["1", "2", "3", "4"]
         else:
-            for name, r_s, c_s in re.findall(r'([^,|]+)\|\s*(\d+)\s*\|\s*(\d+)', self.settings.get("shelves", "REGAL|4|8")):
-                if name.strip() == loc: r, c, log = int(r_s), int(c_s), self.settings.get("logistics_order"); self.combo_loc_id['values'] = [f"{self.settings.get('label_row')} {rw} - {self.settings.get('label_col')} {cl}" for rw in (range(r, 0, -1) if log else range(1, r + 1)) for cl in range(1, c + 1)]; return
+            for s in parse_shelves_string(self.settings.get("shelves", "REGAL|4|8")):
+                if s['name'] == loc: r, c, log = s['rows'], s['cols'], self.settings.get("logistics_order"); self.combo_loc_id['values'] = [f"{self.settings.get('label_row')} {rw} - {self.settings.get('label_col')} {cl}" for rw in (range(r, 0, -1) if log else range(1, r + 1)) for cl in range(1, c + 1)]; return
             self.combo_loc_id['values'] = ["-"]
+    def subtract_printer_usage(self):
+        url = self.settings.get("printer_url")
+        if not url:
+            messagebox.showwarning("Drucker-Sync", "Bitte zuerst die Drucker-URL in den Einstellungen hinterlegen.")
+            return
+        
+        usage_g = fetch_last_print_usage(url, self.settings.get("printer_api_key"))
+        if usage_g is None:
+            messagebox.showerror("Drucker-Sync", "Fehler beim Abrufen der Druckerdaten. Ist Moonraker erreichbar?")
+            return
+        
+        try:
+            curr_gross = float(self.var_gross.get().strip().replace(',', '.') or 0)
+            if curr_gross <= 0:
+                messagebox.showinfo("Drucker-Sync", f"Drucker meldet {usage_g:.1f}g Verbrauch. Aber aktuelles Brutto-Gewicht ist 0. Bitte zuerst Brutto-Gewicht eingeben.")
+                return
+            
+            if messagebox.askyesno("Drucker-Sync", f"Der letzte Druck hat {usage_g:.1f}g verbraucht.\nSoll dieser Wert vom Brutto-Gewicht ({curr_gross:.1f}g) abgezogen werden?"):
+                new_gross = max(0, curr_gross - usage_g)
+                self.var_gross.set(f"{new_gross:.1f}")
+                messagebox.showinfo("Erfolg", f"Gewicht aktualisiert! Neues Brutto: {new_gross:.1f}g\n\nVergiss nicht, die Änderungen zu speichern!")
+        except Exception as e:
+            messagebox.showerror("Fehler", f"Berechnungsfehler: {e}")
+
     def treeview_sort_column(self, col, reverse):
         self.inventory.sort(key=lambda i: [int(c) if c.isdigit() else c.lower() for c in re.split(r'(\d+)', str(i.get(col, "")))], reverse=reverse); self.tree.heading(col, command=lambda: self.treeview_sort_column(col, not reverse)); self.refresh_table()
     def update_filter_dropdowns(self):

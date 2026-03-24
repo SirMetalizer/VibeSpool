@@ -4,13 +4,13 @@
 
 ✅ Automatisierte Tests: Test-Framework (pytest) eingerichtet und Unit-Tests für core/ Module erstellt.
 
-✅ Hardware & ID Hub (v1.8): Hybrid-Modus, RFID-Tag-Kopplung und QR-Code Webcam Scan implementiert.
+✅ Hardware & ID Hub (v1.8): Hybrid-Modus, RFID-Tag-Kopplung, QR-Code Webcam Scan und integrierte Leerspulen-Datenbank (Community-Presets) implementiert.
 
 🌐 Prio 2: Connectivity & Standards (v1.9)
 
-Spoolman / OpenSpool API: Synchronisation deiner lokalen VibeSpool-Datenbank mit dem Open-Source Standard für 3D-Drucker.
+✅ Klipper/Moonraker Integration: Automatisches Abziehen des verbrauchten Gewichts inkl. Drucker-Historie und Job-Auswahl via API implementiert.
 
-Klipper/Moonraker Integration: Automatisches Abziehen des verbrauchten Gewichts nach einem beendeten Druckauftrag via API-Abfrage an deinen Drucker.
+Spoolman / OpenSpool API: Synchronisation deiner lokalen VibeSpool-Datenbank mit dem Open-Source Standard für 3D-Drucker.
 
 📱 Prio 3: Mobile & Web (v2.0)
 

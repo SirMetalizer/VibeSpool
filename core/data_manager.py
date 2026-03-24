@@ -4,26 +4,30 @@ from .utils import load_json, save_json
 
 class DataManager:
     def __init__(self, default_settings):
-        user_home = os.path.expanduser("~")
-        self.base_dir = os.path.join(user_home, "VibeSpool_Daten")
-        
-        possible_docs = [
-            os.path.join(user_home, "OneDrive", "Documents"),
-            os.path.join(user_home, "OneDrive", "Dokumente"),
-            os.path.join(user_home, "Documents"),
-            os.path.join(user_home, "Dokumente")
-        ]
+        # 1. Prefer local directory if settings.json already exists there
+        local_dir = os.getcwd()
+        if os.path.exists(os.path.join(local_dir, "settings.json")) or os.path.exists(os.path.join(local_dir, "inventory.json")):
+            self.base_dir = local_dir
+        else:
+            # 2. Otherwise use Documents folder
+            user_home = os.path.expanduser("~")
+            self.base_dir = os.path.join(user_home, "VibeSpool_Daten")
+            
+            possible_docs = [
+                os.path.join(user_home, "OneDrive", "Documents"),
+                os.path.join(user_home, "OneDrive", "Dokumente"),
+                os.path.join(user_home, "Documents"),
+                os.path.join(user_home, "Dokumente")
+            ]
 
-        for path in possible_docs:
-            if os.path.exists(path):
-                self.base_dir = os.path.join(path, "VibeSpool")
-                break
-        
-        if not os.path.exists(self.base_dir):
-            try:
-                os.makedirs(self.base_dir)
-            except:
-                pass
+            for path in possible_docs:
+                if os.path.exists(path):
+                    self.base_dir = os.path.join(path, "VibeSpool")
+                    break
+            
+            if not os.path.exists(self.base_dir):
+                try: os.makedirs(self.base_dir)
+                except: pass
 
         self.settings_file = os.path.join(self.base_dir, "settings.json")
         

@@ -37,3 +37,20 @@ def test_save_json(tmp_path):
     
     assert p.exists()
     assert json.loads(p.read_text()) == data
+
+def test_shelf_regex_compatibility():
+    import re
+    # The regex used in filament_gui.py
+    regex = r'([^,|]+)\|\s*(\d+)\s*\|\s*(\d+)'
+    
+    # Test typical output from the new planner
+    test_str = "Hauptregal|5|10"
+    matches = re.findall(regex, test_str)
+    assert len(matches) == 1
+    assert matches[0] == ("Hauptregal", "5", "10")
+    
+    # Test multiple shelves
+    multi_str = "Regal A|4|8, Regal B|2|2"
+    matches = re.findall(regex, multi_str)
+    assert len(matches) == 2
+    assert matches[1][0].strip() == "Regal B"

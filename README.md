@@ -68,11 +68,23 @@ VibeSpool benötigt keine komplizierten Datenbank-Server. Alle deine Daten liege
 
 ---
 
+## 🌟 Neue Features in v1.9: Bambu Lab AMS Integration
+VibeSpool unterstützt nun die **direkte, lokale Anbindung an Bambu Lab Drucker** (X1, P1, A1-Serie)!
+- **Live-Auslesen:** VibeSpool erkennt per Klick, welche Materialien und Farben gerade im AMS geladen sind.
+- **Smart-Sync:** Weise den erkannten AMS-Slots mit wenigen Klicks deine Spulen aus dem Lager zu. VibeSpool bucht alte Spulen automatisch zurück ins Regal.
+- **Lokal & Sicher:** Die Kommunikation läuft rein lokal über dein Heimnetzwerk (MQTT).
+
+### 🛠️ Installation & Setup (Wichtig ab v1.9)
+Um die Bambu Lab Anbindung nutzen zu können, benötigt VibeSpool ab Version 1.9 das MQTT-Protokoll. Installiere die benötigten Pakete mit:
+```bash
+pip install Pillow qrcode paho-mqtt
+```
+
+Die Zugangsdaten (IP, Access Code, Seriennummer) findest du direkt im Menü deines Druckers unter "Netzwerk" bzw. "Allgemein". Trage diese in VibeSpool in den Optionen ein.
+
 ## 🗺️ Roadmap (What's next?)
 
 Wir haben große Pläne für die nächsten Versionen:
-* **v1.8 - Hardware Hub:** Direkte Integration von USB-RFID-Readern und Webcam-QR-Scannern.
-* **v1.9 - API Connectivity:** Anbindung an Spoolman/OpenSpool und Klipper/Moonraker zum automatischen Abziehen des verbrauchten Gewichts nach dem Druck.
 * **v2.0 - VibeSpool Remote:** Lokaler Webserver für eine smarte Tablet- und Smartphone-Ansicht in der Werkstatt.
 
 ---

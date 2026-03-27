@@ -26,7 +26,7 @@ def fetch_recent_jobs(url, key):
 
 
 # --- KONFIGURATION ---
-APP_VERSION = "1.8.2"
+APP_VERSION = "1.9"
 GITHUB_REPO = "SirMetalizer/VibeSpool" 
 
 # --- DEFAULTS ---
@@ -41,8 +41,13 @@ DEFAULT_SETTINGS = {
     "theme": "dark",
     "use_affiliate": True,
     "rfid_mode": False,
+    "use_moonraker": False,
     "printer_url": "",
-    "printer_api_key": ""
+    "printer_api_key": "",
+    "use_bambu": False,
+    "bambu_ip": "",
+    "bambu_access": "",
+    "bambu_serial": ""
 }
 
 MATERIALS = ["PLA", "PLA+", "PETG", "ABS", "ASA", "TPU", "PC", "PA-CF", "PVA", "Sonstiges"]
@@ -279,11 +284,26 @@ class SettingsDialog(tk.Toplevel):
 
         # TAB 3: DRUCKER
         tab_prn = ttk.Frame(self.nb, padding=15); self.nb.add(tab_prn, text="🤖 Drucker")
-        ttk.Label(tab_prn, text="Klipper / Moonraker Sync", font=FONT_BOLD).pack(anchor="w")
-        ttk.Label(tab_prn, text="Drucker-URL:").pack(anchor="w", pady=(10,0))
+        
+        # Moonraker Bereich
+        ttk.Label(tab_prn, text="Klipper / Moonraker", font=FONT_BOLD).pack(anchor="w")
+        self.var_moonraker = tk.BooleanVar(value=self.settings.get("use_moonraker", False))
+        ttk.Checkbutton(tab_prn, text="Moonraker-Sync im Hauptfenster anzeigen", variable=self.var_moonraker).pack(anchor="w", pady=(5, 5))
         self.ent_prn_url = ttk.Entry(tab_prn); self.ent_prn_url.insert(0, self.settings.get("printer_url", "")); self.ent_prn_url.pack(fill="x", pady=2)
-        ttk.Label(tab_prn, text="API Key (optional):").pack(anchor="w", pady=(10,0))
-        self.ent_prn_key = ttk.Entry(tab_prn); self.ent_prn_key.insert(0, self.settings.get("printer_api_key", "")); self.ent_prn_key.pack(fill="x", pady=2)
+        
+        ttk.Separator(tab_prn, orient="horizontal").pack(fill="x", pady=15)
+        
+        # NEU: Bambu Lab Bereich
+        ttk.Label(tab_prn, text="Bambu Lab AMS (via MQTT)", font=FONT_BOLD).pack(anchor="w")
+        self.var_bambu = tk.BooleanVar(value=self.settings.get("use_bambu", False))
+        ttk.Checkbutton(tab_prn, text="Bambu AMS Live-Sync aktivieren", variable=self.var_bambu).pack(anchor="w", pady=(5, 5))
+        
+        ttk.Label(tab_prn, text="Drucker IP-Adresse:").pack(anchor="w", pady=(5,0))
+        self.ent_bambu_ip = ttk.Entry(tab_prn); self.ent_bambu_ip.insert(0, self.settings.get("bambu_ip", "")); self.ent_bambu_ip.pack(fill="x", pady=2)
+        ttk.Label(tab_prn, text="Access Code (LAN):").pack(anchor="w", pady=(5,0))
+        self.ent_bambu_acc = ttk.Entry(tab_prn); self.ent_bambu_acc.insert(0, self.settings.get("bambu_access", "")); self.ent_bambu_acc.pack(fill="x", pady=2)
+        ttk.Label(tab_prn, text="Seriennummer:").pack(anchor="w", pady=(5,0))
+        self.ent_bambu_ser = ttk.Entry(tab_prn); self.ent_bambu_ser.insert(0, self.settings.get("bambu_serial", "")); self.ent_bambu_ser.pack(fill="x", pady=2)
 
         # TAB 4: SYSTEM
         tab_sys = ttk.Frame(self.nb, padding=15); self.nb.add(tab_sys, text="⚙ System")
@@ -326,11 +346,22 @@ class SettingsDialog(tk.Toplevel):
                 "custom_locs": self.ent_custom.get().strip(),
                 "use_affiliate": self.var_affiliate.get(),
                 "rfid_mode": self.var_rfid.get(),
+                "use_moonraker": self.var_moonraker.get(),
                 "printer_url": self.ent_prn_url.get().strip(),
-                "printer_api_key": self.ent_prn_key.get().strip()
+                "printer_api_key": self.settings.get("printer_api_key", ""), # FIX: Wir suchen nicht mehr nach dem gelöschten Feld!
+                "use_bambu": self.var_bambu.get(),
+                "bambu_ip": self.ent_bambu_ip.get().strip(),
+                "bambu_access": self.ent_bambu_acc.get().strip(),
+                "bambu_serial": self.ent_bambu_ser.get().strip()
             })
-            self.on_save(self.settings); self.destroy()
-        except: messagebox.showerror("Fehler", "AMS Anzahl muss eine Zahl sein.")
+            self.on_save(self.settings)
+            self.destroy()
+        except ValueError: 
+            # Fängt NUR den Fehler ab, wenn man wirklich Text ins AMS-Zahlenfeld tippt
+            messagebox.showerror("Fehler", "AMS Anzahl muss eine Zahl sein.")
+        except Exception as e:
+            # Zeigt ab sofort echte Fehler an, falls noch was schiefgeht!
+            messagebox.showerror("Fehler", f"Ein unerwarteter Fehler ist aufgetreten:\n{e}")
 
 class ShelfVisualizer(tk.Toplevel):
     def __init__(self, parent, inventory, settings, spools):
@@ -654,6 +685,8 @@ class FilamentApp:
         add_nav_btn("Finanzen", lambda: StatisticsDialog(self.root, self.inventory, self), "📊")
         add_nav_btn("Swap", self.quick_swap_dialog, "🔄")
         add_nav_btn("Flow", lambda: FlowCalculatorDialog(self.root, self.entry_flow), "🧪")
+        if self.settings.get("use_bambu", False):
+            add_nav_btn("AMS", self.run_ams_sync, "🤖")
         self.nav_sep = tk.Label(self.nav_sidebar, height=1)
         self.nav_sep.pack(fill="x", pady=10)
         add_nav_btn("Neu", self.clear_inputs, "➕")
@@ -704,16 +737,36 @@ class FilamentApp:
         ttk.Button(frm_col, text="🎨", width=3, command=pick_color).pack(side="left", padx=5); self.lbl_color_preview = tk.Label(frm_col, borderwidth=0); self.lbl_color_preview.pack(side="left"); self.update_color_preview()
         ttk.Label(tab_basis, text="Finish:").pack(anchor="w", pady=(10,0)); self.combo_subtype = ttk.Combobox(tab_basis, values=SUBTYPES, font=FONT_MAIN); self.combo_subtype.pack(fill="x", pady=2)
         ttk.Separator(tab_basis, orient="horizontal").pack(fill="x", pady=15)
-        ttk.Label(tab_basis, text="Spule / Leergewicht:").pack(anchor="w", pady=(5,0)); self.combo_spool = ttk.Combobox(tab_basis, state="readonly", font=FONT_MAIN); self.combo_spool.pack(fill="x", pady=2); self.combo_spool.bind("<<ComboboxSelected>>", lambda e: self.update_net_weight_display())
-        ttk.Label(tab_basis, text="Original-Inhalt (Netto g):").pack(anchor="w", pady=(10,0)); self.entry_capacity = ttk.Entry(tab_basis, font=FONT_MAIN, textvariable=self.var_capacity); self.entry_capacity.pack(fill="x", pady=2)
+        ttk.Label(tab_basis, text="Spule / Leergewicht:").pack(anchor="w", pady=(5,0))
+        self.combo_spool = ttk.Combobox(tab_basis, state="readonly", font=FONT_MAIN)
+        self.combo_spool.pack(fill="x", pady=2)
+        
+        # NEU: Smarter Event-Handler für die Spule
+        self.last_selected_spool_id = -1
+        self.combo_spool.bind("<<ComboboxSelected>>", self.on_spool_changed)
+        
+        ttk.Label(tab_basis, text="Original-Inhalt (Netto g):").pack(anchor="w", pady=(10,0))
+        self.entry_capacity = ttk.Entry(tab_basis, font=FONT_MAIN, textvariable=self.var_capacity)
+        self.entry_capacity.pack(fill="x", pady=2)
+        
         ttk.Label(tab_basis, text="Gewicht auf Waage (Brutto g):").pack(anchor="w", pady=(10,0))
-        frm_gross = ttk.Frame(tab_basis); frm_gross.pack(fill="x", pady=2)
+        frm_gross = ttk.Frame(tab_basis)
+        frm_gross.pack(fill="x", pady=2)
+        
+        btn_full = ttk.Button(frm_gross, text="⚖️ Voll", width=6, command=self.set_gross_to_full)
+        btn_full.pack(side="left", padx=(0, 5))
+        btn_full.bind("<Enter>", lambda e: self.show_tip(e, "Brutto automatisch auf 100% (Kapazität + Spule) setzen"))
+        btn_full.bind("<Leave>", self.hide_tip)
+        
         self.entry_gross = ttk.Entry(frm_gross, font=FONT_MAIN, textvariable=self.var_gross)
         self.entry_gross.pack(side="left", fill="x", expand=True)
-        btn_sync = ttk.Button(frm_gross, text="🤖 Sync", width=8, command=self.subtract_printer_usage)
-        btn_sync.pack(side="left", padx=(5,0))
-        btn_sync.bind("<Enter>", lambda e: self.show_tip(e, "Letzten Druckverbrauch von Moonraker abrufen"))
-        btn_sync.bind("<Leave>", self.hide_tip)
+        
+        # NEU: Der Sync-Button wird NUR gebaut, wenn er in den Settings aktiv ist!
+        if self.settings.get("use_moonraker", False):
+            btn_sync = ttk.Button(frm_gross, text="🤖 Sync", width=8, command=self.subtract_printer_usage)
+            btn_sync.pack(side="left", padx=(5,0))
+            btn_sync.bind("<Enter>", lambda e: self.show_tip(e, "Letzten Druckverbrauch von Moonraker abrufen"))
+            btn_sync.bind("<Leave>", self.hide_tip)
         
         self.lbl_net_weight = ttk.Label(tab_basis, text="Netto (Rest): 0 g | Wert: -", font=("Segoe UI", 10, "bold"), foreground=COLOR_ACCENT); self.lbl_net_weight.pack(anchor="w", pady=(10,5))
         ttk.Separator(tab_basis, orient="horizontal").pack(fill="x", pady=15)
@@ -743,6 +796,9 @@ class FilamentApp:
         ttk.Button(btn_frame, text="📦 Regal & AMS Ansicht", command=lambda: ShelfVisualizer(self.root, self.inventory, self.settings, self.spools)).pack(fill="x", pady=2)
         ttk.Button(btn_frame, text="🧵 Leerspulen verwalten", command=lambda: SpoolManager(self.root, self.data_manager, self.update_spool_dropdown)).pack(fill="x", pady=2)
         ttk.Separator(btn_frame, orient="horizontal").pack(fill="x", pady=8)
+        # NEU: Bambu Button (Wird nur gezeigt, wenn in Settings aktiviert)
+        if self.settings.get("use_bambu", False):
+            ttk.Button(btn_frame, text="🤖 Bambu AMS Live-Sync", command=self.run_ams_sync, style="Accent.TButton").pack(fill="x", pady=2)
         ttk.Button(btn_frame, text="Felder leeren", command=self.clear_inputs).pack(fill="x", pady=3)
         ttk.Button(btn_frame, text="🔄 Quick-Swap", command=self.quick_swap_dialog).pack(fill="x", pady=3)
         ttk.Button(btn_frame, text="Löschen", command=self.delete_filament, style="Delete.TButton").pack(fill="x", pady=3)
@@ -852,6 +908,35 @@ class FilamentApp:
     def get_selected_spool_id(self):
         try: return -1 if self.combo_spool.get() == "-" else int(self.combo_spool.get().split(" - ")[0])
         except: return -1
+    def on_spool_changed(self, event=None):
+        new_spool_id = self.get_selected_spool_id()
+        old_spool_id = getattr(self, 'last_selected_spool_id', -1)
+        
+        # Gesetz der Massenerhaltung: Brutto anpassen, Netto bleibt gleich!
+        if new_spool_id != old_spool_id:
+            old_spool = next((s for s in self.spools if s['id'] == old_spool_id), None)
+            new_spool = next((s for s in self.spools if s['id'] == new_spool_id), None)
+            old_w = old_spool['weight'] if old_spool else 0
+            new_w = new_spool['weight'] if new_spool else 0
+            
+            try:
+                gross_str = self.var_gross.get().strip().replace(',', '.')
+                if gross_str:
+                    new_gross = float(gross_str) - old_w + new_w
+                    self.var_gross.set(f"{new_gross:g}")
+            except: pass
+            self.last_selected_spool_id = new_spool_id
+            
+        self.update_net_weight_display()
+
+    def set_gross_to_full(self):
+        try:
+            cap = float(self.var_capacity.get().strip() or 1000)
+            spool_id = self.get_selected_spool_id()
+            spool = next((s for s in self.spools if s['id'] == spool_id), None)
+            sp_w = spool['weight'] if spool else 0
+            self.var_gross.set(f"{cap + sp_w:g}")
+        except: pass
     def update_net_weight_display(self, event=None):
         try:
             gross_str = self.var_gross.get().strip().replace(',', '.')
@@ -930,8 +1015,22 @@ class FilamentApp:
         self.tree.tag_configure("alert", background="#ffe6e6", foreground="#d9534f"); self.tree.tag_configure("grayed", foreground="#999999")
     def get_input_data(self):
         try:
-            return {"id": int(self.entry_id.get().strip()) if self.entry_id.get().strip() else None, "rfid": self.entry_rfid.get().strip(), "brand": self.entry_brand.get().strip(), "material": self.combo_material.get().strip(), "color": self.combo_color.get().strip(), "subtype": self.combo_subtype.get().strip(), "type": self.combo_type.get(), "loc_id": self.combo_loc_id.get().strip(), "flow": self.entry_flow.get().strip(), "pa": self.entry_pa.get().strip(), "spool_id": self.get_selected_spool_id(), "weight_gross": float(self.var_gross.get().strip().replace(',', '.') or 0), "capacity": int(self.var_capacity.get().strip() or 1000), "is_empty": self.combo_type.get() == "VERBRAUCHT", "reorder": self.var_reorder.get(), "supplier": self.entry_supplier.get().strip(), "sku": self.entry_sku.get().strip(), "price": self.var_price.get().strip(), "link": self.entry_link.get().strip(), "temp_n": self.entry_temp_n.get().strip(), "temp_b": self.entry_temp_b.get().strip()}
-        except: messagebox.showwarning("Fehler", "Zahlenformat ungültig."); return None
+            cap = int(self.var_capacity.get().strip() or 1000)
+            spool_id = self.get_selected_spool_id()
+            
+            # Auto-Berechnung: Wenn Brutto leer ist, rechne Kapazität + Leerspule!
+            gross_str = self.var_gross.get().strip().replace(',', '.')
+            if not gross_str or float(gross_str) <= 0:
+                sp = next((s for s in self.spools if s['id'] == spool_id), None)
+                gross_val = float(cap + (sp['weight'] if sp else 0))
+                self.var_gross.set(f"{gross_val:g}") # Update im UI sichtbar machen
+            else:
+                gross_val = float(gross_str)
+
+            return {"id": int(self.entry_id.get().strip()) if self.entry_id.get().strip() else None, "rfid": self.entry_rfid.get().strip(), "brand": self.entry_brand.get().strip(), "material": self.combo_material.get().strip(), "color": self.combo_color.get().strip(), "subtype": self.combo_subtype.get().strip(), "type": self.combo_type.get(), "loc_id": self.combo_loc_id.get().strip(), "flow": self.entry_flow.get().strip(), "pa": self.entry_pa.get().strip(), "spool_id": spool_id, "weight_gross": gross_val, "capacity": cap, "is_empty": self.combo_type.get() == "VERBRAUCHT", "reorder": self.var_reorder.get(), "supplier": self.entry_supplier.get().strip(), "sku": self.entry_sku.get().strip(), "price": self.var_price.get().strip(), "link": self.entry_link.get().strip(), "temp_n": self.entry_temp_n.get().strip(), "temp_b": self.entry_temp_b.get().strip()}
+        except: 
+            messagebox.showwarning("Fehler", "Zahlenformat ungültig.")
+            return None
     def add_filament(self):
         d = self.get_input_data()
         if not d: return
@@ -951,12 +1050,14 @@ class FilamentApp:
         if not sel: return
         i = next((x for x in self.inventory if x['id'] == int(sel[0])), None)
         if not i: return
+        self.last_selected_spool_id = i.get('spool_id', -1)
         self.clear_inputs(deselect=False); self.entry_id.insert(0, str(i['id'])); self.entry_rfid.insert(0, i.get('rfid', '')); self.entry_brand.insert(0, i['brand']); self.combo_material.set(i.get('material', 'PLA')); self.combo_color.set(i['color']); self.combo_subtype.set(i.get('subtype', 'Standard')); self.update_color_preview(); self.combo_type.set(i['type']); self.update_slot_dropdown(); self.combo_loc_id.set(i.get('loc_id', '')); self.entry_flow.insert(0, i.get('flow', '')); self.entry_pa.insert(0, i.get('pa', '')); self.var_reorder.set(i.get('reorder', False))
         for val in self.combo_spool['values']:
             if val.startswith(f"{i.get('spool_id', -1)} -"): self.combo_spool.set(val); break
         self.var_capacity.set(str(i.get('capacity', 1000))); gross = str(i.get('weight_gross', '0')).replace(',', '.'); float_g = float(gross) if gross else 0; self.var_gross.set(str(float_g).rstrip('0').rstrip('.') if float_g > 0 else ""); self.var_price.set(str(i.get('price', ''))); self.update_net_weight_display(); self.entry_supplier.insert(0, i.get('supplier', '')); self.entry_sku.insert(0, i.get('sku', '')); self.entry_link.insert(0, i.get('link', '')); self.entry_temp_n.insert(0, i.get('temp_n', '')); self.entry_temp_b.insert(0, i.get('temp_b', ''))
     
     def clear_inputs(self, deselect=True):
+        self.last_selected_spool_id = -1
         for e in [self.entry_id, self.entry_rfid, self.entry_brand, self.entry_flow, self.entry_pa, self.entry_supplier, self.entry_sku, self.entry_link, self.entry_temp_n, self.entry_temp_b]: 
             e.delete(0, tk.END)
         self.var_capacity.set("1000")
@@ -1074,6 +1175,256 @@ class FilamentApp:
     def refresh_all_data(self): 
         self.inventory, self.settings, self.spools = self.data_manager.load_all(DEFAULT_SETTINGS) # type: ignore
         self.apply_theme(); self.update_locations_dropdown(); self.refresh_table()
+
+    def run_ams_sync(self):
+        ip = self.settings.get("bambu_ip", "")
+        code = self.settings.get("bambu_access", "")
+        serial = self.settings.get("bambu_serial", "")
+
+        if not ip or not code or not serial:
+            return messagebox.showerror("Fehler", "Bambu Zugangsdaten fehlen! Bitte erst in den Optionen eintragen.")
+
+        # Lade-Fenster blockiert die GUI, damit der User nicht wild rumklickt
+        self.sync_win = tk.Toplevel(self.root)
+        self.sync_win.title("AMS Sync")
+        self.sync_win.geometry("350x120")
+        self.sync_win.configure(bg=self.root.cget('bg'))
+        center_window(self.sync_win, self.root)
+        ttk.Label(self.sync_win, text="Verbinde mit Bambu Drucker...\nLese AMS Daten aus.\n\nBitte warten (ca. 5-10 Sekunden).", font=FONT_BOLD, justify="center").pack(expand=True)
+        self.sync_win.grab_set()
+
+        # Import hier, damit das Programm nicht abstürzt, falls Paho-MQTT fehlt
+        try:
+            from core.bambu_sync import BambuScanner # type: ignore
+        except ImportError:
+            self.sync_win.destroy()
+            return messagebox.showerror("Fehler", "Das Modul 'paho-mqtt' fehlt. Bitte über pip installieren.")
+
+        # Threading: Der Scanner läuft im Hintergrund, die GUI friert NICHT ein!
+        def worker():
+            scanner = BambuScanner(ip, code, serial)
+            result = scanner.fetch_ams_inventory(timeout=10)
+            # Zurück in den Haupt-Thread für das UI-Update
+            self.root.after(0, lambda: self._process_ams_result(result))
+
+        threading.Thread(target=worker, daemon=True).start()
+
+    def _process_ams_result(self, result):
+        if hasattr(self, 'sync_win') and self.sync_win.winfo_exists():
+            self.sync_win.destroy()
+
+        if not result:
+            return messagebox.showerror("Fehler", "Keine Antwort vom Drucker. Ist er an und im LAN?")
+
+        # Das neue, interaktive Sync Control Center
+        win = tk.Toplevel(self.root)
+        win.title("🤖 AMS Live-Sync Manager")
+        win.geometry("900x400")
+        win.configure(bg=self.root.cget('bg'))
+        
+        # Native Tkinter-Zentrierung (Pylance-freundlich!)
+        win.update_idletasks()
+        w, h = win.winfo_width(), win.winfo_height()
+        x, y = (win.winfo_screenwidth() // 2) - (w // 2), (win.winfo_screenheight() // 2) - (h // 2)
+        win.geometry(f"+{x}+{y}")
+        
+        ttk.Label(win, text="Bambu AMS mit VibeSpool abgleichen", font=("Segoe UI", 14, "bold")).pack(pady=10)
+        
+        # Container für die Slots
+        frm = ttk.Frame(win)
+        frm.pack(fill="both", expand=True, padx=15)
+        
+        # Kopfzeile
+        headers = ["AMS Slot (Bambu Info)", "Welche Spule wurde eingelegt?", "Alte Spule zurücklegen nach:"]
+        for col, h in enumerate(headers):
+            ttk.Label(frm, text=h, font=FONT_BOLD).grid(row=0, column=col, padx=5, pady=5, sticky="w")
+            
+        ttk.Separator(frm, orient="horizontal").grid(row=1, column=0, columnspan=3, sticky="ew", pady=5)
+
+        # Dropdown-Werte vorbereiten (Exakt wie in VibeSpool formatiert!)
+        all_locs = []
+        parsed_shelves = parse_shelves_string(self.settings.get("shelves", "REGAL|4|8")) # type: ignore
+        lbl_row = self.settings.get("label_row", "Fach")
+        lbl_col = self.settings.get("label_col", "Slot")
+        
+        for sh in parsed_shelves:
+            name = sh['name']
+            rows = sh['rows']
+            cols = sh['cols']
+            for r in range(1, rows + 1):
+                for c in range(1, cols + 1):
+                    # FIX: Exaktes VibeSpool Format! (z.B. "REGAL Fach 1 - Slot 1")
+                    all_locs.append(f"{name} {lbl_row} {r} - {lbl_col} {c}")
+        
+        if self.settings.get("custom_locs", ""):
+            custom = [x.strip() for x in self.settings.get("custom_locs", "").split(",") if x.strip()]
+            all_locs += custom
+            
+        # Dropdown-Werte für Filament vorbereiten (Sortiert nach ID & mit intelligentem Lagerort!)
+        filament_values = ["- Leer / Ignorieren -"]
+        
+        # 1. Wir filtern leere Spulen raus und sortieren den Rest sauber nach ID (numerisch)
+        active_filaments = [i for i in self.inventory if i.get('type') != 'VERBRAUCHT']
+        active_filaments.sort(key=lambda x: int(x.get('id', 0)))
+        
+        # 2. Wir bauen die formatierte Liste für das Dropdown auf
+        for i in active_filaments:
+            name = f"{i.get('brand', '')} {i.get('material', '')} {i.get('color', '')}".strip()
+            loc_str = f"{i.get('type', '')} {i.get('loc_id', '')}".strip()
+            loc_display = f"[{loc_str}]" if loc_str else "[Ort unbekannt]"
+            
+            filament_values.append(f"{i['id']} - {name} {loc_display}")
+
+        loc_values = ["- Nicht verschieben -"] + all_locs
+
+        # Wir speichern die Auswahl des Users ab
+        self.sync_vars = []
+
+        # Für jeden Slot eine Zeile aufbauen
+        for idx, r in enumerate(result):
+            row_idx = idx + 2
+            slot_num = int(r['slot']) + 1
+            
+            # 1. Spalte: Was sagt Bambu?
+            info_frame = tk.Frame(frm, bg=self.root.cget('bg'))
+            info_frame.grid(row=row_idx, column=0, sticky="w", pady=10)
+            tk.Label(info_frame, text=f"Slot {slot_num}: ", font=FONT_BOLD, bg=self.root.cget('bg'), fg="white" if "dark" in str(self.root.cget('bg')) else "black").pack(side="left")
+            
+            if r['empty']:
+                tk.Label(info_frame, text="LEER", fg="#999999", bg=self.root.cget('bg')).pack(side="left")
+            else:
+                hex_col = f"#{r['color_hex'][:6]}" if len(r['color_hex']) >= 6 else "#FFFFFF"
+                tk.Label(info_frame, text="   ", bg=hex_col, relief="solid", borderwidth=1).pack(side="left", padx=(0, 5))
+                tk.Label(info_frame, text=r['material'] or "Unbekannt", bg=self.root.cget('bg'), fg="white" if "dark" in str(self.root.cget('bg')) else "black").pack(side="left")
+
+            # 2. Spalte: Welche Spule aus VibeSpool ist das?
+            var_new_spool = tk.StringVar()
+            cb_new = ttk.Combobox(frm, textvariable=var_new_spool, values=filament_values, state="readonly", width=50)
+            
+            # --- SMART PRE-SELECTION (Auto-Mapping & Position Memory) ---
+            # Schaut nach, ob VibeSpool aktuell schon eine Spule in diesem AMS Slot gespeichert hat
+            current_fil = next((i for i in active_filaments if i.get('type') == "AMS 1" and str(i.get('loc_id')) == str(slot_num)), None)
+            
+            if current_fil:
+                # Baut den exakten Namen zusammen, um ihn im Dropdown zu finden
+                name = f"{current_fil.get('brand', '')} {current_fil.get('material', '')} {current_fil.get('color', '')}".strip()
+                loc_str = f"{current_fil.get('type', '')} {current_fil.get('loc_id', '')}".strip()
+                loc_display = f"[{loc_str}]" if loc_str else "[Ort unbekannt]"
+                val_to_select = f"{current_fil['id']} - {name} {loc_display}"
+                
+                if val_to_select in filament_values:
+                    cb_new.set(val_to_select)
+                else:
+                    cb_new.set("- Leer / Ignorieren -")
+            else:
+                cb_new.set("- Leer / Ignorieren -")
+
+            cb_new.grid(row=row_idx, column=1, padx=10, pady=10)
+
+            # 3. Spalte: Wohin mit dem alten Zeug?
+            var_old_loc = tk.StringVar()
+            cb_old = ttk.Combobox(frm, textvariable=var_old_loc, values=loc_values, state="readonly", width=25)
+            cb_old.set("- Nicht verschieben -")
+            cb_old.grid(row=row_idx, column=2, padx=10, pady=10)
+
+            self.sync_vars.append({"slot_num": slot_num, "bambu_data": r, "var_new": var_new_spool, "var_old": var_old_loc})
+
+        ttk.Separator(frm, orient="horizontal").grid(row=6, column=0, columnspan=3, sticky="ew", pady=15)
+        
+        # Der Speichern-Button
+        ttk.Button(win, text="💾 Sync in Datenbank speichern", command=lambda: self.apply_ams_sync(win), style="Accent.TButton").pack(pady=15)
+
+    def apply_ams_sync(self, win):
+        moved_new = []
+        moved_old = []
+        
+        # --- PRE-CHECK: Kollisionsprüfung für das Regal ---
+        collisions = []
+        for sv in self.sync_vars:
+            old_destination = sv['var_old'].get()
+            if old_destination != "- Nicht verschieben -":
+                parts = old_destination.split(" ", 1)
+                dest_type = parts[0] if len(parts) == 2 else old_destination
+                dest_loc = parts[1] if len(parts) == 2 else ""
+                
+                # Prüft, ob auf diesem Regal-Platz schon eine andere, aktive Spule liegt
+                existing = next((i for i in self.inventory if i.get('type') == dest_type and i.get('loc_id') == dest_loc and i.get('type') != 'VERBRAUCHT'), None)
+                if existing:
+                    collisions.append(f"• {old_destination} (ist belegt durch: #{existing['id']} {existing.get('brand','')} {existing.get('color','')})")
+                    
+        # Wenn wir Kollisionen gefunden haben, schlagen wir Alarm!
+        if collisions:
+            msg = "Achtung! Du versuchst alte Spulen auf Plätze zu legen, die bereits belegt sind:\n\n" + "\n".join(collisions) + "\n\nMöchtest du trotzdem speichern und riskieren, dass zwei Spulen am selben Platz liegen?"
+            if not messagebox.askyesno("⚠️ Lagerplatz bereits belegt", msg):
+                return # Bricht den gesamten Sync-Vorgang ab, der User muss korrigieren!
+
+        # --- NORMALE SPEICHERLOGIK ---
+        for sv in self.sync_vars:
+            slot_num_str = str(sv['slot_num']) # z.B. "3"
+            new_selection = sv['var_new'].get() 
+            old_destination = sv['var_old'].get() 
+            
+            # FIX 1: VibeSpool nennt das Regal intern "type" und das Fach "loc_id"!
+            old_filament = next((i for i in self.inventory if i.get('type') == "AMS 1" and str(i.get('loc_id')) == slot_num_str), None)
+            
+            new_id = -1
+            if new_selection != "- Leer / Ignorieren -":
+                try:
+                    new_id = int(new_selection.split(" - ")[0])
+                except: pass
+
+            if old_filament and new_id == old_filament.get('id'):
+                continue
+            
+            # FIX 2: Alte Spule korrekt aufteilen (z.B. "REGAL Fach 1 - Slot 1" -> type="REGAL", loc_id="Fach 1 - Slot 1")
+            if old_filament and old_destination != "- Nicht verschieben -":
+                parts = old_destination.split(" ", 1)
+                if len(parts) == 2:
+                    old_filament['type'] = parts[0]
+                    old_filament['loc_id'] = parts[1]
+                else:
+                    old_filament['type'] = old_destination
+                    old_filament['loc_id'] = ""
+                moved_old.append(f"#{old_filament['id']} nach {old_destination}")
+            
+            # FIX 3: Neue Spule korrekt in AMS eintragen (type="AMS 1", loc_id="3")
+            if new_id != -1:
+                new_filament = next((i for i in self.inventory if i.get('id') == new_id), None)
+                if new_filament:
+                    new_filament['type'] = "AMS 1"
+                    new_filament['loc_id'] = slot_num_str
+                    moved_new.append(f"#{new_filament['id']} in AMS 1 Slot {slot_num_str}")
+
+        total_changes = len(moved_new) + len(moved_old)
+        if total_changes > 0:
+            try:
+                if hasattr(self.data_manager, 'save_inventory'):
+                    self.data_manager.save_inventory(self.inventory)
+                elif hasattr(self.data_manager, 'save_all'):
+                    self.data_manager.save_all(self.inventory, self.settings, self.spools) # type: ignore
+                else:
+                    from core.utils import save_json # type: ignore
+                    import os
+                    db_path = os.path.join(getattr(self.data_manager, 'data_dir', ''), "inventory.json")
+                    save_json(db_path, self.inventory)
+            except Exception as e:
+                messagebox.showerror("Fehler", f"Speichern fehlgeschlagen:\n{e}")
+                return
+
+            self.update_locations_dropdown()
+            self.refresh_table()
+            self.root.update_idletasks()
+            
+            msg = f"Sync erfolgreich durchgeführt ({total_changes} Umbuchungen).\n\n"
+            if moved_new:
+                msg += "✅ In AMS eingelegt:\n" + "\n".join(moved_new) + "\n\n"
+            if moved_old:
+                msg += "📦 Ins Regal zurückgelegt:\n" + "\n".join(moved_old)
+            messagebox.showinfo("Bambu AMS Sync", msg)
+        else:
+            messagebox.showinfo("Info", "Keine Änderungen ausgewählt.")
+            
+        win.destroy()
 
 if __name__ == "__main__":
     try: windll.shcore.SetProcessDpiAwareness(1)

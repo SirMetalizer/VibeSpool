@@ -17,21 +17,16 @@ import qrcode
 from core.utils import load_json, save_json, get_colors_from_text, create_color_icon, center_window
 from core.logic import calculate_net_weight, check_for_updates, parse_shelves_string, serialize_shelves
 from core.data_manager import DataManager
+from core.spool_presets import SPOOL_PRESETS
 
 def fetch_last_print_usage(url, key): 
     return None
 def fetch_recent_jobs(url, key): 
     return []
 
-SPOOL_PRESETS = [
-    {"name": "Bambu Reusable Spool", "weight": 250},
-    {"name": "eSUN Cardboard", "weight": 140},
-    {"name": "Sunlu Plastic", "weight": 150},
-    {"name": "Prusament", "weight": 200}
-]
 
 # --- KONFIGURATION ---
-APP_VERSION = "1.8.1"
+APP_VERSION = "1.8.2"
 GITHUB_REPO = "SirMetalizer/VibeSpool" 
 
 # --- DEFAULTS ---

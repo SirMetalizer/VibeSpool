@@ -1,6 +1,6 @@
 import os
 import json
-from .utils import load_json, save_json
+from core.utils import load_json, save_json
 
 class DataManager:
     def __init__(self, default_settings):

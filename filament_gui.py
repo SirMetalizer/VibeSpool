@@ -17,11 +17,21 @@ import qrcode
 from core.utils import load_json, save_json, get_colors_from_text, create_color_icon, center_window
 from core.logic import calculate_net_weight, check_for_updates, parse_shelves_string, serialize_shelves
 from core.data_manager import DataManager
-from core.printer_sync import fetch_last_print_usage, fetch_recent_jobs
-from core.spool_presets import SPOOL_PRESETS
+
+def fetch_last_print_usage(url, key): 
+    return None
+def fetch_recent_jobs(url, key): 
+    return []
+
+SPOOL_PRESETS = [
+    {"name": "Bambu Reusable Spool", "weight": 250},
+    {"name": "eSUN Cardboard", "weight": 140},
+    {"name": "Sunlu Plastic", "weight": 150},
+    {"name": "Prusament", "weight": 200}
+]
 
 # --- KONFIGURATION ---
-APP_VERSION = "1.8"
+APP_VERSION = "1.8.1"
 GITHUB_REPO = "SirMetalizer/VibeSpool" 
 
 # --- DEFAULTS ---
@@ -87,7 +97,8 @@ class SpoolManager(tk.Toplevel):
         self.tree.heading("id", text="ID"); self.tree.heading("name", text="Bezeichnung"); self.tree.heading("weight", text="Leergewicht (g)")
         self.tree.column("id", width=50, anchor="center"); self.tree.column("name", width=250); self.tree.column("weight", width=100, anchor="center")
         scroll = ttk.Scrollbar(frm_list, orient="vertical", command=self.tree.yview)
-        self.tree.configure(yscroll=scroll.set); self.tree.pack(side="left", fill="both", expand=True); scroll.pack(side="right", fill="y")
+        self.tree.configure(yscrollcommand=scroll.set); self.tree.pack(side="left", fill="both", expand=True); scroll.pack(side="right", fill="y")
+
         self.tree.bind("<<TreeviewSelect>>", self.on_select)
         
         frm_input = ttk.LabelFrame(self, text="Bearbeiten / Neu"); frm_input.pack(fill="x", padx=10, pady=10, side="bottom")
@@ -326,28 +337,6 @@ class SettingsDialog(tk.Toplevel):
             self.on_save(self.settings); self.destroy()
         except: messagebox.showerror("Fehler", "AMS Anzahl muss eine Zahl sein.")
 
-    def refresh_settings_shelf_list(self):
-        self.shelf_list.delete(0, tk.END)
-        for s in parse_shelves_string(self.var_shelves.get()): self.shelf_list.insert(tk.END, f"📦 {s['name']} ({s['rows']}x{s['cols']})")
-
-    def do_save(self):
-        try:
-            print(f"DEBUG Save FINAL: {self.var_shelves.get()}")
-            self.settings.update({
-                "shelves": self.var_shelves.get(),
-                "logistics_order": self.var_logistics.get(),
-                "label_row": self.ent_row.get().strip() or "Fach",
-                "label_col": self.ent_col.get().strip() or "Slot",
-                "num_ams": int(self.ent_ams.get()),
-                "custom_locs": self.ent_custom.get().strip(),
-                "use_affiliate": self.var_affiliate.get(),
-                "rfid_mode": self.var_rfid.get(),
-                "printer_url": self.ent_prn_url.get().strip(),
-                "printer_api_key": self.ent_prn_key.get().strip()
-            })
-            self.on_save(self.settings); self.destroy()
-        except: messagebox.showerror("Fehler", "AMS Anzahl muss eine Zahl sein.")
-
 class ShelfVisualizer(tk.Toplevel):
     def __init__(self, parent, inventory, settings, spools):
         super().__init__(parent); self.inventory = inventory; self.settings = settings; self.spools = spools; self.title("Regal & AMS Übersicht")
@@ -420,7 +409,7 @@ class ShoppingListDialog(tk.Toplevel):
         ttk.Label(self, text="🛒 Nachzubestellende & Verbrauchte Filamente", font=("Segoe UI", 14, "bold")).pack(pady=15)
         frm_list = ttk.Frame(self); frm_list.pack(fill="both", expand=True, padx=20, pady=(0, 20))
         self.tree = ttk.Treeview(frm_list, columns=("brand", "color", "mat", "supplier", "sku", "price", "status"), show="headings"); self.tree.heading("brand", text="Marke"); self.tree.heading("color", text="Farbe"); self.tree.heading("mat", text="Mat."); self.tree.heading("supplier", text="Lieferant"); self.tree.heading("sku", text="SKU"); self.tree.heading("price", text="Preis"); self.tree.heading("status", text="Status")
-        self.tree.column("mat", width=50); self.tree.column("price", width=60); self.tree.column("status", width=100); scroll = ttk.Scrollbar(frm_list, orient="vertical", command=self.tree.yview); self.tree.configure(yscroll=scroll.set); self.tree.pack(side="left", fill="both", expand=True); scroll.pack(side="right", fill="y"); self.tree.bind("<Double-1>", lambda e: self.open_shop_link())
+        self.tree.column("mat", width=50); self.tree.column("price", width=60); self.tree.column("status", width=100); scroll = ttk.Scrollbar(frm_list, orient="vertical", command=self.tree.yview); self.tree.configure(yscrollcommand=scroll.set); self.tree.pack(side="left", fill="both", expand=True); scroll.pack(side="right", fill="y"); self.tree.bind("<Double-1>", lambda e: self.open_shop_link())
         self.populate(); btn_frm = ttk.Frame(self); btn_frm.pack(pady=10); ttk.Button(btn_frm, text="🔗 Im Shop öffnen", command=self.open_shop_link, style="Accent.TButton").pack(side="left", padx=10); ttk.Button(btn_frm, text="Als CSV exportieren (Excel)", command=self.export_csv).pack(side="left", padx=10); ttk.Button(btn_frm, text="Schließen", command=self.destroy).pack(side="left", padx=10)
     def populate(self):
         for i in self.inventory:
@@ -487,6 +476,70 @@ class StatisticsDialog(tk.Toplevel):
         for mat, stats in sorted(mat_stats.items(), key=lambda x: x[1]['value'], reverse=True): tree.insert("", "end", values=(mat, stats['count'], f"{(stats['weight']/1000):.2f}", f"{stats['value']:.2f} €"))
         ttk.Button(self, text="Schließen", command=self.destroy).pack(pady=10)
 
+class FlowCalculatorDialog(tk.Toplevel):
+    def __init__(self, parent, current_flow_entry=None):
+        super().__init__(parent); self.title("🧪 Flow-Rechner (Kalibrierung)"); self.geometry("450x550"); self.configure(bg=parent.cget('bg')); center_window(self, parent)
+        self.current_flow_entry = current_flow_entry
+        
+        ttk.Label(self, text="Flow Kalibrierung", font=("Segoe UI", 14, "bold")).pack(pady=10)
+        ttk.Label(self, text="Gib hier deine Wandstärken-Messungen ein (eine pro Zeile):", font=("Segoe UI", 9)).pack(padx=20, anchor="w")
+        
+        self.txt_measurements = tk.Text(self, height=8, width=30, font=("Consolas", 10))
+        self.txt_measurements.pack(padx=20, pady=5, fill="x")
+        self.txt_measurements.bind("<KeyRelease>", lambda e: self.calculate())
+
+        frm_params = ttk.Frame(self, padding=10); frm_params.pack(fill="x", padx=10)
+        
+        ttk.Label(frm_params, text="Ziel-Wandstärke (mm):").grid(row=0, column=0, sticky="w", pady=2)
+        self.var_target = tk.StringVar(value="0.45")
+        self.ent_target = ttk.Entry(frm_params, textvariable=self.var_target); self.ent_target.grid(row=0, column=1, sticky="ew", pady=2)
+        self.var_target.trace_add("write", lambda n, i, m: self.calculate())
+
+        ttk.Label(frm_params, text="Bisheriger Flow:").grid(row=1, column=0, sticky="w", pady=2)
+        initial_flow = "0.98"
+        if current_flow_entry and current_flow_entry.get(): initial_flow = current_flow_entry.get().replace(',', '.')
+        self.var_old_flow = tk.StringVar(value=initial_flow)
+        self.ent_old_flow = ttk.Entry(frm_params, textvariable=self.var_old_flow); self.ent_old_flow.grid(row=1, column=1, sticky="ew", pady=2)
+        self.var_old_flow.trace_add("write", lambda n, i, m: self.calculate())
+
+        frm_params.columnconfigure(1, weight=1)
+        
+        ttk.Separator(self, orient="horizontal").pack(fill="x", padx=20, pady=15)
+        
+        self.lbl_result = ttk.Label(self, text="Mess-Durchschnitt: -", font=("Segoe UI", 10))
+        self.lbl_result.pack(pady=2)
+        self.lbl_new_flow = ttk.Label(self, text="NEUER FLOW: -", font=("Segoe UI", 12, "bold"), foreground=COLOR_ACCENT)
+        self.lbl_new_flow.pack(pady=10)
+        
+        btn_frm = ttk.Frame(self); btn_frm.pack(pady=10, fill="x", padx=20)
+        ttk.Button(btn_frm, text="Wert übernehmen", style="Accent.TButton", command=self.apply_value).pack(side="left", expand=True, fill="x", padx=5)
+        ttk.Button(btn_frm, text="Schließen", command=self.destroy).pack(side="left", expand=True, fill="x", padx=5)
+
+    def calculate(self):
+        try:
+            lines = self.txt_measurements.get("1.0", tk.END).strip().split('\n')
+            vals = [float(l.replace(',', '.').strip()) for l in lines if l.strip()]
+            if not vals: return
+            
+            avg = sum(vals) / len(vals)
+            target = float(self.var_target.get().replace(',', '.'))
+            old_flow = float(self.var_old_flow.get().replace(',', '.'))
+            
+            # Formel: (Target / Average) * Old Flow
+            new_flow = (target / avg) * old_flow
+            
+            self.lbl_result.config(text=f"Mess-Durchschnitt: {avg:.4f} mm ({len(vals)} Werte)")
+            self.lbl_new_flow.config(text=f"NEUER FLOW: {new_flow:.4f}")
+            self.calculated_value = f"{new_flow:.3f}".replace('.', ',')
+        except:
+            self.lbl_result.config(text="Mess-Durchschnitt: Fehler"); self.lbl_new_flow.config(text="NEUER FLOW: -")
+
+    def apply_value(self):
+        if hasattr(self, 'calculated_value') and self.current_flow_entry:
+            self.current_flow_entry.delete(0, tk.END)
+            self.current_flow_entry.insert(0, self.calculated_value)
+            self.destroy()
+
 class BackupDialog(tk.Toplevel):
     def __init__(self, parent, data_manager, app_instance):
         super().__init__(parent); self.data_manager = data_manager; self.app = app_instance; self.title("Backup & Restore"); self.geometry("400x200"); self.configure(bg=parent.cget('bg')); center_window(self, parent)
@@ -520,7 +573,7 @@ class PrinterJobDialog(tk.Toplevel):
         self.tree.heading("file", text="Datei"); self.tree.heading("status", text="Status"); self.tree.heading("used", text="Verbrauch (g)")
         self.tree.column("file", width=300); self.tree.column("status", width=100, anchor="center"); self.tree.column("used", width=100, anchor="center")
         
-        scroll = ttk.Scrollbar(frm, orient="vertical", command=self.tree.yview); self.tree.configure(yscroll=scroll.set); self.tree.pack(side="left", fill="both", expand=True); scroll.pack(side="right", fill="y")
+        scroll = ttk.Scrollbar(frm, orient="vertical", command=self.tree.yview); self.tree.configure(yscrollcommand=scroll.set); self.tree.pack(side="left", fill="both", expand=True); scroll.pack(side="right", fill="y")
         
         for i, j in enumerate(jobs):
             used = f"{j.get('filament_used', 0):.1f}g"
@@ -538,16 +591,37 @@ class FilamentApp:
     def __init__(self, root):
         self.root = root; 
         self.data_manager = DataManager(DEFAULT_SETTINGS)
-        self.inventory, self.settings, self.spools = self.data_manager.load_all(DEFAULT_SETTINGS)
+        # Explicitly hint types to help Pylance
+        self.inventory: list[dict] = []
+        self.settings: dict = {}
+        self.spools: list[dict] = []
         
-        self.root.geometry(self.settings.get("geometry", "1500x980"))
+        # Suppress type checking for this assignment since load_all returns (list, dict, list)
+        inventory_data, settings_data, spools_data = self.data_manager.load_all(DEFAULT_SETTINGS)
+        self.inventory = inventory_data if isinstance(inventory_data, list) else []
+        self.settings = settings_data if isinstance(settings_data, dict) else {}
+        self.spools = spools_data if isinstance(spools_data, list) else []
+        
+        # Already assigned above with type safety checks
+        
+        self.root.geometry(str(self.settings.get("geometry", "1500x980")))
         self.root.title(f"VibeSpool {APP_VERSION}"); self.root.protocol("WM_DELETE_WINDOW", self.on_closing)
         self.icon_cache = []
-        self.style = ttk.Style(); self.style.theme_use("clam"); self.apply_theme(); self.style.configure("Treeview", rowheight=26)
-        
-        self.var_price, self.var_capacity, self.var_gross = tk.StringVar(value=""), tk.StringVar(value="1000"), tk.StringVar(value="")
+
+        # --- PRE-INIT UI ATTRIBUTES ---
+        self.nav_btns: list[tk.Button] = []
+        self.nav_sidebar = tk.Frame(root, width=80) 
+        self.nav_sidebar.pack(side="left", fill="y")
+        self.nav_sidebar.pack_propagate(False)
+
+        self.style = ttk.Style()
+        self.style.theme_use("clam")
+        self.style.configure("Treeview", rowheight=26)
+
+        self.var_price, self.var_capacity, self.var_gross = tk.StringVar(value=""), tk.StringVar(value="1000"), tk.StringVar(value="")        
         for v in [self.var_price, self.var_capacity, self.var_gross]: v.trace_add("write", lambda n, i, m: self.update_net_weight_display())
 
+        # --- MAIN LAYOUT ---
         top_bar = ttk.Frame(root, padding=10); top_bar.pack(fill="x", side="top"); ttk.Label(top_bar, text="Suche:").pack(side="left"); self.search_var = tk.StringVar(); self.search_var.trace_add("write", lambda n, i, m: self.refresh_table()); ttk.Entry(top_bar, textvariable=self.search_var, width=15).pack(side="left", padx=5)
         self.filter_mat_var, self.filter_color_var, self.filter_loc_var = tk.StringVar(value="Alle Materialien"), tk.StringVar(value="Alle Farben"), tk.StringVar(value="Alle Orte")
         self.combo_filter_mat = ttk.Combobox(top_bar, textvariable=self.filter_mat_var, state="readonly", width=15); self.combo_filter_mat.pack(side="left", padx=5); self.combo_filter_mat.bind("<<ComboboxSelected>>", lambda e: self.refresh_table())
@@ -570,8 +644,55 @@ class FilamentApp:
         
         ttk.Button(top_bar, text="💾 Backup", command=lambda: BackupDialog(self.root, self.data_manager, self)).pack(side="right", padx=5); ttk.Button(top_bar, text="🛒 Einkaufsliste", command=lambda: ShoppingListDialog(self.root, self.inventory, self)).pack(side="right", padx=5); ttk.Button(top_bar, text="☕ Spenden", command=self.open_paypal).pack(side="right", padx=5); self.btn_theme = ttk.Button(top_bar, text="...", command=self.toggle_theme); self.btn_theme.pack(side="right", padx=5); self.update_theme_button_text()
         
+        # --- SIDEBAR BUTTONS ---
+        self.nav_btns = []
+        def add_nav_btn(text, cmd, icon_txt=None):
+            btn = tk.Button(self.nav_sidebar, text=f"{icon_txt}\n{text}" if icon_txt else text, command=cmd, 
+                           font=("Segoe UI", 8), bd=0, pady=15, cursor="hand2")
+            btn.pack(fill="x")
+            self.nav_btns.append(btn)
+            btn.bind("<Enter>", lambda e: self.on_nav_btn_hover(btn, True))
+            btn.bind("<Leave>", lambda e: self.on_nav_btn_hover(btn, False))
+
+        add_nav_btn("Regal", lambda: ShelfVisualizer(self.root, self.inventory, self.settings, self.spools), "📦")
+        add_nav_btn("Spulen", lambda: SpoolManager(self.root, self.data_manager, self.update_spool_dropdown), "🧵")
+        add_nav_btn("Finanzen", lambda: StatisticsDialog(self.root, self.inventory, self), "📊")
+        add_nav_btn("Swap", self.quick_swap_dialog, "🔄")
+        add_nav_btn("Flow", lambda: FlowCalculatorDialog(self.root, self.entry_flow), "🧪")
+        self.nav_sep = tk.Label(self.nav_sidebar, height=1)
+        self.nav_sep.pack(fill="x", pady=10)
+        add_nav_btn("Neu", self.clear_inputs, "➕")
+        
+        # (NACH der Nav-Sidebar-Definition)
         main_frame = ttk.Frame(root, padding=10); main_frame.pack(fill="both", expand=True)
-        sidebar = ttk.Frame(main_frame, width=350); sidebar.pack(side="left", fill="y", padx=(0, 10))
+        
+        # --- NEU: Ein Container für die Haupt-Formularleiste + Scrollbar ---
+        self.form_container = tk.Frame(main_frame, width=360) # Etwas breiter für die Scrollbar
+        self.form_container.pack(side="left", fill="y", padx=(0, 10))
+        self.form_container.pack_propagate(False)
+
+        # Das Canvas macht das Scrollen möglich
+        self.form_canvas = tk.Canvas(self.form_container, highlightthickness=0, width=350)
+        self.form_scrollbar = ttk.Scrollbar(self.form_container, orient="vertical", command=self.form_canvas.yview)
+        
+        # Das eigentliche Frame, in das die Tabs und Buttons kommen
+        # Wir müssen tk.Frame nutzen, um die Hintergrundfarbe im apply_theme setzen zu können.
+        sidebar = tk.Frame(self.form_canvas, width=350)
+        # Referenz für apply_theme speichern!
+        self.scrollable_form_frame = sidebar
+        
+        # Canvas konfigurieren, damit es mit dem Frame mitwächst
+        sidebar.bind(
+            "<Configure>",
+            lambda e: self.form_canvas.configure(scrollregion=self.form_canvas.bbox("all"))
+        )
+        self.form_canvas.create_window((0, 0), window=sidebar, anchor="nw", width=350)
+        self.form_canvas.configure(yscrollcommand=self.form_scrollbar.set)
+
+        # Scrollbar und Canvas platzieren
+        self.form_scrollbar.pack(side="right", fill="y")
+        self.form_canvas.pack(side="left", fill="both", expand=True)
+
         self.notebook = ttk.Notebook(sidebar); self.notebook.pack(fill="both", expand=True)
         tab_basis, tab_erp = ttk.Frame(self.notebook, padding=10), ttk.Frame(self.notebook, padding=10); self.notebook.add(tab_basis, text="Basis & Lager"); self.notebook.add(tab_erp, text="Kaufmännisch")
 
@@ -619,7 +740,8 @@ class FilamentApp:
         ttk.Label(tab_erp, text="Bed Temp (°C):").grid(row=6, column=0, sticky="w", pady=5); self.entry_temp_b = ttk.Entry(tab_erp); self.entry_temp_b.grid(row=6, column=1, sticky="ew", pady=2)
         tab_erp.columnconfigure(1, weight=1)
 
-        btn_frame = ttk.Frame(sidebar); btn_frame.pack(fill="x", side="bottom", pady=(10, 0))
+        btn_frame = ttk.Frame(sidebar)
+        btn_frame.pack(fill="x", pady=(15, 0))
         ttk.Button(btn_frame, text="Neu Hinzufügen", command=self.add_filament, style="Accent.TButton").pack(fill="x", pady=3)
         ttk.Button(btn_frame, text="Änderungen Speichern", command=self.update_filament).pack(fill="x", pady=3)
         ttk.Separator(btn_frame, orient="horizontal").pack(fill="x", pady=8)
@@ -633,7 +755,7 @@ class FilamentApp:
 
         table_frame = ttk.Frame(main_frame); table_frame.pack(side="right", fill="both", expand=True)
         self.tree = ttk.Treeview(table_frame, columns=("id", "brand", "material", "color", "subtype", "weight", "flow", "location", "status"), show="tree headings")
-        scrollbar = ttk.Scrollbar(table_frame, orient=tk.VERTICAL, command=self.tree.yview); self.tree.configure(yscroll=scrollbar.set); scrollbar.pack(side="right", fill="y"); self.tree.pack(fill="both", expand=True)
+        scrollbar = ttk.Scrollbar(table_frame, orient=tk.VERTICAL, command=self.tree.yview); self.tree.configure(yscrollcommand=scrollbar.set); scrollbar.pack(side="right", fill="y"); self.tree.pack(fill="both", expand=True)
         self.tree.column("#0", width=40, anchor="center", stretch=False)
         for col, text in zip(("id", "brand", "material", "color", "subtype", "weight", "flow", "location", "status"), ["ID", "Marke", "Material", "Farbe", "Finish", "Rest(g)", "Flow", "Ort", "Status"]): self.tree.heading(col, text=text, command=lambda c=col: self.treeview_sort_column(c, False))
         self.tree.column("id", width=40, anchor="center"); self.tree.column("brand", width=120); self.tree.column("material", width=60, anchor="center"); self.tree.column("weight", width=60, anchor="center"); self.tree.column("flow", width=50, anchor="center"); self.tree.column("status", width=90, anchor="center"); self.tree.bind("<<TreeviewSelect>>", self.on_select)
@@ -644,11 +766,12 @@ class FilamentApp:
                 latest, url = res
                 self.root.after(0, lambda: self.show_update_prompt(latest, url))
         threading.Thread(target=run_update_check, daemon=True).start()
+        self.apply_theme()
 
     def update_color_preview(self, event=None):
         cols = get_colors_from_text(self.combo_color.get())
         img = create_color_icon(cols, (30, 20), "#888888")
-        self.lbl_color_preview.config(image=img); self.lbl_color_preview.image = img
+        self.lbl_color_preview.config(image=img); setattr(self.lbl_color_preview, 'image', img) # type: ignore
 
     def show_tip(self, event, text):
         self.tip = tk.Toplevel(self.root); self.tip.wm_overrideredirect(True)
@@ -692,6 +815,31 @@ class FilamentApp:
         s.map("TCombobox", fieldbackground=[("readonly", cb_bg)], selectbackground=[("readonly", COLOR_ACCENT)], selectforeground=[("readonly", "white")])
         self.root.option_add('*TCombobox*Listbox.background', cb_bg); self.root.option_add('*TCombobox*Listbox.foreground', cb_fg)
         s.configure("Accent.TButton", foreground="white", background=COLOR_ACCENT, borderwidth=0); s.configure("Delete.TButton", foreground="white", background=COLOR_DELETE, borderwidth=0)
+        
+        # --- NAV SIDEBAR THEME ---
+        nav_bg = "#1e1e1e" if theme == "dark" else "#d0d0d0"
+        nav_fg = "white" if theme == "dark" else "black"
+        
+        # Nur noch die nav_sidebar färben
+        self.nav_sidebar.config(bg=nav_bg)
+        
+        self.nav_sep.config(bg="#333333" if theme == "dark" else "#bbbbbb")
+        for btn in self.nav_btns:
+            btn.config(bg=nav_bg, fg=nav_fg, activebackground="#3c3f41" if theme == "dark" else "#e1e1e1", activeforeground=nav_fg)
+            
+        # --- THEME FÜR DAS FORMULAR-CANVAS & CONTAINER (Bleibt erhalten!) ---
+        c = THEMES[theme]
+        self.form_container.config(bg=c["bg"])
+        self.form_canvas.config(bg=c["bg"])
+        self.scrollable_form_frame.config(bg=c["bg"])
+
+
+    def on_nav_btn_hover(self, btn, is_enter):
+        theme = self.settings.get("theme", "dark")
+        if is_enter:
+            btn.config(bg="#3c3f41" if theme == "dark" else "#e1e1e1")
+        else:
+            btn.config(bg="#1e1e1e" if theme == "dark" else "#d0d0d0")
 
     def toggle_theme(self): self.settings["theme"] = "dark" if self.settings.get("theme") == "light" else "light"; self.data_manager.save_settings(self.settings); self.apply_theme(); self.update_theme_button_text()
     def update_theme_button_text(self): self.btn_theme.config(text="☀️" if self.settings.get("theme") == "dark" else "🌙")
@@ -703,7 +851,8 @@ class FilamentApp:
         locs.extend(["LAGER", "VERBRAUCHT"]); return locs
     def update_locations_dropdown(self): self.combo_type['values'] = self.get_dynamic_locations()
     def update_spool_dropdown(self):
-        _, _, self.spools = self.data_manager.load_all(DEFAULT_SETTINGS); values = ["-"] + [f"{s['id']} - {s['name']}" for s in self.spools]; curr = self.combo_spool.get(); self.combo_spool['values'] = values
+        _, _, self.spools = self.data_manager.load_all(DEFAULT_SETTINGS) # type: ignore
+        values = ["-"] + [f"{s['id']} - {s['name']}" for s in self.spools]; curr = self.combo_spool.get(); self.combo_spool['values'] = values
         if curr not in values: self.combo_spool.current(0)
     def get_selected_spool_id(self):
         try: return -1 if self.combo_spool.get() == "-" else int(self.combo_spool.get().split(" - ")[0])
@@ -759,7 +908,18 @@ class FilamentApp:
             messagebox.showerror("Fehler", f"Berechnungsfehler: {e}")
 
     def treeview_sort_column(self, col, reverse):
-        self.inventory.sort(key=lambda i: [int(c) if c.isdigit() else c.lower() for c in re.split(r'(\d+)', str(i.get(col, "")))], reverse=reverse); self.tree.heading(col, command=lambda: self.treeview_sort_column(col, not reverse)); self.refresh_table()
+        def get_sort_value(i):
+            if col == "location":
+                return f"{i.get('type', '')} {i.get('loc_id', '')}".strip()
+            elif col == "weight":
+                return str(calculate_net_weight(i.get('weight_gross', '0'), i.get('spool_id', -1), self.spools))
+            elif col == "status":
+                return "VERBRAUCHT" if i.get('type') == "VERBRAUCHT" else "KAUFEN" if i.get('reorder') else ""
+            return str(i.get(col, ""))
+
+        self.inventory.sort(key=lambda i: [int(c) if c.isdigit() else c.lower() for c in re.split(r'(\d+)', get_sort_value(i))], reverse=reverse)
+        self.tree.heading(col, command=lambda: self.treeview_sort_column(col, not reverse))
+        self.refresh_table()
     def update_filter_dropdowns(self):
         mats = sorted(list(set(i.get("material", "") for i in self.inventory if i.get("material")))); cols = sorted(list(set(i.get("color", "") for i in self.inventory if i.get("color")))); locs = self.get_dynamic_locations()
         self.combo_filter_mat['values'] = ["Alle Materialien"] + mats; self.combo_filter_color['values'] = ["Alle Farben"] + cols; self.combo_filter_loc['values'] = ["Alle Orte"] + locs
@@ -800,27 +960,85 @@ class FilamentApp:
         for val in self.combo_spool['values']:
             if val.startswith(f"{i.get('spool_id', -1)} -"): self.combo_spool.set(val); break
         self.var_capacity.set(str(i.get('capacity', 1000))); gross = str(i.get('weight_gross', '0')).replace(',', '.'); float_g = float(gross) if gross else 0; self.var_gross.set(str(float_g).rstrip('0').rstrip('.') if float_g > 0 else ""); self.var_price.set(str(i.get('price', ''))); self.update_net_weight_display(); self.entry_supplier.insert(0, i.get('supplier', '')); self.entry_sku.insert(0, i.get('sku', '')); self.entry_link.insert(0, i.get('link', '')); self.entry_temp_n.insert(0, i.get('temp_n', '')); self.entry_temp_b.insert(0, i.get('temp_b', ''))
+    
     def clear_inputs(self, deselect=True):
-        for e in [self.entry_id, self.entry_rfid, self.entry_brand, self.entry_flow, self.entry_pa, self.entry_supplier, self.entry_sku, self.entry_link, self.entry_temp_n, self.entry_temp_b]: e.delete(0, tk.END)
-        self.var_capacity.set("1000"); self.var_gross.set(""); self.var_price.set(""); self.combo_color.set(""); self.combo_loc_id.set(""); self.combo_material.current(0); self.combo_subtype.current(0); self.combo_type.current(0); self.combo_spool.current(0); self.update_net_weight_display(); self.update_slot_dropdown(); self.var_reorder.set(False); self.update_color_preview()
-        if deselect: self.tree.selection_remove(self.tree.selection())
+        for e in [self.entry_id, self.entry_rfid, self.entry_brand, self.entry_flow, self.entry_pa, self.entry_supplier, self.entry_sku, self.entry_link, self.entry_temp_n, self.entry_temp_b]: 
+            e.delete(0, tk.END)
+        self.var_capacity.set("1000")
+        self.var_gross.set("")
+        self.var_price.set("")
+        self.combo_color.set("")
+        self.combo_loc_id.set("")
+        self.combo_material.current(0)
+        self.combo_subtype.current(0)
+        self.combo_type.current(0)
+        self.combo_spool.current(0)
+        self.update_net_weight_display()
+        self.update_slot_dropdown()
+        self.var_reorder.set(False)
+        self.update_color_preview()
+        if deselect: 
+            self.tree.selection_remove(self.tree.selection())
+
     def quick_swap_dialog(self):
         sel = self.tree.selection()
-        if not sel: return messagebox.showinfo("Info", "Bitte zuerst eine Spule auswählen!", parent=self.root)
-        s_a = next((i for i in self.inventory if i['id'] == int(sel[0])), None); win = tk.Toplevel(self.root); win.title("🔄 Quick-Swap"); win.geometry("480x220"); win.configure(bg=self.root.cget('bg')); win.attributes('-topmost', True); center_window(win, self.root)
-        ttk.Label(win, text="Spule ins AMS tauschen:", font=("Segoe UI", 12, "bold")).pack(pady=(15, 5)); ttk.Label(win, text=f"{s_a['brand']} {s_a['color']}", font=("Segoe UI", 10)).pack(pady=5)
+        if not sel: 
+            return messagebox.showinfo("Info", "Bitte zuerst eine Spule auswählen!", parent=self.root)
+            
+        s_a = next((i for i in self.inventory if i['id'] == int(sel[0])), None)
+        if not s_a: return
+
+        win = tk.Toplevel(self.root)
+        win.title("🔄 Quick-Swap")
+        win.geometry("480x220")
+        win.configure(bg=self.root.cget('bg'))
+        win.attributes('-topmost', True)
+        center_window(win, self.root)
+        
+        ttk.Label(win, text="Spule ins AMS tauschen:", font=("Segoe UI", 12, "bold")).pack(pady=(15, 5))
+        ttk.Label(win, text=f"{s_a.get('brand', '')} {s_a.get('color', '')}", font=("Segoe UI", 10)).pack(pady=5)
+        
         ams_map = {}
         for a in range(1, self.settings.get("num_ams", 1) + 1):
             am_n = f"AMS {a}"
             for s in range(1, 5):
-                s_b = next((i for i in self.inventory if i.get('type') == am_n and str(i.get('loc_id')) == str(s)), None); d_t = f"{am_n} | Slot {s}  -->  " + (f"{s_b.get('brand', '')} {s_b.get('color', '')}" if s_b else "(LEER)"); ams_map[d_t] = (am_n, str(s))
-        combo = ttk.Combobox(win, values=list(ams_map.keys()), state="readonly", font=FONT_MAIN, width=45); combo.pack(pady=10); combo.current(0)
+                s_b = next((i for i in self.inventory if i.get('type') == am_n and str(i.get('loc_id')) == str(s)), None)
+                if s_b:
+                    label_text = f"{s_b.get('brand', '')} {s_b.get('color', '')}"
+                else:
+                    label_text = "(LEER)"
+                    
+                d_t = f"{am_n} | Slot {s}  -->  {label_text}"
+                ams_map[d_t] = (am_n, str(s))
+                
+        combo = ttk.Combobox(win, values=list(ams_map.keys()), state="readonly", font=FONT_MAIN, width=45)
+        combo.pack(pady=10)
+        combo.current(0)
+        
         def do_swap():
-            t_am, t_sl = ams_map[combo.get()]; o_t, o_l = s_a.get('type', 'LAGER'), s_a.get('loc_id', '-'); s_b = next((i for i in self.inventory if i.get('type') == t_am and str(i.get('loc_id')) == t_sl), None)
-            s_a['type'], s_a['loc_id'] = t_am, t_sl
-            if s_b: s_b['type'], s_b['loc_id'] = o_t, o_l
-            self.data_manager.save_inventory(self.inventory); self.refresh_table(); self.tree.selection_set(str(s_a['id'])); self.on_select(None); win.destroy(); messagebox.showinfo("Quick-Swap Erfolgreich", f"{s_a['brand']} ist im {t_am} (Slot {t_sl})." + (f"\n\nDie alte Spule ({s_b['brand']}) wurde in {o_t} {o_l} gelegt!" if s_b else ""), parent=self.root)
+            t_am, t_sl = ams_map[combo.get()]
+            o_t, o_l = s_a.get('type', 'LAGER'), s_a.get('loc_id', '-')
+            s_b = next((i for i in self.inventory if i.get('type') == t_am and str(i.get('loc_id')) == t_sl), None)
+            
+            s_a['type'] = t_am
+            s_a['loc_id'] = t_sl
+            
+            msg_extra = ""
+            if s_b: 
+                s_b['type'] = o_t
+                s_b['loc_id'] = o_l
+                msg_extra = f"\n\nDie alte Spule ({s_b.get('brand', '')}) wurde in {o_t} {o_l} gelegt!"
+                
+            self.data_manager.save_inventory(self.inventory)
+            self.refresh_table()
+            self.tree.selection_set(str(s_a.get('id', '')))
+            self.on_select(None)
+            win.destroy()
+            
+            messagebox.showinfo("Quick-Swap Erfolgreich", f"{s_a.get('brand', '')} ist im {t_am} (Slot {t_sl}).{msg_extra}", parent=self.root)
+            
         ttk.Button(win, text="🔄 Tauschen", command=do_swap, style="Accent.TButton").pack(pady=15)
+
     def on_quick_scan(self, event=None):
         scan = self.entry_scan.get().strip()
         if not scan: return
@@ -839,8 +1057,8 @@ class FilamentApp:
             self.entry_scan.delete(0, tk.END)
     def scan_qr_webcam(self):
         try:
-            import cv2
-            from pyzbar import pyzbar
+            import cv2 # type: ignore
+            from pyzbar import pyzbar # type: ignore
         except ImportError:
             messagebox.showerror("Fehler", "Für den QR-Scan werden 'opencv-python' und 'pyzbar' benötigt.\nBitte installiere diese via pip:\npip install opencv-python pyzbar")
             return
@@ -858,7 +1076,9 @@ class FilamentApp:
         cap.release(); cv2.destroyAllWindows()
         if found_id: self.entry_scan.delete(0, tk.END); self.entry_scan.insert(0, found_id); self.on_quick_scan()
 
-    def refresh_all_data(self): self.inventory, self.settings, self.spools = self.data_manager.load_all(DEFAULT_SETTINGS); self.apply_theme(); self.update_locations_dropdown(); self.refresh_table()
+    def refresh_all_data(self): 
+        self.inventory, self.settings, self.spools = self.data_manager.load_all(DEFAULT_SETTINGS) # type: ignore
+        self.apply_theme(); self.update_locations_dropdown(); self.refresh_table()
 
 if __name__ == "__main__":
     try: windll.shcore.SetProcessDpiAwareness(1)

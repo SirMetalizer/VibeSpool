@@ -75,12 +75,8 @@ VibeSpool unterstützt nun die **direkte, lokale Anbindung an Bambu Lab Drucker*
 - **Lokal & Sicher:** Die Kommunikation läuft rein lokal über dein Heimnetzwerk (MQTT).
 
 ### 🛠️ Installation & Setup (Wichtig ab v1.9)
-Um die Bambu Lab Anbindung nutzen zu können, benötigt VibeSpool ab Version 1.9 das MQTT-Protokoll. Installiere die benötigten Pakete mit:
-```bash
-pip install Pillow qrcode paho-mqtt
-```
 
-Die Zugangsdaten (IP, Access Code, Seriennummer) findest du direkt im Menü deines Druckers unter "Netzwerk" bzw. "Allgemein". Trage diese in VibeSpool in den Optionen ein.
+Die Zugangsdaten (IP, Access Code, Seriennummer) findest du direkt im Menü deines Druckers unter "Netzwerk" bzw. "Allgemein". Trage diese in VibeSpool in den Optionen ein. Für eine genaue Anleitung schaue dir [Bambu Integration Howto](https://github.com/SirMetalizer/VibeSpool/blob/main/BAMBU-INTEGRATION-HOWTO.md) hier auf Git an.
 
 ## 🗺️ Roadmap (What's next?)
 

@@ -14,11 +14,22 @@ Diese Liste enthält alle geplanten Features, Verbesserungen und bekannten Bugs,
 - [X] **Mausrad-Fix:** Das Scrollen im `Treeview` (Tabelle) robuster machen, sodass es auch reagiert, wenn die Maus nicht exakt auf einer Zeile schwebt.
 - [X] **Slicer-Verbrauch abziehen:** Ein kleines Eingabefeld hinzufügen, um den vom Slicer berechneten Verbrauch direkt vom aktuellen Brutto-Gewicht abzuziehen.
 
-## 🚀 Priorität 3: Neue Features (Version 2.0 / 1.9.2)
+## 🚀 Priorität 3: Neue Features (Version 2.0)
 - [X] **Excel / CSV Import:** Funktion hinzufügen, um bestehende Filament-Lagerlisten aus `.csv`-Dateien in die VibeSpool-Datenbank zu importieren.
 - [X] **Individuelle Regal-Beschriftungen:** Im Regal-Planer die Möglichkeit schaffen, Fächern einen festen Namen zu geben (z.B. "Fach 1 (Bambu PLA)").
 - [X] **Erweiterbare Materialien & Farben:** Die hart codierten Listen (PLA, PETG...) in die Settings auslagern, sodass Nutzer eigene Materialien (z.B. PA-CF, GF) und Farbkombinationen (Tri-Color) hinzufügen können.
 - [ ] **Hersteller- & Tara-Verknüpfung:** Das Hersteller-Feld von Freitext in ein Dropdown umwandeln und idealerweise direkt mit den Leerspulen-Profilen verknüpfen.
+
+**UI & Visualisierung**
+- [ ] **Material in Regal-Ansicht:** In der grafischen Regal- und AMS-Ansicht (`ShelfVisualizer`) das Material (PLA, PETG etc.) direkt auf der Spulen-Kachel anzeigen, nicht erst beim Mouse-Over (Tooltip).
+- [ ] **Dual- / Tri-Color Support:** Das Farb-Dropdown im Hauptfenster erweitern, sodass bei mehrfarbigen Filamenten 2 oder 3 Farben (inkl. Hex-Codes) ausgewählt und auf dem Icon gespalten dargestellt werden können.
+
+**Workflow & Synchronisation**
+- [ ] **AMS Auto-Import:** Wenn der Bambu AMS-Sync eine Spule erkennt (z.B. via Bambu RFID), die noch nicht in der VibeSpool-Datenbank existiert, einen Button anbieten, um diese direkt inkl. erkannter Farbe und Material als neue Spule ins Lager zu importieren.
+- [ ] **Hex-Codes in Listen-Manager:** Im neuen Einstellungs-Tab "Listen" einen Color-Picker ergänzen, damit Nutzer nicht nur Farbnamen (z.B. "Bambu Rot"), sondern echte Hex-Werte (`#FF0000`) sauber und einfach in ihre benutzerdefinierten Listen einspeichern können.
+
+**Datenbank & Vorlagen**
+- [ ] **Spulen-Vorlagen erweitern:** Die Standardspule für "Geeetech" mit dem passenden Leergewicht in die festen Vorlagen (`spool_presets.py`) aufnehmen.
 
 ## 🔮 Priorität 4: Langzeit-Visionen & Integrationen
 - [ ] **Anycubic Integration:** Recherche nach lokalen oder inoffiziellen Cloud-APIs zur Anbindung von Anycubic-Druckern.

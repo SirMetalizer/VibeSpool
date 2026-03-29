@@ -26,7 +26,7 @@ def fetch_recent_jobs(url, key):
 
 
 # --- KONFIGURATION ---
-APP_VERSION = "1.9.2"
+APP_VERSION = "1.9.3"
 GITHUB_REPO = "SirMetalizer/VibeSpool" 
 
 # --- DEFAULTS ---
@@ -341,8 +341,6 @@ class SettingsDialog(tk.Toplevel):
         btn_frm = ttk.Frame(self, padding=10); btn_frm.pack(fill="x", side="bottom")
         ttk.Button(btn_frm, text="Abbrechen", command=self.destroy).pack(side="right", padx=5)
         ttk.Button(btn_frm, text="Änderungen Speichern", style="Accent.TButton", command=self.do_save).pack(side="right", padx=5)
-        
-        self.nb.select(start_tab)
 
         # TAB 5: LISTEN (Materialien & Farben)
         tab_lists = ttk.Frame(self.nb, padding=15); self.nb.add(tab_lists, text="📋 Listen")
@@ -391,6 +389,7 @@ class SettingsDialog(tk.Toplevel):
         create_list_manager(list_container, "Materialien", "materials", DEFAULT_SETTINGS["materials"])
         create_list_manager(list_container, "Farben", "colors", DEFAULT_SETTINGS["colors"])
         create_list_manager(list_container, "Effekt / Typ", "subtypes", DEFAULT_SETTINGS["subtypes"])
+        self.nb.select(start_tab)
 
     def refresh_settings_shelf_list(self):
         self.shelf_list.delete(0, tk.END)

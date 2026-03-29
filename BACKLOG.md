@@ -3,9 +3,9 @@
 Diese Liste enthält alle geplanten Features, Verbesserungen und bekannten Bugs, die durch das Feedback der Community gesammelt wurden. 
 
 ## 🚨 Priorität 1: Kritische Bugs (Next Patch)
-- [ ] **ID-Crash verhindern:** Das ID-Feld muss auf `readonly` gesetzt werden. Die manuelle Vergabe von bereits existierenden IDs führt aktuell zu einem kompletten Absturz beim Laden der Tabelle ("Item 20 already exists").
-- [ ] **Ghost-Fenster Fix:** Beim Schließen der App über das "X" bleibt der Hintergrundprozess manchmal aktiv. Ein harter `sys.exit()` oder sauberes Thread-Handling muss beim `on_closing` Event implementiert werden.
-- [ ] **Eingabe-Validierung ("Toter Button"):** Wenn falsche Datentypen (z.B. Text in ein Zahlenfeld) eingegeben werden, passiert beim Klick auf "Neu Hinzufügen" nichts. Hier muss ein Warn-Popup (`try/except`) ergänzt werden.
+- [X] **ID-Crash verhindern:** Das ID-Feld muss auf `readonly` gesetzt werden. Die manuelle Vergabe von bereits existierenden IDs führt aktuell zu einem kompletten Absturz beim Laden der Tabelle ("Item 20 already exists").
+- [X] **Ghost-Fenster Fix:** Beim Schließen der App über das "X" bleibt der Hintergrundprozess manchmal aktiv. Ein harter `sys.exit()` oder sauberes Thread-Handling muss beim `on_closing` Event implementiert werden.
+- [X] **Eingabe-Validierung ("Toter Button"):** Wenn falsche Datentypen (z.B. Text in ein Zahlenfeld) eingegeben werden, passiert beim Klick auf "Neu Hinzufügen" nichts. Hier muss ein Warn-Popup (`try/except`) ergänzt werden.
 
 ## 💅 Priorität 2: UI/UX & Quick Wins
 - [ ] **Farb- & Finish-Listen aufräumen:** "Glow in Dark", "Transparent" und "Translucent" aus den Farben entfernen und stattdessen in die "Finish/Effekt"-Kategorie verschieben.
@@ -23,3 +23,4 @@ Diese Liste enthält alle geplanten Features, Verbesserungen und bekannten Bugs,
 ## 🔮 Priorität 4: Langzeit-Visionen & Integrationen
 - [ ] **Anycubic Integration:** Recherche nach lokalen oder inoffiziellen Cloud-APIs zur Anbindung von Anycubic-Druckern.
 - [ ] **One-Window Dashboard:** Abkehr von Popups hin zu einer integrierten, modernen Dashboard-Ansicht im Hauptfenster.
+- [ ] **Mehrsprachigkeit (Internationalisierung / i18n):** Das Programm für eine internationale Nutzerschaft vorbereiten. Feste UI-Texte in Sprachdateien (z.B. `en.json`, `de.json`) auslagern, sodass Nutzer die Sprache in den Optionen umschalten können (Fokus zunächst auf Englisch).

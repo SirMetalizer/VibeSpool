@@ -10,18 +10,29 @@
 
 ---
 
-## 🚀 NEU in v1.9.2: Das große "Customization & Onboarding" Update
+## 🚀 NEU in v1.9.2: Das große "Customization & Workflow" Update
 
-Dieses Update macht den Einstieg so leicht wie nie zuvor und gibt dir die absolute Freiheit über deine Daten!
+Dieses Update bringt das wohl meistgewünschte Feature für Neueinsteiger (den CSV-Import!), behebt die nervigsten Bugs und macht euren Workflow so schnell und anpassbar wie nie zuvor.
 
-* **📥 1-Klick CSV-Import:** Ziehe dein komplettes Lager aus Excel oder Google Sheets in Sekundenschnelle nach VibeSpool um.
-* **🎨 Volle Freiheit (Listen-Manager):** PAHT-CF oder verrückte Tri-Color Farben? Verwalte deine eigenen Materialien, Farben und Effekte direkt in den Einstellungen.
-* **🏷️ Individuelle Regal-Fächer:** Nenne "Fach 1" ab sofort "Bambu PLA" – VibeSpool bucht alle Spulen automatisch auf die neuen Wunschnamen um.
-* **🧮 Slicer-Verbrauch Abzug:** Trage einfach ein, was dein Slicer an Gramm berechnet hat, und ziehe es per Knopfdruck vom Brutto-Gewicht ab.
+### ✨ Neue Features (Die Highlights)
+* **📥 1-Klick CSV / Excel Import:** Keine Lust, 50 Spulen abzutippen? Importiere dein bestehendes Lager jetzt sekundenschnell aus einer Tabelle! VibeSpool erkennt die Spaltennamen automatisch. *(Eine Vorlage liegt direkt hier bei den Release-Dateien).*
+* **🎨 Eigene Materialien & Farben:** Unter *⚙ Optionen -> 📋 Listen* könnt ihr ab sofort völlig frei eure eigenen Materialien (z.B. PAHT-CF) oder spezielle Farbbezeichnungen hinzufügen.
+* **🏷️ Individuelle Regal-Fächer:** Nenne "Fach 1" ab sofort "Bambu PLA" oder "Kiste unterm Tisch". Klicke einfach auf das neue 🏷️-Icon neben der Slot-Auswahl. VibeSpool bucht bestehende Spulen im Hintergrund automatisch um!
+
+### ⚡ Workflow & UI-Verbesserungen
+* **🐑 "Klonen" & "Ins Lager" Buttons:** Blitzschnell Spulen duplizieren oder leere Fächer direkt ins Hauptlager verschieben.
+* **🧮 Slicer-Verbrauch abziehen:** Trage einfach ein, was der Slicer berechnet hat, klicke auf "➖ Abziehen" und das Brutto-Gewicht aktualisiert sich sofort.
+* **🧹 Aufgeräumte Dropdowns:** Spezial-Eigenschaften wie "Glow in Dark" oder "Transparent" wurden logisch in das Dropdown "Effekt / Typ" verschoben.
+* **🖱️ Mausrad & Darkmode Upgrade:** Besser sichtbarer Scrollbalken im Darkmode und extrem robustes Scroll-Verhalten in der gesamten App.
+
+### 🛠️ Kritische Bugfixes (Unter der Haube)
+* **🛡️ Der "Item already exists" ID-Crash:** Das manuelle Vergeben von IDs führt nicht mehr zum Programmabsturz. Ein intelligenter Türsteher warnt jetzt bei doppelten IDs.
+* **🧟‍♂️ Ghost-Fenster eliminiert:** VibeSpool beendet sich jetzt beim Klick auf das "X" absolut zuverlässig ohne im Hintergrund weiterzulaufen.
+* **🚫 Der "tote" Speichern-Button:** Falsche Eingaben (z.B. Text in Zahlenfeldern) erzeugen jetzt eine saubere Fehlermeldung statt einfach stumm zu blockieren.
 
 ---
 
-## 🌟 Highlights & Features
+## 🌟 Weitere Highlights & Features
 
 ### 🤖 Bambu Lab AMS Live-Sync (Seit v1.9)
 - **Live-Auslesen:** VibeSpool erkennt per Klick, welche Materialien und Farben gerade im AMS geladen sind.
@@ -67,7 +78,7 @@ VibeSpool benötigt keine komplizierten Datenbank-Server. Alle deine Daten liege
 
 **Option B: Aus dem Source Code (Plattformunabhängig)**
 1. Klone das Repository: `git clone https://github.com/SirMetalizer/VibeSpool.git`
-2. Installiere die nötigen Pakete: `pip install Pillow qrcode paho-mqtt`
+2. Installiere die nötigen Pakete: `pip install Pillow qrcode paho-mqtt opencv-python pyzbar`
 3. Starte das Tool: `python filament_gui.py`
 
 *(Für die Einrichtung der Bambu Lab Integration schau bitte in die [BAMBU-INTEGRATION-HOWTO.md](BAMBU-INTEGRATION-HOWTO.md))*

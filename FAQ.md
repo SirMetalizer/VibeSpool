@@ -2,6 +2,25 @@
 
 Hier findest du Antworten auf die häufigsten Fragen rund um die Einrichtung und Nutzung von VibeSpool.
 
+### 📥 Wie importiere ich meine alte Excel-Liste?
+Du musst nicht alles neu abtippen! Nutze einfach unsere fertige CSV-Vorlage:
+1. Lade dir die `VibeSpool_Import_Vorlage.csv` aus den Dateien herunter oder nutze die [Google Sheets Vorlage](https://docs.google.com/spreadsheets/d/1ko-vQtDF6rNkR7Vq5q1HUZ2xhHl_6P_uVhrKrvehpLU/edit?gid=1380756208#gid=1380756208) (Dort auf "Datei" -> "Herunterladen" -> "CSV" klicken).
+2. Fülle die Tabelle in Excel/Calc mit deinen Filamenten aus (bitte die Spaltennamen in der ersten Zeile nicht verändern).
+3. Speichere die Datei als `.csv` ab.
+4. Klicke in VibeSpool oben rechts auf **"📥 CSV Import"** und wähle die Datei aus!
+
+### 🎨 Wie kann ich eigene Materialien (z.B. PAHT-CF) oder Farben hinzufügen?
+Du kannst die Dropdown-Listen in VibeSpool jederzeit um deine eigenen Spezial-Sorten erweitern:
+* Gehe oben rechts auf **⚙ Optionen**.
+* Wähle den neuen Reiter **📋 Listen**.
+* Dort kannst du ganz flexibel neue Materialien, Farben oder Effekte hinzufügen und alte löschen.
+
+### 🏷️ Wie kann ich meine Regalfächer (z.B. "Fach 1") umbenennen?
+Wenn du deinen Fächern eigene Namen wie "Bambu PLA" geben möchtest:
+* Gehe in die **⚙ Optionen**.
+* Wähle den Reiter **📦 Lager** und klicke unten auf **"🏷️ Fächer benennen"**.
+* Trage deine Wunschnamen ein und speichere. VibeSpool passt alle bereits im Regal liegenden Spulen automatisch an!
+
 ### 📁 Wo wird meine Datenbank gespeichert?
 VibeSpool speichert alle Daten standardmäßig lokal in dem Ordner, in dem sich auch das Programm befindet. 
 Du kannst den Speicherort jedoch jederzeit ändern (z.B. auf ein NAS oder in deine Dropbox):

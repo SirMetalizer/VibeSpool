@@ -6,89 +6,92 @@
 
 **Die smarte Schaltzentrale für dein 3D-Druck Filament-Lager.** VibeSpool ist ein leichtgewichtiges, lokales Desktop-Tool (Python/Tkinter), das dir die volle visuelle und kaufmännische Kontrolle über deine Spulen gibt.
 
-![VibeSpool Screenshot](https://metalizer.de/Vibespool.jpg)
+<img width="1924" height="1044" alt="image" src="https://github.com/user-attachments/assets/7234891c-0458-478b-8c5a-7d9e6cd184cb" />
+
+<img width="913" height="444" alt="image" src="https://github.com/user-attachments/assets/50ab3ea3-a6af-47f0-b9bb-c1c97f0a8da8" />
+
+***
+
+# 🪶 VibeSpool – Das smarte Filament-Lager & AMS-Manager
+
+**VibeSpool** ist eine mächtige, lokale Desktop-Anwendung zur Verwaltung deines 3D-Druck-Filaments. Egal ob du ein einzelnes Regal oder eine riesige Farm mit mehreren Bambu Lab AMS-Einheiten betreibst: VibeSpool behält den Überblick über deine Spulen, Restgewichte, Kosten und Lagerorte.
+
+![VibeSpool Version](https://img.shields.io/badge/Version-1.9.3-blue.svg)
+![Python](https://img.shields.io/badge/Python-3.x-yellow.svg)
+![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20Mac%20%7C%20Linux-lightgrey.svg)
 
 ---
 
-## 🚀 NEU in v1.9.2: Das große "Customization & Workflow" Update
+## ✨ Features
 
-Dieses Update bringt das wohl meistgewünschte Feature für Neueinsteiger (den CSV-Import!), behebt die nervigsten Bugs und macht euren Workflow so schnell und anpassbar wie nie zuvor.
+### 🤖 Bambu Lab AMS Live-Sync
+Synchronisiere VibeSpool in Echtzeit mit deinem Bambu Lab Drucker via MQTT. Lese die aktuell eingelegten Spulen aus, weise sie deinen Datenbank-Einträgen zu oder lege völlig neue Spulen mit der **"One-Click Auto-Import"** Funktion direkt aus den Druckerdaten an.
 
-### ✨ Neue Features (Die Highlights)
-* **📥 1-Klick CSV / Excel Import:** Keine Lust, 50 Spulen abzutippen? Importiere dein bestehendes Lager jetzt sekundenschnell aus einer Tabelle! VibeSpool erkennt die Spaltennamen automatisch. *(Eine Vorlage liegt direkt hier bei den Release-Dateien).*
-* **🎨 Eigene Materialien & Farben:** Unter *⚙ Optionen -> 📋 Listen* könnt ihr ab sofort völlig frei eure eigenen Materialien (z.B. PAHT-CF) oder spezielle Farbbezeichnungen hinzufügen.
-* **🏷️ Individuelle Regal-Fächer:** Nenne "Fach 1" ab sofort "Bambu PLA" oder "Kiste unterm Tisch". Klicke einfach auf das neue 🏷️-Icon neben der Slot-Auswahl. VibeSpool bucht bestehende Spulen im Hintergrund automatisch um!
+### 🎨 Smarte Multi-Color Render Engine
+VibeSpool generiert automatisch visuelle Icons für deine Spulen. 
+* **Dual- & Tri-Color:** Trenne Farben mit einem `/` (z.B. `Rot / Schwarz / Gold`) und VibeSpool spaltet das Icon entsprechend auf.
+* **Intelligente Erkennung:** Die Engine versteht Hex-Codes, englische und deutsche Farbnamen (von *Terracotta* über *Pflaume* bis *Elfenbein*) sowie Effekte wie *Translucent* oder *Glow in the Dark*.
 
-### ⚡ Workflow & UI-Verbesserungen
-* **🐑 "Klonen" & "Ins Lager" Buttons:** Blitzschnell Spulen duplizieren oder leere Fächer direkt ins Hauptlager verschieben.
-* **🧮 Slicer-Verbrauch abziehen:** Trage einfach ein, was der Slicer berechnet hat, klicke auf "➖ Abziehen" und das Brutto-Gewicht aktualisiert sich sofort.
-* **🧹 Aufgeräumte Dropdowns:** Spezial-Eigenschaften wie "Glow in Dark" oder "Transparent" wurden logisch in das Dropdown "Effekt / Typ" verschoben.
-* **🖱️ Mausrad & Darkmode Upgrade:** Besser sichtbarer Scrollbalken im Darkmode und extrem robustes Scroll-Verhalten in der gesamten App.
+### 📦 Visuelles Regal- & Lagermanagement
+Plane dein Lager digital! Erstelle Regale mit eigenen Reihen und Spalten. VibeSpool warnt dich vor Platz-Kollisionen und visualisiert dein gesamtes Lager in einer übersichtlichen 2D-Ansicht. Eigene Zusatz-Orte wie `Trockenbox` oder `Verliehen an Thomas` sind problemlos möglich.
 
-### 🛠️ Kritische Bugfixes (Unter der Haube)
-* **🛡️ Der "Item already exists" ID-Crash:** Das manuelle Vergeben von IDs führt nicht mehr zum Programmabsturz. Ein intelligenter Türsteher warnt jetzt bei doppelten IDs.
-* **🧟‍♂️ Ghost-Fenster eliminiert:** VibeSpool beendet sich jetzt beim Klick auf das "X" absolut zuverlässig ohne im Hintergrund weiterzulaufen.
-* **🚫 Der "tote" Speichern-Button:** Falsche Eingaben (z.B. Text in Zahlenfeldern) erzeugen jetzt eine saubere Fehlermeldung statt einfach stumm zu blockieren.
+### 💰 Finanz-Dashboard & Einkaufsliste
+Behalte deine Kosten im Griff. VibeSpool berechnet den exakten Restwert deiner Spulen basierend auf dem Netto-Gewicht. Leere oder markierte Spulen landen automatisch auf einer exportierbaren Einkaufsliste (inkl. Shop-Links).
 
----
+### 🔄 Moonraker / Klipper Sync
+Verbinde VibeSpool mit deinem Klipper-Drucker. Ziehe den Filament-Verbrauch des letzten Drucks mit nur einem Klick direkt vom Brutto-Gewicht der aktiven Spule ab.
 
-## 🌟 Weitere Highlights & Features
-
-### 🤖 Bambu Lab AMS Live-Sync (Seit v1.9)
-- **Live-Auslesen:** VibeSpool erkennt per Klick, welche Materialien und Farben gerade im AMS geladen sind.
-- **Smart-Sync:** Weise den erkannten AMS-Slots mit wenigen Klicks deine Spulen aus dem Lager zu. VibeSpool bucht alte Spulen automatisch zurück ins Regal.
-- **Lokal & Sicher:** Die Kommunikation läuft rein lokal über dein Heimnetzwerk (MQTT).
-
-### 📦 Visuelles Lager & Management
-* **Regal-Visualizer:** Erstelle dein eigenes Layout (z.B. 4 Reihen, 8 Slots). VibeSpool zeichnet dein Regal nach und zeigt dir exakt an, wo welche Spule liegt.
-* **Klipper/Moonraker Sync:** Ziehe das verbrauchte Gewicht direkt von deinem Drucker ab. Wähle aus den letzten 10 Druckaufträgen exakt den passenden aus.
-* **🔄 Quick-Swap Magie:** Tausche Spulen mit einem Klick zwischen Regal und dem AMS.
-
-### 💰 Smart Financials (Kaufmännisches Dashboard)
-* **Live-Wertberechnung:** VibeSpool berechnet bei jedem Wiegen im Hintergrund den auf den Cent genauen Restwert der Spule.
-* **Finanz-Statistik:** Gesamtwert (in €) und Gewicht (in kg) deines Lagers auf einen Blick.
-
-### 🛠️ Workflow & QoL (Quality of Life)
-* **Webcam QR-Scan & RFID:** Schnelle Identifikation deiner Spulen via Kamera oder RFID-Reader.
-* **Einkaufsliste & CSV-Export:** Markiere leere Spulen und exportiere deine Liste für Excel.
-* **Flawless Dark/Light Mode:** Perfekt abgestimmte UI für jede Tageszeit.
+### 📱 QR-Code & RFID Unterstützung
+Generiere QR-Codes für deine Spulen oder nutze einen RFID-Reader. Ein kurzer Scan über die Webcam oder den Reader reicht, um die Spule sofort in VibeSpool aufzurufen.
 
 ---
 
-## 🧵 Leerspulen-Datenbank & Gewichte
+## 🚀 Installation & Start
 
-VibeSpool enthält eine integrierte Datenbank für Leerspulen-Gewichte, basierend auf dem großartigen Community-Spreadsheet.
+VibeSpool ist in Python geschrieben und nutzt `Tkinter` für die grafische Oberfläche.
 
-### So nutzt du die Vorlagen:
-1. Klicke in der Sidebar auf **"🧵 Leerspulen verwalten"**.
-2. Klicke unten auf **"📋 Vorlagen"**.
-3. Wähle deine Spule aus der Liste aus (z.B. "Bambu Lab (Reusable) (250g)") und klicke auf **"Übernehmen"**.
-4. Klicke auf **"Neu anlegen"**, um sie dauerhaft in deine persönliche Liste zu übernehmen.
+### Voraussetzungen
+Stelle sicher, dass **Python 3.x** auf deinem System installiert ist.
 
----
+### 1. Repository klonen
+```bash
+git clone https://github.com/SirMetalizer/VibeSpool.git
+cd VibeSpool
+```
 
-## 🛠️ Installation & Setup
+### 2. Abhängigkeiten installieren
+Für die Kamera-Scans, Bildverarbeitung und MQTT-Anbindung werden folgende Pakete benötigt:
+```bash
+pip install Pillow pyzbar opencv-python qrcode paho-mqtt
+```
 
-VibeSpool benötigt keine komplizierten Datenbank-Server. Alle deine Daten liegen sicher in einer lokalen `inventory.json` Datei (auf Wunsch auch synchronisiert via OneDrive/Dropbox).
-
-**Option A: Als Standalone `.exe` (Windows)**
-1. Gehe zu den [Releases](https://github.com/SirMetalizer/VibeSpool/releases) hier auf GitHub.
-2. Lade die neueste `VibeSpool_Win.exe` herunter.
-3. Ausführen und loslegen! 
-
-**Option B: Aus dem Source Code (Plattformunabhängig)**
-1. Klone das Repository: `git clone https://github.com/SirMetalizer/VibeSpool.git`
-2. Installiere die nötigen Pakete: `pip install Pillow qrcode paho-mqtt opencv-python pyzbar`
-3. Starte das Tool: `python filament_gui.py`
-
-*(Für die Einrichtung der Bambu Lab Integration schau bitte in die [BAMBU-INTEGRATION-HOWTO.md](BAMBU-INTEGRATION-HOWTO.md))*
+### 3. VibeSpool starten
+Führe einfach die Hauptdatei aus:
+```bash
+python filament_gui.py
+```
 
 ---
 
-## 🗺️ Roadmap (What's next?)
+## 🆕 Was ist neu in Version 1.9.4?
 
-Wir haben große Pläne für die nächsten Versionen:
-* **v2.0 - VibeSpool Remote:** Lokaler Webserver für eine smarte Tablet- und Smartphone-Ansicht in der Werkstatt.
+Das **"Quality of Life & Multi-Color"** Update bringt massive Workflow-Boosts:
+* **AMS Auto-Import:** Neue Spulen können beim Live-Sync direkt mit Material und Hex-Code ausgelesen und per Klick in der Datenbank angelegt werden.
+* **Dual-/Tri-Color Support:** Visuelle Spaltung der Spulen-Icons für mehrfarbige Filamente.
+* **Erweiterte Color-Engine:** Riesiges neues Wörterbuch (DE/EN) für noch präzisere Farberkennung, ohne dass Effekte (wie *Translucent*) die Hauptfarbe überschreiben.
+* **Hex-Color Picker:** Eigene Farben lassen sich in den Einstellungen nun bequem über eine Farbpalette inklusive Hex-Code-Generierung anlegen.
+* **Spulen-Vorlagen Suche:** Die Bibliothek der Leerspulen (über 150 Presets) hat eine Echtzeit-Suchleiste bekommen.
+* **Kollisionsprüfung:** Das System verhindert jetzt doppelt belegte Regalplätze.
+
+<img width="373" height="946" alt="image" src="https://github.com/user-attachments/assets/98504c33-81c6-4d24-b86d-b782d19c5b6f" />
+<img width="763" height="554" alt="image" src="https://github.com/user-attachments/assets/cbae14fb-74cb-47a3-895f-f5b4ece63de6" />
+
+
+
+---
+
+## 🛠️ Daten & Backups
+Alle deine Spulen, Einstellungen und Presets werden lokal als `.json` Dateien gespeichert. Du kannst den Speicherpfad unter `Optionen -> System` jederzeit einsehen oder ändern. VibeSpool bietet zudem eine integrierte Backup-Funktion, um deine Datenbank als ZIP-Datei zu exportieren.
 
 ---
 

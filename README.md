@@ -59,6 +59,13 @@ Generiere QR-Codes für deine Spulen oder nutze einen RFID-Reader. Ein kurzer Sc
 VibeSpool ist in Python geschrieben und nutzt `Tkinter` für die grafische Oberfläche.
 
 ### Voraussetzungen
+
+Lade dir die neuste Version unter [https://github.com/SirMetalizer/VibeSpool/releases/latest] runter. 
+Aktueller Support: Windows.
+
+
+### Für Entwickler
+
 Stelle sicher, dass **Python 3.x** auf deinem System installiert ist.
 
 ### 1. Repository klonen

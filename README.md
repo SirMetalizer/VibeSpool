@@ -26,6 +26,8 @@
 
 ### 🤖 Bambu Lab AMS Live-Sync
 Synchronisiere VibeSpool in Echtzeit mit deinem Bambu Lab Drucker via MQTT. Lese die aktuell eingelegten Spulen aus, weise sie deinen Datenbank-Einträgen zu oder lege völlig neue Spulen mit der **"One-Click Auto-Import"** Funktion direkt aus den Druckerdaten an.
+<img width="365" height="168" alt="image" src="https://github.com/user-attachments/assets/d2ed10d8-9121-4659-8bbd-be379774f0e1" />
+
 
 ### 🎨 Smarte Multi-Color Render Engine
 VibeSpool generiert automatisch visuelle Icons für deine Spulen. 
@@ -35,8 +37,14 @@ VibeSpool generiert automatisch visuelle Icons für deine Spulen.
 ### 📦 Visuelles Regal- & Lagermanagement
 Plane dein Lager digital! Erstelle Regale mit eigenen Reihen und Spalten. VibeSpool warnt dich vor Platz-Kollisionen und visualisiert dein gesamtes Lager in einer übersichtlichen 2D-Ansicht. Eigene Zusatz-Orte wie `Trockenbox` oder `Verliehen an Thomas` sind problemlos möglich.
 
+<img width="653" height="884" alt="image" src="https://github.com/user-attachments/assets/f334a92e-8083-4817-961c-1426977cb03a" />
+
+
 ### 💰 Finanz-Dashboard & Einkaufsliste
 Behalte deine Kosten im Griff. VibeSpool berechnet den exakten Restwert deiner Spulen basierend auf dem Netto-Gewicht. Leere oder markierte Spulen landen automatisch auf einer exportierbaren Einkaufsliste (inkl. Shop-Links).
+
+<img width="607" height="312" alt="image" src="https://github.com/user-attachments/assets/9f406fa4-d7e2-4228-a4b9-5a7eff46fbb4" />
+
 
 ### 🔄 Moonraker / Klipper Sync
 Verbinde VibeSpool mit deinem Klipper-Drucker. Ziehe den Filament-Verbrauch des letzten Drucks mit nur einem Klick direkt vom Brutto-Gewicht der aktiven Spule ab.

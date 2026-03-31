@@ -21,15 +21,16 @@ Diese Liste enthält alle geplanten Features, Verbesserungen und bekannten Bugs,
 - [ ] **Hersteller- & Tara-Verknüpfung:** Das Hersteller-Feld von Freitext in ein Dropdown umwandeln und idealerweise direkt mit den Leerspulen-Profilen verknüpfen.
 
 **UI & Visualisierung**
-- [ ] **Material in Regal-Ansicht:** In der grafischen Regal- und AMS-Ansicht (`ShelfVisualizer`) das Material (PLA, PETG etc.) direkt auf der Spulen-Kachel anzeigen, nicht erst beim Mouse-Over (Tooltip).
-- [ ] **Dual- / Tri-Color Support:** Das Farb-Dropdown im Hauptfenster erweitern, sodass bei mehrfarbigen Filamenten 2 oder 3 Farben (inkl. Hex-Codes) ausgewählt und auf dem Icon gespalten dargestellt werden können.
+- [X] **Material in Regal-Ansicht:** In der grafischen Regal- und AMS-Ansicht (`ShelfVisualizer`) das Material (PLA, PETG etc.) direkt auf der Spulen-Kachel anzeigen, nicht erst beim Mouse-Over (Tooltip).
+- [X] **Dual- / Tri-Color Support:** Das Farb-Dropdown im Hauptfenster erweitern, sodass bei mehrfarbigen Filamenten 2 oder 3 Farben (inkl. Hex-Codes) ausgewählt und auf dem Icon gespalten dargestellt werden können.
 
 **Workflow & Synchronisation**
-- [ ] **AMS Auto-Import:** Wenn der Bambu AMS-Sync eine Spule erkennt (z.B. via Bambu RFID), die noch nicht in der VibeSpool-Datenbank existiert, einen Button anbieten, um diese direkt inkl. erkannter Farbe und Material als neue Spule ins Lager zu importieren.
-- [ ] **Hex-Codes in Listen-Manager:** Im neuen Einstellungs-Tab "Listen" einen Color-Picker ergänzen, damit Nutzer nicht nur Farbnamen (z.B. "Bambu Rot"), sondern echte Hex-Werte (`#FF0000`) sauber und einfach in ihre benutzerdefinierten Listen einspeichern können.
+- [X] **AMS Auto-Import:** Wenn der Bambu AMS-Sync eine Spule erkennt (z.B. via Bambu RFID), die noch nicht in der VibeSpool-Datenbank existiert, einen Button anbieten, um diese direkt inkl. erkannter Farbe und Material als neue Spule ins Lager zu importieren.
+- [X] **Hex-Codes in Listen-Manager:** Im neuen Einstellungs-Tab "Listen" einen Color-Picker ergänzen, damit Nutzer nicht nur Farbnamen (z.B. "Bambu Rot"), sondern echte Hex-Werte (`#FF0000`) sauber und einfach in ihre benutzerdefinierten Listen einspeichern können.
+- [X] **Globale Kollisionsprüfung (Regal & AMS):** Beim manuellen Verschieben einer Spule über das Hauptformular oder den Quick-Swap (egal ob vom AMS ins Regal, vom Regal ins AMS oder innerhalb des Regals) prüfen, ob der Ziel-Platz bereits durch eine andere aktive Spule belegt ist. Falls ja: Warnung ausgeben und heimliches Überschreiben verhindern.
 
 **Datenbank & Vorlagen**
-- [ ] **Spulen-Vorlagen erweitern:** Die Standardspule für "Geeetech" mit dem passenden Leergewicht in die festen Vorlagen (`spool_presets.py`) aufnehmen.
+- [X] **Spulen-Vorlagen erweitern:** Die Standardspule für "Geeetech" mit dem passenden Leergewicht in die festen Vorlagen (`spool_presets.py`) aufnehmen. Liste durch weitere Hersteller ergänzen, um die Auswahl zu erleichtern.
 
 ## 🔮 Priorität 4: Langzeit-Visionen & Integrationen
 - [ ] **Anycubic Integration:** Recherche nach lokalen oder inoffiziellen Cloud-APIs zur Anbindung von Anycubic-Druckern.

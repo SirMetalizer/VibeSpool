@@ -26,7 +26,7 @@ def fetch_recent_jobs(url, key):
 
 
 # --- KONFIGURATION ---
-APP_VERSION = "1.9.3"
+APP_VERSION = "1.9.4"
 GITHUB_REPO = "SirMetalizer/VibeSpool" 
 
 # --- DEFAULTS ---
@@ -114,19 +114,64 @@ class SpoolManager(tk.Toplevel):
         ttk.Button(frm_btns, text="Löschen", command=self.delete_spool).pack(side="left", padx=5)
         ttk.Button(frm_btns, text="📋 Vorlagen", command=self.import_preset).pack(side="left", padx=5)
         self.refresh_list()
+    
     def import_preset(self):
-        win = tk.Toplevel(self); win.title("Spulen-Vorlagen"); win.geometry("400x500"); center_window(win, self)
-        ttk.Label(win, text="Wähle eine Standardspule:", font=FONT_BOLD).pack(pady=10)
-        lb = tk.Listbox(win, font=FONT_MAIN); lb.pack(fill="both", expand=True, padx=10, pady=5)
-        for p in SPOOL_PRESETS: lb.insert(tk.END, f"{p['name']} ({p['weight']}g)")
+        win = tk.Toplevel(self)
+        win.title("Spulen-Vorlagen")
+        win.geometry("450x550") # Etwas größer für die Suchleiste
+        win.configure(bg=self.cget('bg'))
+        center_window(win, self)
+
+        ttk.Label(win, text="Wähle eine Standardspule:", font=FONT_BOLD).pack(pady=(10, 5))
+
+        # --- NEU: Suchfeld ---
+        frm_search = ttk.Frame(win)
+        frm_search.pack(fill="x", padx=10, pady=(0, 5))
+        ttk.Label(frm_search, text="🔍 Suche:").pack(side="left")
+        var_search = tk.StringVar()
+        ent_search = ttk.Entry(frm_search, textvariable=var_search)
+        ent_search.pack(side="left", fill="x", expand=True, padx=(5, 0))
+
+        lb = tk.Listbox(win, font=FONT_MAIN)
+        lb.pack(fill="both", expand=True, padx=10, pady=5)
+
+        # Lokale Liste speichern, damit der Index nach dem Filtern noch stimmt!
+        self.filtered_presets = SPOOL_PRESETS.copy()
+
+        # Die Filter-Funktion (wird bei jedem Tastendruck aufgerufen)
+        def refresh_list(*args):
+            search_term = var_search.get().lower()
+            lb.delete(0, tk.END)
+            self.filtered_presets = []
+            
+            for p in SPOOL_PRESETS:
+                display_text = f"{p['name']} ({p['weight']}g)"
+                if search_term in display_text.lower():
+                    self.filtered_presets.append(p)
+                    lb.insert(tk.END, display_text)
+
+        # Verbindet das Suchfeld mit der Filter-Funktion
+        var_search.trace_add("write", refresh_list)
+        refresh_list() # Initiale Füllung beim Öffnen
+
         def do_import():
             sel = lb.curselection()
             if not sel: return
-            p = SPOOL_PRESETS[sel[0]]
-            self.ent_name.delete(0, tk.END); self.ent_name.insert(0, p['name'])
-            self.ent_weight.delete(0, tk.END); self.ent_weight.insert(0, str(p['weight']))
+            
+            # WICHTIG: Holt das Preset aus der gefilterten Liste!
+            p = self.filtered_presets[sel[0]] 
+            
+            self.ent_name.delete(0, tk.END)
+            self.ent_name.insert(0, p['name'])
+            self.ent_weight.delete(0, tk.END)
+            self.ent_weight.insert(0, str(p['weight']))
             win.destroy()
+
         ttk.Button(win, text="Übernehmen", command=do_import, style="Accent.TButton").pack(pady=10, fill="x", padx=20)
+        
+        # Cursor direkt ins Suchfeld setzen für maximalen Workflow!
+        ent_search.focus_set()
+
     def refresh_list(self):
         for item in self.tree.get_children(): self.tree.delete(item)
         for s in self.spools: self.tree.insert("", "end", iid=str(s['id']), values=(s['id'], s['name'], s['weight']))
@@ -250,12 +295,12 @@ class SettingsDialog(tk.Toplevel):
         super().__init__(parent)
         self.data_manager = data_manager; self.on_save = on_save; self.app = app_instance
         _, self.settings, _ = self.data_manager.load_all(DEFAULT_SETTINGS)
-        self.title("VibeSpool Einstellungen"); self.geometry("550x500"); self.configure(bg=parent.cget('bg')); center_window(self, parent)
+        self.title("VibeSpool Einstellungen"); self.geometry("750x500"); self.configure(bg=parent.cget('bg')); center_window(self, parent)
         self.transient(parent); self.grab_set()
         
         self.nb = ttk.Notebook(self); self.nb.pack(fill="both", expand=True, padx=10, pady=10)
         
-       # TAB 1: LAGER
+        # TAB 1: LAGER
         tab_lager = ttk.Frame(self.nb, padding=15); self.nb.add(tab_lager, text="📦 Lager")
         ttk.Label(tab_lager, text="Regal-Konfiguration", font=FONT_BOLD).pack(anchor="w")
         self.var_shelves = tk.StringVar(value=self.settings.get("shelves", "REGAL|4|8"))
@@ -267,17 +312,23 @@ class SettingsDialog(tk.Toplevel):
             def on_plan_done(val): self.var_shelves.set(val); self.refresh_settings_shelf_list()
             ShelfPlannerDialog(self, self.var_shelves.get(), on_plan_done)
             
-        # Die neuen Buttons sicher verpackt
         btn_frm_lager = ttk.Frame(tab_lager)
         btn_frm_lager.pack(fill="x", pady=(5, 0))
         ttk.Button(btn_frm_lager, text="🔧 Regal-Konfigurator", command=run_planner).pack(side="left", fill="x", expand=True, padx=(0, 2))
         
         if getattr(self, 'app', None):
             def open_shelf_editor():
-                if self.app: # Dieser Check IN der Funktion macht Pylance zu 100% glücklich!
+                if self.app: 
                     self.app.edit_shelf_names(self)
-                    
             ttk.Button(btn_frm_lager, text="🏷️ Fächer benennen", command=open_shelf_editor).pack(side="left", fill="x", expand=True, padx=(2, 0))
+
+        # --- NEU: Zusatz-Orte sind jetzt hier, wo sie hingehören! ---
+        ttk.Separator(tab_lager, orient="horizontal").pack(fill="x", pady=15)
+        ttk.Label(tab_lager, text="Zusatz-Orte (kommagetrennt, z.B. Trockenbox, Verliehen):", font=FONT_BOLD).pack(anchor="w", pady=(0, 5))
+        self.ent_custom = ttk.Entry(tab_lager)
+        self.ent_custom.insert(0, self.settings.get("custom_locs", "Filamenttrockner"))
+        self.ent_custom.pack(fill="x", pady=2)
+
 
         # TAB 2: HARDWARE
         tab_hw = ttk.Frame(self.nb, padding=15); self.nb.add(tab_hw, text="🔌 Hardware")
@@ -292,8 +343,7 @@ class SettingsDialog(tk.Toplevel):
         
         ttk.Label(tab_hw, text="Anzahl AMS Einheiten:").pack(anchor="w", pady=(10,0))
         self.ent_ams = ttk.Entry(tab_hw, width=10); self.ent_ams.insert(0, str(self.settings.get("num_ams", 1))); self.ent_ams.pack(anchor="w", pady=2)
-        ttk.Label(tab_hw, text="Zusatz-Orte (kommagetrennt):").pack(anchor="w", pady=(10,0))
-        self.ent_custom = ttk.Entry(tab_hw); self.ent_custom.insert(0, self.settings.get("custom_locs", "")); self.ent_custom.pack(fill="x", pady=2)
+        # (Zusatz-Orte wurden hier restlos entfernt)
 
         # TAB 3: DRUCKER
         tab_prn = ttk.Frame(self.nb, padding=15); self.nb.add(tab_prn, text="🤖 Drucker")
@@ -326,16 +376,32 @@ class SettingsDialog(tk.Toplevel):
         ttk.Checkbutton(tab_sys, text="RFID-Reader Modus aktiv", variable=self.var_rfid).pack(anchor="w", pady=2)
         
         ttk.Separator(tab_sys, orient="horizontal").pack(fill="x", pady=10)
-        path_show = self.settings.get("custom_db_path", "") or "Standard-Ordner"
+        
+        # --- NEU: Echten Standard-Pfad ermitteln und anzeigen ---
+        import os
+        # Wir holen uns den Pfad direkt aus dem DataManager (Fallback: Aktuelles Verzeichnis)
+        default_path = getattr(self.data_manager, 'base_dir', os.getcwd())
+        custom_path = self.settings.get("custom_db_path", "")
+        
+        path_show = custom_path if custom_path else f"{default_path} (Standard)"
+        
         self.lbl_path = ttk.Label(tab_sys, text=f"Daten-Pfad:\n{path_show}", font=("Segoe UI", 8, "italic"), wraplength=450)
         self.lbl_path.pack(fill="x", pady=5)
         
         p_btn_frm = ttk.Frame(tab_sys); p_btn_frm.pack(fill="x", pady=5)
+        
         def change_path():
             d = filedialog.askdirectory(title="Datenbank-Ordner wählen")
-            if d: self.settings["custom_db_path"] = d; self.lbl_path.config(text=f"Daten-Pfad:\n{d}")
+            if d: 
+                self.settings["custom_db_path"] = d
+                self.lbl_path.config(text=f"Daten-Pfad:\n{d}")
+                
+        def set_standard():
+            self.settings["custom_db_path"] = ""
+            self.lbl_path.config(text=f"Daten-Pfad:\n{default_path} (Standard)")
+            
         ttk.Button(p_btn_frm, text="Ordner ändern", command=change_path).pack(side="left", padx=2)
-        ttk.Button(p_btn_frm, text="Standard", command=lambda: [self.settings.update({"custom_db_path":""}), self.lbl_path.config(text="Daten-Pfad:\nStandard-Ordner")]).pack(side="left")
+        ttk.Button(p_btn_frm, text="Standard", command=set_standard).pack(side="left")
 
         # FOOTER
         btn_frm = ttk.Frame(self, padding=10); btn_frm.pack(fill="x", side="bottom")
@@ -349,7 +415,7 @@ class SettingsDialog(tk.Toplevel):
         list_container = ttk.Frame(tab_lists)
         list_container.pack(fill="both", expand=True)
 
-        # Helper-Funktion baut uns 3 identische Listen-Manager
+        # Helper-Funktion baut uns 3 Listen-Manager (mit Spezial-Feature für Farben)
         self.list_vars = {}
         def create_list_manager(parent, title, key, default_list):
             frm = ttk.LabelFrame(parent, text=title, padding=5)
@@ -363,8 +429,24 @@ class SettingsDialog(tk.Toplevel):
             self.list_vars[key] = current_data.copy()
             for item in self.list_vars[key]: lb.insert(tk.END, item)
             
-            ent_new = ttk.Entry(frm)
-            ent_new.pack(fill="x", pady=2)
+            # Eingabebereich aufteilen
+            input_frm = ttk.Frame(frm)
+            input_frm.pack(fill="x", pady=2)
+            
+            ent_new = ttk.Entry(input_frm)
+            ent_new.pack(side="left", fill="x", expand=True)
+            
+            # NEU: Color-Picker NUR für die Farben-Liste einblenden!
+            if key == "colors":
+                def pick_list_color():
+                    color_code = colorchooser.askcolor(title="Farbe für Liste wählen", parent=self)[1]
+                    if color_code:
+                        # Alten Hex-Code (falls vorhanden) rausfiltern und neuen sauber anhängen
+                        current_text = re.sub(r'\s*\(?#[0-9a-fA-F]{6}\)?', '', ent_new.get().strip()).strip()
+                        ent_new.delete(0, tk.END)
+                        ent_new.insert(0, f"{current_text} ({color_code.upper()})" if current_text else color_code.upper())
+                        
+                ttk.Button(input_frm, text="🎨", width=3, command=pick_list_color).pack(side="left", padx=(2, 0))
             
             btn_frm = ttk.Frame(frm)
             btn_frm.pack(fill="x")
@@ -383,8 +465,9 @@ class SettingsDialog(tk.Toplevel):
                     del self.list_vars[key][idx]
                     lb.delete(idx)
                     
-            ttk.Button(btn_frm, text="➕", width=3, command=add_item).pack(side="left", expand=True, fill="x")
-            ttk.Button(btn_frm, text="❌", width=3, command=del_item).pack(side="left", expand=True, fill="x")
+            # Buttons etwas breiter und beschriftet, damit man sie besser trifft
+            ttk.Button(btn_frm, text="➕ Hinzufügen", command=add_item).pack(side="left", expand=True, fill="x", padx=(0, 1))
+            ttk.Button(btn_frm, text="❌ Löschen", command=del_item).pack(side="left", expand=True, fill="x", padx=(1, 0))
 
         create_list_manager(list_container, "Materialien", "materials", DEFAULT_SETTINGS["materials"])
         create_list_manager(list_container, "Farben", "colors", DEFAULT_SETTINGS["colors"])
@@ -482,8 +565,29 @@ class ShelfVisualizer(tk.Toplevel):
             if bg_colors[0].startswith("#"):
                 r, g, b = int(bg_colors[0][1:3], 16), int(bg_colors[0][3:5], 16), int(bg_colors[0][5:7], 16); fg_col = "white" if (r*0.299 + g*0.587 + b*0.114) < 128 else "black"
             else: fg_col = "black"
-            sub = item.get('subtype', ''); net = calculate_net_weight(item.get('weight_gross','0'), item.get('spool_id',-1), self.spools)
-            txt = f"{label}\n{item['brand'][:10]}\n{sub[:10]}\n{net}g"
+            # Daten holen und Netto-Gewicht berechnen
+            sub = item.get('subtype', '')
+            mat = item.get('material', '')
+            net = calculate_net_weight(item.get('weight_gross', '0'), item.get('spool_id', -1), self.spools)
+            
+            # Smarte Abkürzungen für lange Effekt-Namen
+            abk = {
+                "Standard": "Std.",
+                "High Speed": "HS",
+                "Dual Color": "Dual",
+                "Tri Color": "Tri",
+                "Glow in Dark": "Glow",
+                "Transparent": "Transp.",
+                "Translucent": "Transl.",
+                "Glitzer/Sparkle": "Glitz."
+            }
+            # Wenn der Effekt in unserer Liste steht, nimm die Abkürzung, sonst schneide sanft ab
+            sub_short = abk.get(sub, sub[:7])
+            mat_short = mat[:5] # Reicht für PLA, PETG, ABS, TPU...
+            
+            # Neue, saubere 4-Zeilen-Formatierung:
+            # 1. Label (Slot) | 2. Marke | 3. Material + Effekt | 4. Gewicht
+            txt = f"{label}\n{item['brand'][:10]}\n{mat_short} {sub_short}\n{net}g"
             tooltip = f"ID: {item['id']}\n{item['brand']} - {item['color']}\n{item['material']} | Rest: {net}g"
         img = create_color_icon(bg_colors, (w, h), "black"); self.image_cache.append(img)
         lbl = tk.Label(parent, image=img, text=txt, compound="center", fg=fg_col, font=("Segoe UI", 8, "bold"), borderwidth=0)
@@ -775,36 +879,106 @@ class FilamentApp:
         # Referenz für apply_theme speichern!
         self.scrollable_form_frame = sidebar
         
-        # Canvas konfigurieren, damit es mit dem Frame mitwächst
+        # Canvas konfigurieren, damit es mit dem Frame (in der Höhe) mitwächst
         sidebar.bind(
             "<Configure>",
             lambda e: self.form_canvas.configure(scrollregion=self.form_canvas.bbox("all"))
         )
-        self.form_canvas.create_window((0, 0), window=sidebar, anchor="nw", width=350)
+        
+        # NEU: Das Fenster ohne feste Breite erstellen und die ID speichern
+        canvas_window = self.form_canvas.create_window((0, 0), window=sidebar, anchor="nw")
+        
+        # NEU: Das innere Formular IMMER exakt an die verbleibende Canvas-Breite anpassen!
+        self.form_canvas.bind(
+            "<Configure>", 
+            lambda e: self.form_canvas.itemconfig(canvas_window, width=e.width)
+        )
+        
         self.form_canvas.configure(yscrollcommand=self.form_scrollbar.set)
 
         # Scrollbar und Canvas platzieren
         self.form_scrollbar.pack(side="right", fill="y")
         self.form_canvas.pack(side="left", fill="both", expand=True)
 
-        self.notebook = ttk.Notebook(sidebar); self.notebook.pack(fill="both", expand=True)
-        tab_basis, tab_erp = ttk.Frame(self.notebook, padding=10), ttk.Frame(self.notebook, padding=10); self.notebook.add(tab_basis, text="Basis & Lager"); self.notebook.add(tab_erp, text="Kaufmännisch")
+        self.notebook = ttk.Notebook(sidebar)
+        self.notebook.pack(fill="both", expand=True)
+        tab_basis = ttk.Frame(self.notebook, padding=10)
+        tab_erp = ttk.Frame(self.notebook, padding=10)
+        self.notebook.add(tab_basis, text="Basis & Lager")
+        self.notebook.add(tab_erp, text="Kaufmännisch")
 
-        frm_id = ttk.Frame(tab_basis); frm_id.pack(fill="x", pady=2); ttk.Label(frm_id, text="ID:").pack(side="left"); 
-        self.entry_id = ttk.Entry(frm_id, width=10, font=FONT_BOLD);
+        # --- ID & RFID ---
+        frm_id = ttk.Frame(tab_basis)
+        frm_id.pack(fill="x", pady=2)
+        ttk.Label(frm_id, text="ID:").pack(side="left")
+        self.entry_id = ttk.Entry(frm_id, width=10, font=FONT_BOLD)
         self.entry_id.pack(side="left", padx=5)
-        ttk.Label(frm_id, text="RFID:").pack(side="left", padx=(10, 0)); self.entry_rfid = ttk.Entry(frm_id, width=15); self.entry_rfid.pack(side="left", padx=5)
-        ttk.Label(tab_basis, text="Marke:").pack(anchor="w", pady=(10,0)); self.entry_brand = ttk.Entry(tab_basis, font=FONT_MAIN); self.entry_brand.pack(fill="x", pady=2)
-        ttk.Label(tab_basis, text="Material:").pack(anchor="w", pady=(10,0)); self.combo_material = ttk.Combobox(tab_basis, values=self.settings.get("materials", MATERIALS), font=FONT_MAIN); self.combo_material.pack(fill="x", pady=2)
-        ttk.Label(tab_basis, text="Farbe:").pack(anchor="w", pady=(10,0)); frm_col = ttk.Frame(tab_basis); frm_col.pack(fill="x", pady=2); self.combo_color = ttk.Combobox(frm_col, values=self.settings.get("colors", COMMON_COLORS), font=FONT_MAIN); self.combo_color.pack(side="left", fill="x", expand=True); self.combo_color.bind("<KeyRelease>", self.update_color_preview); self.combo_color.bind("<<ComboboxSelected>>", self.update_color_preview)
-        def pick_color():
-            color_code = colorchooser.askcolor(title="Eigene Farbe wählen", parent=self.root)[1]
+        ttk.Label(frm_id, text="RFID:").pack(side="left", padx=(10, 0))
+        self.entry_rfid = ttk.Entry(frm_id, width=15)
+        self.entry_rfid.pack(side="left", padx=5)
+
+        # --- Marke ---
+        ttk.Label(tab_basis, text="Marke:").pack(anchor="w", pady=(10,0))
+        self.entry_brand = ttk.Entry(tab_basis, font=FONT_MAIN)
+        self.entry_brand.pack(fill="x", pady=2)
+
+        # --- NEU: Material & Effekt in EINER Zeile ---
+        mat_eff_frame = ttk.Frame(tab_basis)
+        mat_eff_frame.pack(fill="x", pady=(10, 0))
+
+        # Linke Spalte: Material
+        mat_frame = ttk.Frame(mat_eff_frame)
+        mat_frame.pack(side="left", fill="x", expand=True, padx=(0, 5))
+        ttk.Label(mat_frame, text="Material:").pack(anchor="w")
+        self.combo_material = ttk.Combobox(mat_frame, values=self.settings.get("materials", MATERIALS), font=FONT_MAIN)
+        self.combo_material.pack(fill="x", pady=2)
+
+        # Rechte Spalte: Effekt / Typ
+        eff_frame = ttk.Frame(mat_eff_frame)
+        eff_frame.pack(side="left", fill="x", expand=True)
+        ttk.Label(eff_frame, text="Effekt / Typ:").pack(anchor="w")
+        self.combo_subtype = ttk.Combobox(eff_frame, values=self.settings.get("subtypes", SUBTYPES), font=FONT_MAIN)
+        self.combo_subtype.pack(fill="x", pady=2)
+
+        # --- Farbe (mit Dual/Tri-Color Support) ---
+        ttk.Label(tab_basis, text="Farbe (Für Mehrfarbig mit '/' trennen):").pack(anchor="w", pady=(10,0))
+        frm_col = ttk.Frame(tab_basis)
+        frm_col.pack(fill="x", pady=2)
+        
+        self.combo_color = ttk.Combobox(frm_col, values=self.settings.get("colors", COMMON_COLORS), font=FONT_MAIN)
+        self.combo_color.pack(side="left", fill="x", expand=True)
+        self.combo_color.bind("<KeyRelease>", self.update_color_preview)
+        self.combo_color.bind("<<ComboboxSelected>>", self.update_color_preview)
+
+        def pick_single_color():
+            color_code = colorchooser.askcolor(title="Hauptfarbe wählen", parent=self.root)[1]
             if color_code:
                 current_text = re.sub(r'\s*\(?#[0-9a-fA-F]{6}\)?', '', self.combo_color.get().strip()).strip()
-                self.combo_color.set(f"{current_text} ({color_code.upper()})" if current_text else color_code.upper()); self.update_color_preview()
-        ttk.Button(frm_col, text="🎨", width=3, command=pick_color).pack(side="left", padx=5); self.lbl_color_preview = tk.Label(frm_col, borderwidth=0); self.lbl_color_preview.pack(side="left"); self.update_color_preview()
-        ttk.Label(tab_basis, text="Effekt / Typ:").pack(anchor="w", pady=(10,0)); self.combo_subtype = ttk.Combobox(tab_basis, values=self.settings.get("subtypes", SUBTYPES), font=FONT_MAIN); self.combo_subtype.pack(fill="x", pady=2)
-        ttk.Separator(tab_basis, orient="horizontal").pack(fill="x", pady=15)
+                # Wenn schon ein Schrägstrich drin ist (alte Multi-Color), lieber ganz ersetzen
+                if "/" in current_text: current_text = ""
+                self.combo_color.set(f"{current_text} ({color_code.upper()})" if current_text else color_code.upper())
+                self.update_color_preview()
+
+        def add_multi_color():
+            color_code = colorchooser.askcolor(title="Weitere Farbe hinzufügen (Dual/Tri)", parent=self.root)[1]
+            if color_code:
+                current = self.combo_color.get().strip()
+                if current:
+                    self.combo_color.set(f"{current} / {color_code.upper()}")
+                else:
+                    self.combo_color.set(color_code.upper())
+                self.update_color_preview()
+                
+        # Die beiden Buttons nebeneinander
+        ttk.Button(frm_col, text="🎨", width=3, command=pick_single_color).pack(side="left", padx=(5, 2))
+        ttk.Button(frm_col, text="➕ 🎨", width=6, command=add_multi_color).pack(side="left", padx=(0, 6))
+        
+        self.lbl_color_preview = tk.Label(frm_col, borderwidth=0)
+        self.lbl_color_preview.pack(side="left")
+        self.update_color_preview()
+
+        # --- Trennlinie & Spule ---
+        ttk.Separator(tab_basis, orient="horizontal").pack(fill="x", pady=5)
         ttk.Label(tab_basis, text="Spule / Leergewicht:").pack(anchor="w", pady=(5,0))
         self.combo_spool = ttk.Combobox(tab_basis, state="readonly", font=FONT_MAIN)
         self.combo_spool.pack(fill="x", pady=2)
@@ -843,11 +1017,34 @@ class FilamentApp:
             btn_sync.bind("<Leave>", self.hide_tip)
         
         self.lbl_net_weight = ttk.Label(tab_basis, text="Netto (Rest): 0 g | Wert: -", font=("Segoe UI", 10, "bold"), foreground=COLOR_ACCENT); self.lbl_net_weight.pack(anchor="w", pady=(10,5))
-        ttk.Separator(tab_basis, orient="horizontal").pack(fill="x", pady=15)
-        ttk.Label(tab_basis, text="Flow Ratio:").pack(anchor="w"); self.entry_flow = ttk.Entry(tab_basis, width=10); self.entry_flow.pack(anchor="w", pady=2)
-        ttk.Label(tab_basis, text="Pressure Adv:").pack(anchor="w", pady=(5,0)); self.entry_pa = ttk.Entry(tab_basis); self.entry_pa.pack(fill="x", pady=2)
-        ttk.Separator(tab_basis, orient="horizontal").pack(fill="x", pady=15)
-        ttk.Label(tab_basis, text="Lagerort:").pack(anchor="w"); self.combo_type = ttk.Combobox(tab_basis, state="readonly", font=FONT_MAIN); self.combo_type.pack(fill="x", pady=2); self.combo_type.bind("<<ComboboxSelected>>", self.update_slot_dropdown)
+        ttk.Separator(tab_basis, orient="horizontal").pack(fill="x", pady=5)
+
+        # --- NEU: Flow Ratio & Pressure Adv in EINER Zeile ---
+        flow_pa_frame = ttk.Frame(tab_basis)
+        flow_pa_frame.pack(fill="x", pady=(5, 0))
+
+        # Linke Spalte: Flow Ratio
+        flow_frame = ttk.Frame(flow_pa_frame)
+        flow_frame.pack(side="left", fill="x", expand=True, padx=(0, 5))
+        ttk.Label(flow_frame, text="Flow Ratio:").pack(anchor="w")
+        self.entry_flow = ttk.Entry(flow_frame) 
+        self.entry_flow.pack(fill="x", pady=2)
+
+        # Rechte Spalte: Pressure Adv
+        pa_frame = ttk.Frame(flow_pa_frame)
+        pa_frame.pack(side="left", fill="x", expand=True)
+        ttk.Label(pa_frame, text="Pressure Adv:").pack(anchor="w")
+        self.entry_pa = ttk.Entry(pa_frame)
+        self.entry_pa.pack(fill="x", pady=2)
+
+        # --- Trennlinie & Lagerort ---
+        ttk.Separator(tab_basis, orient="horizontal").pack(fill="x", pady=5)
+        
+        ttk.Label(tab_basis, text="Lagerort:").pack(anchor="w")
+        self.combo_type = ttk.Combobox(tab_basis, state="readonly", font=FONT_MAIN)
+        self.combo_type.pack(fill="x", pady=2)
+        self.combo_type.bind("<<ComboboxSelected>>", self.update_slot_dropdown)
+        
         ttk.Label(tab_basis, text="Slot / Nr.:").pack(anchor="w", pady=(5,0))
         
         self.combo_loc_id = ttk.Combobox(tab_basis, font=FONT_MAIN); self.combo_loc_id.pack(fill="x", pady=2)
@@ -863,32 +1060,42 @@ class FilamentApp:
         ttk.Label(tab_erp, text="Nozzle Temp (°C):").grid(row=5, column=0, sticky="w", pady=5); self.entry_temp_n = ttk.Entry(tab_erp); self.entry_temp_n.grid(row=5, column=1, sticky="ew", pady=2)
         ttk.Label(tab_erp, text="Bed Temp (°C):").grid(row=6, column=0, sticky="w", pady=5); self.entry_temp_b = ttk.Entry(tab_erp); self.entry_temp_b.grid(row=6, column=1, sticky="ew", pady=2)
         tab_erp.columnconfigure(1, weight=1)
-
+       
         btn_frame = ttk.Frame(sidebar)
         btn_frame.pack(fill="x", pady=(15, 0))
         
-        # Die Top-Aktionen
-        ttk.Button(btn_frame, text="Neu Hinzufügen", command=self.add_filament, style="Accent.TButton").pack(fill="x", pady=3)
-        ttk.Button(btn_frame, text="Änderungen Speichern", command=self.update_filament).pack(fill="x", pady=3)
+        # --- 1. Hauptaktionen: Hinzufügen & Speichern (Nebeneinander) ---
+        main_action_frame = ttk.Frame(btn_frame)
+        main_action_frame.pack(fill="x", pady=3)
+        ttk.Button(main_action_frame, text="Neu Hinzufügen", command=self.add_filament, style="Accent.TButton").pack(side="left", fill="x", expand=True, padx=(0, 2))
+        ttk.Button(main_action_frame, text="Änderungen Speichern", command=self.update_filament).pack(side="left", fill="x", expand=True, padx=(2, 0))
         
-        # Die Workflow-Booster (Klonen & Ins Lager)
+        # --- 2. Quick-Swap (Prominent platziert) ---
+        ttk.Button(btn_frame, text="🔄 Quick-Swap", command=self.quick_swap_dialog).pack(fill="x", pady=3)
+        
+        # --- 3. Workflow-Booster (Klonen & Ins Lager) ---
         aktion_frame = ttk.Frame(btn_frame)
         aktion_frame.pack(fill="x", pady=3)
         ttk.Button(aktion_frame, text="🐑 Klonen", command=self.clone_filament).pack(side="left", fill="x", expand=True, padx=(0, 2))
         ttk.Button(aktion_frame, text="📦 Ins Lager", command=self.send_to_storage).pack(side="left", fill="x", expand=True, padx=(2, 0))
-        ttk.Separator(btn_frame, orient="horizontal").pack(fill="x", pady=8)
+        
+        ttk.Separator(btn_frame, orient="horizontal").pack(fill="x", pady=4)
+        
+        # --- 4. Ansichten & Verwaltung ---
         ttk.Button(btn_frame, text="📦 Regal & AMS Ansicht", command=lambda: ShelfVisualizer(self.root, self.inventory, self.settings, self.spools)).pack(fill="x", pady=2)
         ttk.Button(btn_frame, text="🧵 Leerspulen verwalten", command=lambda: SpoolManager(self.root, self.data_manager, self.update_spool_dropdown)).pack(fill="x", pady=2)
-        ttk.Separator(btn_frame, orient="horizontal").pack(fill="x", pady=8)
-        # NEU: Bambu Button (Wird nur gezeigt, wenn in Settings aktiviert)
+        
+        ttk.Separator(btn_frame, orient="horizontal").pack(fill="x", pady=4)
+        
+        # --- 5. Drucker & System ---
         if self.settings.get("use_bambu", False):
             ttk.Button(btn_frame, text="🤖 Bambu AMS Live-Sync", command=self.run_ams_sync, style="Accent.TButton").pack(fill="x", pady=2)
+        
         ttk.Button(btn_frame, text="Felder leeren", command=self.clear_inputs).pack(fill="x", pady=3)
-        ttk.Button(btn_frame, text="🔄 Quick-Swap", command=self.quick_swap_dialog).pack(fill="x", pady=3)
-        ttk.Button(btn_frame, text="Löschen", command=self.delete_filament, style="Delete.TButton").pack(fill="x", pady=3)
-        ttk.Button(btn_frame, text="📊 Finanz-Dashboard", command=lambda: StatisticsDialog(self.root, self.inventory, self)).pack(fill="x", pady=8)
+        
+        # --- 6. Löschen (Ganz unten, farblich abgesetzt) ---
+        ttk.Button(btn_frame, text="Löschen", command=self.delete_filament, style="Delete.TButton").pack(fill="x", pady=(10, 3))
 
-        # --- NEU: Finaler Mausrad-Fix für das linke Formular-Panel ---
         def _on_canvas_mousewheel(e):
             # Normales Scrollen für das Canvas
             self.form_canvas.yview_scroll(int(-1*(e.delta/120)), "units")
@@ -911,7 +1118,6 @@ class FilamentApp:
                 
         # Bindung auf das Haupt-Panel anwenden
         _bind_recursively(self.scrollable_form_frame, "<MouseWheel>", _on_canvas_mousewheel)
-        # Und auch auf die Tab-Inhalte im Notebook!
         _bind_recursively(tab_basis, "<MouseWheel>", _on_canvas_mousewheel)
         _bind_recursively(tab_erp, "<MouseWheel>", _on_canvas_mousewheel)
 
@@ -949,7 +1155,7 @@ class FilamentApp:
         if hasattr(self, 'tip') and self.tip: self.tip.destroy()
 
     def open_paypal(self):
-        if messagebox.askyesno("☕ Kaffee spendieren", "Möchtest du zur PayPal-Seite weitergeleitet werden?"): webbrowser.open("https://paypal.me/florianfranck")
+        webbrowser.open("https://paypal.me/florianfranck")
 
     def show_update_prompt(self, latest, url):
         upd = tk.Toplevel(self.root); upd.title("VibeSpool Update"); upd.geometry("400x150"); upd.configure(bg=self.root.cget('bg')); upd.attributes('-topmost', True); center_window(upd, self.root)
@@ -966,7 +1172,7 @@ class FilamentApp:
         self.root.quit()
         self.root.destroy()
         import sys
-        sys.exit(0) # Tötet alle Threads und Prozesse sofort!
+        sys.exit(0)
     
     def apply_theme(self):
         theme = self.settings.get("theme", "dark"); c = THEMES[theme]; self.root.configure(bg=c["bg"]); s = self.style
@@ -1103,10 +1309,13 @@ class FilamentApp:
         latest, url = check_for_updates(GITHUB_REPO, APP_VERSION) or (None, None)
         if latest: self.show_update_prompt(latest, url)
         else: messagebox.showinfo("Aktuell", f"Du nutzt bereits die aktuellste Version (v{APP_VERSION}).")
+    
     def update_slot_dropdown(self, event=None):
         loc = self.combo_type.get()
+        new_values = ["-"] # Standard-Wert für endlose Orte wie LAGER oder VERBRAUCHT
+        
         if loc.startswith("AMS"): 
-            self.combo_loc_id['values'] = ["1", "2", "3", "4"]
+            new_values = ["1", "2", "3", "4"]
         else:
             shelf_names = self.settings.get("shelf_names", {})
             lbl_r = self.settings.get('label_row', 'Fach')
@@ -1120,9 +1329,17 @@ class FilamentApp:
                         row_name = shelf_names.get(str(rw), f"{lbl_r} {rw}")
                         for cl in range(1, c + 1):
                             slots.append(f"{row_name} - {lbl_c} {cl}")
-                    self.combo_loc_id['values'] = slots
-                    return
-            self.combo_loc_id['values'] = ["-"]
+                    new_values = slots
+                    break # Wir haben das Regal gefunden, können die Schleife beenden
+
+        # 1. Die neue Liste im Hintergrund zuweisen
+        self.combo_loc_id['values'] = new_values
+        
+        # 2. FIX: Steht noch Blödsinn vom alten Lagerort im Feld? Dann automatisch korrigieren!
+        current_val = self.combo_loc_id.get()
+        if current_val not in new_values:
+            self.combo_loc_id.set(new_values[0])
+    
     def subtract_printer_usage(self):
         url = self.settings.get("printer_url")
         if not url:
@@ -1195,24 +1412,45 @@ class FilamentApp:
             )
             return None
 
+    def check_location_collision(self, loc_type, loc_id, ignore_id=None):
+        # Unendliche Lagerorte ignorieren wir (da passen beliebig viele Spulen rein)
+        if loc_type in ["LAGER", "VERBRAUCHT", ""]: return None
+        # Wenn kein genauer Slot gewählt wurde ("-"), gibt es auch keine Kollision
+        if loc_id in ["-", ""]: return None
+        
+        for i in self.inventory:
+            # Die eigene Spule beim Bearbeiten ignorieren (sonst blockiert sie sich selbst)
+            if i.get('id') == ignore_id: continue
+            if i.get('type') == "VERBRAUCHT": continue
+            
+            # Treffer! Genau dieser Ort + Slot ist schon belegt.
+            if i.get('type') == loc_type and str(i.get('loc_id')) == str(loc_id):
+                return i # Wir geben die störende Spule zurück
+        return None
+
     def add_filament(self):
         d = self.get_input_data()
         if not d: return
         
-        # --- NEU: Der Türsteher für neue Spulen ---
         if d['id'] is not None:
-            # Prüfen, ob die eingetippte ID schon existiert
             if any(i['id'] == d['id'] for i in self.inventory):
-                messagebox.showerror("Halt Stop!", f"Die ID {d['id']} existiert bereits in deinem Lager!\nBitte wähle eine andere ID oder lass das Feld leer (dann wird automatisch die nächste vergeben).")
+                messagebox.showerror("Halt Stop!", f"Die ID {d['id']} existiert bereits in deinem Lager!\nBitte wähle eine andere ID oder lass das Feld leer.")
                 return
         else:
-            # Wenn das Feld leer ist, automatisch die nächste freie ID vergeben
             d['id'] = max([int(i['id']) for i in self.inventory], default=0) + 1
             
+        # NEU: Kollisionsprüfung
+        col = self.check_location_collision(d['type'], d['loc_id'])
+        if col:
+            msg = f"Der Platz {d['type']} {d['loc_id']} ist bereits belegt durch:\n#{col['id']} {col.get('brand','')} {col.get('color','')}\n\nTrotzdem dort speichern (führt zu doppelter Belegung)?"
+            if not messagebox.askyesno("⚠️ Platz belegt", msg):
+                return
+                
         self.inventory.append(d)
         self.data_manager.save_inventory(self.inventory)
         self.refresh_table()
         self.clear_inputs()
+
     def update_filament(self):
         sel = self.tree.selection()
         if not sel: return
@@ -1222,14 +1460,20 @@ class FilamentApp:
         old_id = int(sel[0])
         new_id = d['id'] or old_id
         
-        # --- NEU: Der Türsteher beim Bearbeiten/Ändern ---
         if new_id != old_id:
-            # Der User hat die ID geändert. Prüfen, ob die neue ID schon belegt ist!
             if any(i['id'] == new_id for i in self.inventory):
                 messagebox.showerror("Halt Stop!", f"Du kannst diese Spule nicht auf ID {new_id} ändern, da diese ID bereits einer anderen Spule gehört!")
                 return
                 
+        # NEU: Kollisionsprüfung (mit ignore_id, damit sie sich nicht selbst blockiert!)
+        col = self.check_location_collision(d['type'], d['loc_id'], ignore_id=old_id)
+        if col:
+            msg = f"Der Ziel-Platz {d['type']} {d['loc_id']} ist bereits belegt durch:\n#{col['id']} {col.get('brand','')} {col.get('color','')}\n\nTrotzdem dorthin verschieben?"
+            if not messagebox.askyesno("⚠️ Platz belegt", msg):
+                return
+                
         d['id'] = new_id
+
         idx = next(i for i, item in enumerate(self.inventory) if item['id'] == old_id)
         self.inventory[idx] = d
         self.data_manager.save_inventory(self.inventory)
@@ -1406,7 +1650,7 @@ class FilamentApp:
             t_am, t_sl = ams_map[combo.get()]
             o_t, o_l = s_a.get('type', 'LAGER'), s_a.get('loc_id', '-')
             s_b = next((i for i in self.inventory if i.get('type') == t_am and str(i.get('loc_id')) == t_sl), None)
-            
+                     
             s_a['type'] = t_am
             s_a['loc_id'] = t_sl
             
@@ -1589,15 +1833,18 @@ class FilamentApp:
                 tk.Label(info_frame, text=r['material'] or "Unbekannt", bg=self.root.cget('bg'), fg="white" if "dark" in str(self.root.cget('bg')) else "black").pack(side="left")
 
             # 2. Spalte: Welche Spule aus VibeSpool ist das?
+            # NEU: Wir packen Combobox und Button nebeneinander in ein Frame
+            frm_col1 = ttk.Frame(frm)
+            frm_col1.grid(row=row_idx, column=1, padx=10, pady=10, sticky="w")
+            
             var_new_spool = tk.StringVar()
-            cb_new = ttk.Combobox(frm, textvariable=var_new_spool, values=filament_values, state="readonly", width=50)
+            cb_new = ttk.Combobox(frm_col1, textvariable=var_new_spool, values=filament_values, state="readonly", width=35)
+            cb_new.pack(side="left", padx=(0, 5))
             
             # --- SMART PRE-SELECTION (Auto-Mapping & Position Memory) ---
-            # Schaut nach, ob VibeSpool aktuell schon eine Spule in diesem AMS Slot gespeichert hat
             current_fil = next((i for i in active_filaments if i.get('type') == "AMS 1" and str(i.get('loc_id')) == str(slot_num)), None)
             
             if current_fil:
-                # Baut den exakten Namen zusammen, um ihn im Dropdown zu finden
                 name = f"{current_fil.get('brand', '')} {current_fil.get('material', '')} {current_fil.get('color', '')}".strip()
                 loc_str = f"{current_fil.get('type', '')} {current_fil.get('loc_id', '')}".strip()
                 loc_display = f"[{loc_str}]" if loc_str else "[Ort unbekannt]"
@@ -1610,7 +1857,13 @@ class FilamentApp:
             else:
                 cb_new.set("- Leer / Ignorieren -")
 
-            cb_new.grid(row=row_idx, column=1, padx=10, pady=10)
+            # --- NEU: Auto-Import Button (Nur anzeigen, wenn wirklich eine Spule im Slot ist) ---
+            if not r['empty']:
+                # Helper-Funktion, um die aktuellen Variablen in den Button zu "brennen"
+                def make_import_cmd(current_r, current_cb):
+                    return lambda: self.auto_import_from_ams(current_r, current_cb)
+                
+                ttk.Button(frm_col1, text="➕ Neu anlegen", command=make_import_cmd(r, cb_new)).pack(side="left")
 
             # 3. Spalte: Wohin mit dem alten Zeug?
             var_old_loc = tk.StringVar()
@@ -1618,13 +1871,56 @@ class FilamentApp:
             cb_old.set("- Nicht verschieben -")
             cb_old.grid(row=row_idx, column=2, padx=10, pady=10)
 
-            self.sync_vars.append({"slot_num": slot_num, "bambu_data": r, "var_new": var_new_spool, "var_old": var_old_loc})
+            # WICHTIG: Wir speichern das 'cb_new' Widget ab, damit wir es später aktualisieren können!
+            self.sync_vars.append({"slot_num": slot_num, "bambu_data": r, "var_new": var_new_spool, "var_old": var_old_loc, "cb_widget": cb_new})
 
         ttk.Separator(frm, orient="horizontal").grid(row=6, column=0, columnspan=3, sticky="ew", pady=15)
         
         # Der Speichern-Button
         ttk.Button(win, text="💾 Sync in Datenbank speichern", command=lambda: self.apply_ams_sync(win), style="Accent.TButton").pack(pady=15)
 
+    def auto_import_from_ams(self, r, target_cb):
+        # 1. Neue ID generieren
+        new_id = max([int(i.get('id', 0)) for i in self.inventory], default=0) + 1
+        
+        # 2. Daten vom Drucker sauber auslesen
+        mat = r.get('material', 'PLA') or 'PLA'
+        
+        # Bambu liefert den Hex oft als RGBA (z.B. "FF0000FF"). Wir brauchen nur die ersten 6 Zeichen.
+        hex_color = f"#{r.get('color_hex', 'FFFFFF')[:6]}".upper()
+        if hex_color == "#": hex_color = "#FFFFFF"
+        
+        brand = "Bambu" # Standardwert, da es im AMS gelesen wurde
+        
+        # 3. Das neue Spulen-Paket schnüren
+        new_item = {
+            "id": new_id, "rfid": "", "brand": brand, "material": mat, "color": hex_color, 
+            "subtype": "Standard", 
+            "type": "LAGER", # Landet virtuell kurz im Lager, bis der Sync final gespeichert wird!
+            "loc_id": "-", 
+            "flow": "", "pa": "", "spool_id": -1, "weight_gross": 1000, "capacity": 1000,
+            "is_empty": False, "reorder": False, "supplier": "", "sku": "", "price": "", 
+            "link": "", "temp_n": "", "temp_b": ""
+        }
+        
+        # 4. In die Datenbank feuern
+        self.inventory.append(new_item)
+        self.data_manager.save_inventory(self.inventory)
+        self.refresh_table()
+        
+        # 5. Den Dropdowns das neue Filament beibringen!
+        display_text = f"{new_id} - {brand} {mat} {hex_color} [LAGER -]"
+        
+        for sv in getattr(self, 'sync_vars', []):
+            cb = sv.get('cb_widget')
+            if cb:
+                vals = list(cb['values'])
+                vals.append(display_text)
+                cb['values'] = vals
+                
+        # 6. Direkt im aktuellen Slot auswählen!
+        target_cb.set(display_text)
+    
     def apply_ams_sync(self, win):
         moved_new = []
         moved_old = []

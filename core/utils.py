@@ -39,20 +39,111 @@ def save_json(filename, data):
         with open(filename, "w", encoding="utf-8") as f: json.dump(data, f, indent=4)
     except Exception as e: print(e)
 
+import re
+
 def get_colors_from_text(text):
-    hex_matches = re.findall(r'(#[0-9a-fA-F]{6})', text)
-    if hex_matches: return hex_matches 
-    text_lower = text.lower().strip()
-    if any(x in text_lower for x in ["regenbogen", "rainbow", "bunt"]):
-        return ["#FF0000", "#FFA500", "#FFFF00", "#008000", "#0000FF", "#4B0082", "#EE82EE"]
-    keys = sorted(COLOR_MAP.keys(), key=len, reverse=True)
-    temp_text, matches = text_lower, {}
-    for key in keys:
-        if key in temp_text:
-            idx = temp_text.find(key)
-            matches[idx] = COLOR_MAP[key]
-            temp_text = temp_text.replace(key, " " * len(key), 1)
-    return [matches[i] for i in sorted(matches.keys())]
+    if not text:
+        return ["#FFFFFF"]
+
+    # 🌍 STUFE 1: Echte, kräftige Farben (Werden immer zuerst priorisiert!)
+    color_map = {
+        # Schwarz, Grau & Silber
+        "black": "#000000", "schwarz": "#000000", "grey": "#808080", "gray": "#808080", 
+        "grau": "#808080", "silver": "#C0C0C0", "silber": "#C0C0C0", "anthrazit": "#333333",
+        "dark": "#222222", "dunkel": "#222222", "ash": "#B2BEB5", "asche": "#B2BEB5",
+        "graphit": "#41424C", "graphite": "#41424C", "slate": "#708090", "schiefer": "#708090",
+        
+        # Weiß, Natur & Beige
+        "white": "#FFFFFF", "weiß": "#FFFFFF", "weiss": "#FFFFFF", "natural": "#F5F5DC", 
+        "natur": "#F5F5DC", "beige": "#F5F5DC", "ivory": "#FFFFF0", "elfenbein": "#FFFFF0",
+        "cream": "#FFFDD0", "creme": "#FFFDD0", "bone": "#E3DAC9", "knochen": "#E3DAC9",
+        "sand": "#C2B280", "pearl": "#EAE0C8", "perle": "#EAE0C8",
+        
+        # Rot, Rosa & Pink
+        "red": "#FF0000", "rot": "#FF0000", "pink": "#FFC0CB", "rosa": "#FFC0CB", "rose": "#FFC0CB",
+        "magenta": "#FF00FF", "maroon": "#800000", "weinrot": "#800000", "bordeaux": "#800000",
+        "crimson": "#DC143C", "karmesin": "#DC143C", "ruby": "#E0115F", "rubin": "#E0115F",
+        "salmon": "#FA8072", "lachs": "#FA8072", "coral": "#FF7F50", "koralle": "#FF7F50",
+        "peach": "#FFE5B4", "pfirsich": "#FFE5B4", "plum": "#8E4585", "pflaume": "#8E4585",
+        
+        # Gelb, Orange & Braun
+        "yellow": "#FFFF00", "gelb": "#FFFF00", "orange": "#FFA500", "gold": "#FFD700",
+        "terracotta": "#E2725B", "terrakotta": "#E2725B", "mustard": "#FFDB58", "senf": "#FFDB58",
+        "lemon": "#FFF700", "zitrone": "#FFF700", "brown": "#A52A2A", "braun": "#A52A2A", 
+        "copper": "#B87333", "kupfer": "#B87333", "bronze": "#CD7F32", "chocolate": "#7B3F00", 
+        "schoko": "#7B3F00", "wood": "#8B5A2B", "holz": "#8B5A2B", "caramel": "#FFD59A", 
+        "karamell": "#FFD59A", "amber": "#FFBF00", "bernstein": "#FFBF00", "rust": "#B7410E", 
+        "rost": "#B7410E",
+        
+        # Blau & Türkis
+        "blue": "#0000FF", "blau": "#0000FF", "navy": "#000080", "marine": "#000080",
+        "cyan": "#00FFFF", "turquoise": "#40E0D0", "türkis": "#40E0D0", "tuerkis": "#40E0D0", 
+        "teal": "#008080", "sky": "#87CEEB", "himmel": "#87CEEB", "azure": "#007FFF", 
+        "azur": "#007FFF", "sapphire": "#0F52BA", "saphir": "#0F52BA", "cobalt": "#0047AB", 
+        "kobalt": "#0047AB",
+        
+        # Grün
+        "green": "#008000", "grün": "#008000", "gruen": "#008000", "mint": "#98FF98", 
+        "minze": "#98FF98", "olive": "#808000", "oliv": "#808000", "lime": "#00FF00", 
+        "limette": "#00FF00", "forest": "#228B22", "wald": "#228B22", "jade": "#00A86B", 
+        "emerald": "#50C878", "smaragd": "#50C878", "neon": "#39FF14",
+        
+        # Lila
+        "purple": "#800080", "lila": "#800080", "violet": "#EE82EE", "violett": "#EE82EE",
+        "lavender": "#E6E6FA", "lavendel": "#E6E6FA", "lilac": "#C8A2C8", "flieder": "#C8A2C8",
+        "amethyst": "#9966CC", "aubergine": "#3D0C02",
+        
+        # Spezial (Kräftige Farbschemas)
+        "rainbow": "#FF0000", "regenbogen": "#FF0000"
+    }
+    
+    # 🌫️ STUFE 2: Fallback-Farben (z.B. "Clear", "Translucent"). 
+    # Werden NUR benutzt, wenn im Text KEINE echte Farbe gefunden wurde.
+    # So gewinnt bei "Translucent Türkis" das Türkis und nicht das Grau!
+    fallback_map = {
+        "clear": "#E0E0E0", "klar": "#E0E0E0", "transparent": "#E0E0E0", "translucent": "#E0E0E0", 
+        "glow": "#CCFFCC", "leucht": "#CCFFCC", "glass": "#E0E0E0", "glas": "#E0E0E0",
+        "milky": "#F8F8FF", "milchig": "#F8F8FF", "frost": "#E0E0E0", "eis": "#E0E0E0",
+        "marble": "#EAEAEA", "marmor": "#EAEAEA", "silk": "#F5F5F5", "seide": "#F5F5F5"
+    }
+
+    result_colors = []
+    
+    # Text am Schrägstrich trennen (für Dual-/Tri-Color)
+    for part in text.split('/'):
+        part = part.strip()
+        if not part:
+            continue
+        
+        # Check 1: Hat dieser Teil einen Hex-Code in sich?
+        hex_match = re.search(r'#[0-9a-fA-F]{6}', part)
+        if hex_match:
+            result_colors.append(hex_match.group(0).upper())
+            continue
+            
+        part_lower = part.lower()
+        found = False
+        
+        # Check 2: Suche in den ECHTEN Farben zuerst! (sortiert nach Länge, damit "weinrot" vor "rot" greift)
+        for name in sorted(color_map.keys(), key=len, reverse=True):
+            if name in part_lower:
+                result_colors.append(color_map[name])
+                found = True
+                break
+                
+        # Check 3: Wenn keine echte Farbe da ist, checken wir die Modifikatoren (Translucent, Clear...)
+        if not found:
+            for name in sorted(fallback_map.keys(), key=len, reverse=True):
+                if name in part_lower:
+                    result_colors.append(fallback_map[name])
+                    found = True
+                    break
+        
+        # Check 4: Ultimativer Fallback: Grau (Wenn absolut nichts passt)
+        if not found:
+            result_colors.append("#CCCCCC") 
+            
+    return result_colors if result_colors else ["#FFFFFF"]
 
 def create_color_icon(hex_list, size=(24, 24), outline_color="#CCCCCC"):
     if not hex_list:

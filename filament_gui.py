@@ -18,6 +18,7 @@ from core.utils import load_json, save_json, get_colors_from_text, create_color_
 from core.logic import calculate_net_weight, check_for_updates, parse_shelves_string, serialize_shelves
 from core.data_manager import DataManager
 from core.spool_presets import SPOOL_PRESETS
+from core.colors import get_color_name_from_hex
 
 def fetch_last_print_usage(url, key): 
     return None
@@ -26,7 +27,7 @@ def fetch_recent_jobs(url, key):
 
 
 # --- KONFIGURATION ---
-APP_VERSION = "1.9.4"
+APP_VERSION = "1.9.5"
 GITHUB_REPO = "SirMetalizer/VibeSpool" 
 
 # --- DEFAULTS ---
@@ -88,43 +89,59 @@ class SpoolManager(tk.Toplevel):
     def __init__(self, parent, data_manager, on_close_callback):
         super().__init__(parent)
         self.data_manager = data_manager
-        self.on_close_callback = on_close_callback; self.title("Spulen Datenbank")
-        self.geometry("600x700"); self.configure(bg=parent.cget('bg')); center_window(self, parent)
+        self.on_close_callback = on_close_callback
+        self.title("Spulen Datenbank")
+        self.geometry("600x700")
+        self.configure(bg=parent.cget('bg'))
+        center_window(self, parent)
         
         _, _, self.spools = self.data_manager.load_all(DEFAULT_SETTINGS)
         ttk.Label(self, text="Verfügbare Leerspulen", font=("Segoe UI", 10, "bold")).pack(pady=10)
-        frm_list = ttk.Frame(self); frm_list.pack(fill="both", expand=True, padx=10, pady=(0, 10))
+        frm_list = ttk.Frame(self)
+        frm_list.pack(fill="both", expand=True, padx=10, pady=(0, 10))
         
         self.tree = ttk.Treeview(frm_list, columns=("id", "name", "weight"), show="headings")
-        self.tree.heading("id", text="ID"); self.tree.heading("name", text="Bezeichnung"); self.tree.heading("weight", text="Leergewicht (g)")
-        self.tree.column("id", width=50, anchor="center"); self.tree.column("name", width=250); self.tree.column("weight", width=100, anchor="center")
+        self.tree.heading("id", text="ID")
+        self.tree.heading("name", text="Bezeichnung")
+        self.tree.heading("weight", text="Leergewicht (g)")
+        self.tree.column("id", width=50, anchor="center")
+        self.tree.column("name", width=250)
+        self.tree.column("weight", width=100, anchor="center")
         scroll = ttk.Scrollbar(frm_list, orient="vertical", command=self.tree.yview)
-        self.tree.configure(yscrollcommand=scroll.set); self.tree.pack(side="left", fill="both", expand=True); scroll.pack(side="right", fill="y")
+        self.tree.configure(yscrollcommand=scroll.set)
+        self.tree.pack(side="left", fill="both", expand=True)
+        scroll.pack(side="right", fill="y")
 
         self.tree.bind("<<TreeviewSelect>>", self.on_select)
         
-        frm_input = ttk.LabelFrame(self, text="Bearbeiten / Neu"); frm_input.pack(fill="x", padx=10, pady=10, side="bottom")
+        frm_input = ttk.LabelFrame(self, text="Bearbeiten / Neu")
+        frm_input.pack(fill="x", padx=10, pady=10, side="bottom")
         ttk.Label(frm_input, text="Name:").grid(row=0, column=0, padx=5, pady=5, sticky="w")
-        self.ent_name = ttk.Entry(frm_input); self.ent_name.grid(row=0, column=1, padx=5, pady=5, sticky="ew")
+        self.ent_name = ttk.Entry(frm_input)
+        self.ent_name.grid(row=0, column=1, padx=5, pady=5, sticky="ew")
         ttk.Label(frm_input, text="Gewicht (g):").grid(row=1, column=0, padx=5, pady=5, sticky="w")
-        self.ent_weight = ttk.Entry(frm_input); self.ent_weight.grid(row=1, column=1, padx=5, pady=5, sticky="ew")
-        frm_input.columnconfigure(1, weight=1); frm_btns = ttk.Frame(frm_input); frm_btns.grid(row=2, column=0, columnspan=2, pady=10)
+        self.ent_weight = ttk.Entry(frm_input)
+        self.ent_weight.grid(row=1, column=1, padx=5, pady=5, sticky="ew")
+        frm_input.columnconfigure(1, weight=1)
+        
+        frm_btns = ttk.Frame(frm_input)
+        frm_btns.grid(row=2, column=0, columnspan=2, pady=10)
         ttk.Button(frm_btns, text="Neu anlegen", command=self.add_spool).pack(side="left", padx=5)
         ttk.Button(frm_btns, text="Speichern", command=self.update_spool).pack(side="left", padx=5)
         ttk.Button(frm_btns, text="Löschen", command=self.delete_spool).pack(side="left", padx=5)
         ttk.Button(frm_btns, text="📋 Vorlagen", command=self.import_preset).pack(side="left", padx=5)
+        
         self.refresh_list()
     
     def import_preset(self):
         win = tk.Toplevel(self)
         win.title("Spulen-Vorlagen")
-        win.geometry("450x550") # Etwas größer für die Suchleiste
+        win.geometry("450x550")
         win.configure(bg=self.cget('bg'))
         center_window(win, self)
 
         ttk.Label(win, text="Wähle eine Standardspule:", font=FONT_BOLD).pack(pady=(10, 5))
 
-        # --- NEU: Suchfeld ---
         frm_search = ttk.Frame(win)
         frm_search.pack(fill="x", padx=10, pady=(0, 5))
         ttk.Label(frm_search, text="🔍 Suche:").pack(side="left")
@@ -135,32 +152,25 @@ class SpoolManager(tk.Toplevel):
         lb = tk.Listbox(win, font=FONT_MAIN)
         lb.pack(fill="both", expand=True, padx=10, pady=5)
 
-        # Lokale Liste speichern, damit der Index nach dem Filtern noch stimmt!
         self.filtered_presets = SPOOL_PRESETS.copy()
 
-        # Die Filter-Funktion (wird bei jedem Tastendruck aufgerufen)
-        def refresh_list(*args):
+        def filter_list(*args):
             search_term = var_search.get().lower()
             lb.delete(0, tk.END)
             self.filtered_presets = []
-            
             for p in SPOOL_PRESETS:
                 display_text = f"{p['name']} ({p['weight']}g)"
                 if search_term in display_text.lower():
                     self.filtered_presets.append(p)
                     lb.insert(tk.END, display_text)
 
-        # Verbindet das Suchfeld mit der Filter-Funktion
-        var_search.trace_add("write", refresh_list)
-        refresh_list() # Initiale Füllung beim Öffnen
+        var_search.trace_add("write", filter_list)
+        filter_list()
 
         def do_import():
             sel = lb.curselection()
             if not sel: return
-            
-            # WICHTIG: Holt das Preset aus der gefilterten Liste!
             p = self.filtered_presets[sel[0]] 
-            
             self.ent_name.delete(0, tk.END)
             self.ent_name.insert(0, p['name'])
             self.ent_weight.delete(0, tk.END)
@@ -168,41 +178,65 @@ class SpoolManager(tk.Toplevel):
             win.destroy()
 
         ttk.Button(win, text="Übernehmen", command=do_import, style="Accent.TButton").pack(pady=10, fill="x", padx=20)
-        
-        # Cursor direkt ins Suchfeld setzen für maximalen Workflow!
         ent_search.focus_set()
 
     def refresh_list(self):
-        for item in self.tree.get_children(): self.tree.delete(item)
-        for s in self.spools: self.tree.insert("", "end", iid=str(s['id']), values=(s['id'], s['name'], s['weight']))
+        for item in self.tree.get_children(): 
+            self.tree.delete(item)
+        
+        # Sortiert die Spulen alphabetisch (case-insensitive) vor der Ausgabe
+        sorted_spools = sorted(self.spools, key=lambda s: s['name'].lower())
+        for s in sorted_spools: 
+            self.tree.insert("", "end", iid=str(s['id']), values=(s['id'], s['name'], s['weight']))
+            
         self.on_close_callback()
+
     def on_select(self, event):
         sel = self.tree.selection()
         if not sel: return
-        spool_id = int(sel[0]); spool = next((s for s in self.spools if s['id'] == spool_id), None)
+        spool_id = int(sel[0])
+        spool = next((s for s in self.spools if s['id'] == spool_id), None)
         if spool:
-            self.ent_name.delete(0, tk.END); self.ent_name.insert(0, spool['name']); self.ent_weight.delete(0, tk.END); self.ent_weight.insert(0, str(spool['weight']))
+            self.ent_name.delete(0, tk.END)
+            self.ent_name.insert(0, spool['name'])
+            self.ent_weight.delete(0, tk.END)
+            self.ent_weight.insert(0, str(spool['weight']))
+
     def add_spool(self):
-        name = self.ent_name.get().strip(); weight_str = self.ent_weight.get().strip().replace(',', '.')
+        name = self.ent_name.get().strip()
+        weight_str = self.ent_weight.get().strip().replace(',', '.')
         if not name or not weight_str: return
         try:
-            weight = int(float(weight_str)); new_id = max([s['id'] for s in self.spools], default=0) + 1
-            self.spools.append({"id": new_id, "name": name, "weight": weight}); self.data_manager.save_spools(self.spools); self.refresh_list()
+            weight = int(float(weight_str))
+            new_id = max([s['id'] for s in self.spools], default=0) + 1
+            self.spools.append({"id": new_id, "name": name, "weight": weight})
+            self.data_manager.save_spools(self.spools)
+            self.refresh_list()
         except: pass
+
     def update_spool(self):
         sel = self.tree.selection()
         if not sel: return
         try:
             weight = int(float(self.ent_weight.get().strip().replace(',', '.')))
             for s in self.spools:
-                if s['id'] == int(sel[0]): s['name'] = self.ent_name.get().strip(); s['weight'] = weight
-            self.data_manager.save_spools(self.spools); self.refresh_list()
+                if s['id'] == int(sel[0]): 
+                    s['name'] = self.ent_name.get().strip()
+                    s['weight'] = weight
+            self.data_manager.save_spools(self.spools)
+            self.refresh_list()
         except: pass
+
     def delete_spool(self):
         sel = self.tree.selection()
         if not sel: return
-        self.spools = [s for s in self.spools if s['id'] != int(sel[0])]; self.data_manager.save_spools(self.spools); self.refresh_list()
-    def destroy(self): self.on_close_callback(); super().destroy()
+        self.spools = [s for s in self.spools if s['id'] != int(sel[0])]
+        self.data_manager.save_spools(self.spools)
+        self.refresh_list()
+
+    def destroy(self): 
+        self.on_close_callback()
+        super().destroy()
 
 class ShelfPlannerDialog(tk.Toplevel):
     def __init__(self, parent, initial_value, on_confirm):
@@ -319,7 +353,19 @@ class SettingsDialog(tk.Toplevel):
         if getattr(self, 'app', None):
             def open_shelf_editor():
                 if self.app: 
-                    self.app.edit_shelf_names(self)
+                    # NEU: Wir prüfen, WELCHES Regal in der Liste markiert ist!
+                    sel = self.shelf_list.curselection()
+                    if not sel:
+                        messagebox.showinfo("Info", "Bitte wähle zuerst ein Regal aus der Liste darüber aus!", parent=self)
+                        return
+                    
+                    selected_str = self.shelf_list.get(sel[0])
+                    # Extrahiert den Namen (z.B. "📦 REGAL (4x8)" -> "REGAL")
+                    shelf_name = selected_str.replace("📦 ", "").split(" (")[0]
+                    
+                    current_lbl_row = self.ent_row.get().strip() or "Fach"
+                    self.app.edit_shelf_names(self, self.var_shelves.get(), current_lbl_row, shelf_name)
+                    
             ttk.Button(btn_frm_lager, text="🏷️ Fächer benennen", command=open_shelf_editor).pack(side="left", fill="x", expand=True, padx=(2, 0))
 
         # --- NEU: Zusatz-Orte sind jetzt hier, wo sie hingehören! ---
@@ -480,18 +526,84 @@ class SettingsDialog(tk.Toplevel):
 
     def do_save(self):
         try:
+            old_label_row = self.settings.get("label_row", "Fach")
+            old_label_col = self.settings.get("label_col", "Slot")
+            
+            new_label_row = self.ent_row.get().strip() or "Fach"
+            new_label_col = self.ent_col.get().strip() or "Slot"
+            
+            app_inst = getattr(self, 'app', None)
+            
+            if app_inst:
+                inventory_changed = False
+                
+                # --- MIGRATION 1: Gelöschte Regale retten ---
+                old_shelves_str = self.settings.get("shelves", "REGAL|4|8")
+                from core.logic import parse_shelves_string
+                old_shelf_names = [s['name'] for s in parse_shelves_string(old_shelves_str)]
+                new_shelf_names = [s['name'] for s in parse_shelves_string(self.var_shelves.get())]
+                
+                # Welche Regale gab es vorher, aber jetzt nicht mehr?
+                deleted_shelves = [name for name in old_shelf_names if name not in new_shelf_names]
+                moved_to_lager = 0
+                
+                if deleted_shelves:
+                    for item in app_inst.inventory:
+                        # Wenn die Spule in einem der gelöschten Regale lag -> Ab ins LAGER!
+                        if item.get("type") in deleted_shelves:
+                            item["type"] = "LAGER"
+                            item["loc_id"] = "-"
+                            moved_to_lager += 1
+                            inventory_changed = True
+                            
+                    if moved_to_lager > 0:
+                        messagebox.showinfo("Regal abgebaut", f"Info: Es wurden {moved_to_lager} Spulen aus den gelöschten Regalen sicher ins 'LAGER' verschoben.", parent=self)
+
+                # --- MIGRATION 2: Wording (Fach/Slot) anpassen ---
+                if new_label_row != old_label_row or new_label_col != old_label_col:
+                    for item in app_inst.inventory:
+                        loc = item.get("loc_id", "")
+                        if loc and " - " in loc:
+                            parts = loc.split(" - ")
+                            if len(parts) == 2:
+                                r_part, c_part = parts[0], parts[1]
+                                
+                                if c_part.startswith(old_label_col + " "):
+                                    c_part = c_part.replace(old_label_col + " ", new_label_col + " ", 1)
+                                    
+                                if r_part.startswith(old_label_row + " "):
+                                    r_part = r_part.replace(old_label_row + " ", new_label_row + " ", 1)
+                                    
+                                new_loc = f"{r_part} - {c_part}"
+                                if new_loc != loc:
+                                    item["loc_id"] = new_loc
+                                    inventory_changed = True
+                                    
+                    # Auch im neuen V2-Benennungssystem die Namen patchen!
+                    all_shelf_names = self.settings.get("shelf_names_v2", {})
+                    for shelf_key, names_dict in all_shelf_names.items():
+                        for k, v in names_dict.items():
+                            if v.startswith(old_label_row + " "):
+                                all_shelf_names[shelf_key][k] = v.replace(old_label_row + " ", new_label_row + " ", 1)
+                    self.settings["shelf_names_v2"] = all_shelf_names
+
+                # Nur speichern, wenn auch wirklich Spulen angefasst wurden
+                if inventory_changed:
+                    app_inst.data_manager.save_inventory(app_inst.inventory)
+
+            # --- Normales Speichern der Einstellungen ---
             self.settings.update({
                 "shelves": self.var_shelves.get(),
                 "logistics_order": self.var_logistics.get(),
-                "label_row": self.ent_row.get().strip() or "Fach",
-                "label_col": self.ent_col.get().strip() or "Slot",
+                "label_row": new_label_row,
+                "label_col": new_label_col,
                 "num_ams": int(self.ent_ams.get()),
                 "custom_locs": self.ent_custom.get().strip(),
                 "use_affiliate": self.var_affiliate.get(),
                 "rfid_mode": self.var_rfid.get(),
                 "use_moonraker": self.var_moonraker.get(),
                 "printer_url": self.ent_prn_url.get().strip(),
-                "printer_api_key": self.settings.get("printer_api_key", ""), # FIX: Wir suchen nicht mehr nach dem gelöschten Feld!
+                "printer_api_key": self.settings.get("printer_api_key", ""), 
                 "use_bambu": self.var_bambu.get(),
                 "bambu_ip": self.ent_bambu_ip.get().strip(),
                 "bambu_access": self.ent_bambu_acc.get().strip(),
@@ -500,14 +612,19 @@ class SettingsDialog(tk.Toplevel):
                 "colors": self.list_vars["colors"],
                 "subtypes": self.list_vars["subtypes"]
             })
+            
             self.on_save(self.settings)
+            
+            # Tabelle sofort neu zeichnen
+            if app_inst:
+                app_inst.refresh_table() 
+                
             self.destroy()
+            
         except ValueError: 
-            # Fängt NUR den Fehler ab, wenn man wirklich Text ins AMS-Zahlenfeld tippt
-            messagebox.showerror("Fehler", "AMS Anzahl muss eine Zahl sein.")
+            messagebox.showerror("Fehler", "AMS Anzahl muss eine Zahl sein.", parent=self)
         except Exception as e:
-            # Zeigt ab sofort echte Fehler an, falls noch was schiefgeht!
-            messagebox.showerror("Fehler", f"Ein unerwarteter Fehler ist aufgetreten:\n{e}")
+            messagebox.showerror("Fehler", f"Ein unerwarteter Fehler ist aufgetreten:\n{e}", parent=self)
 
 class ShelfVisualizer(tk.Toplevel):
     def __init__(self, parent, inventory, settings, spools):
@@ -532,14 +649,23 @@ class ShelfVisualizer(tk.Toplevel):
         pad = ttk.Frame(frame, padding=20); pad.pack(fill="both", expand=True)
         lbl_r = self.settings.get("label_row", "Fach"); lbl_c = self.settings.get("label_col", "Slot"); logistics = self.settings.get("logistics_order", False)
         
+        all_shelf_names = self.settings.get("shelf_names_v2", {})
+
         for shelf in self.parsed_shelves:
             ttk.Label(pad, text=f"📦 {shelf['name']}", font=("Segoe UI", 16, "bold")).pack(anchor="w", pady=(10, 10))
+            
+            # Holt die individuellen Namen für DIESES Regal
+            shelf_names = all_shelf_names.get(shelf['name'], {})
+            
             for r in (range(shelf['rows'], 0, -1) if logistics else range(1, shelf['rows'] + 1)):
-                ttk.Label(pad, text=f"{lbl_r} {r}", font=("Segoe UI", 10, "bold")).pack(anchor="w", pady=(5, 2))
+                row_label = shelf_names.get(str(r), f"{lbl_r} {r}")
+                ttk.Label(pad, text=row_label, font=("Segoe UI", 10, "bold")).pack(anchor="w", pady=(5, 2))
                 row_frame = tk.Frame(pad, bg="#8B4513", padx=5, pady=2)
                 row_frame.pack(anchor="w", pady=2)
                 for c in range(1, shelf['cols'] + 1):
-                    slot_name = f"{lbl_r} {r} - {lbl_c} {c}"; self.draw_slot(row_frame, str(c), self.shelf_data.get(f"{shelf['name']}_{slot_name}"), False, w=70, h=70)
+                    # Baut den Slot-Namen exakt so zusammen, wie er in der Datenbank steht
+                    slot_name = f"{row_label} - {lbl_c} {c}"
+                    self.draw_slot(row_frame, str(c), self.shelf_data.get(f"{shelf['name']}_{slot_name}"), False, w=70, h=70)
         
         ttk.Separator(pad, orient="horizontal").pack(fill="x", pady=20)
         for a in range(1, self.settings.get("num_ams", 1) + 1):
@@ -940,7 +1066,7 @@ class FilamentApp:
         self.combo_subtype = ttk.Combobox(eff_frame, values=self.settings.get("subtypes", SUBTYPES), font=FONT_MAIN)
         self.combo_subtype.pack(fill="x", pady=2)
 
-        # --- Farbe (mit Dual/Tri-Color Support) ---
+        # --- Farbe (mit smartem Multi-Color Picker) ---
         ttk.Label(tab_basis, text="Farbe (Für Mehrfarbig mit '/' trennen):").pack(anchor="w", pady=(10,0))
         frm_col = ttk.Frame(tab_basis)
         frm_col.pack(fill="x", pady=2)
@@ -950,28 +1076,80 @@ class FilamentApp:
         self.combo_color.bind("<KeyRelease>", self.update_color_preview)
         self.combo_color.bind("<<ComboboxSelected>>", self.update_color_preview)
 
-        def pick_single_color():
-            color_code = colorchooser.askcolor(title="Hauptfarbe wählen", parent=self.root)[1]
-            if color_code:
-                current_text = re.sub(r'\s*\(?#[0-9a-fA-F]{6}\)?', '', self.combo_color.get().strip()).strip()
-                # Wenn schon ein Schrägstrich drin ist (alte Multi-Color), lieber ganz ersetzen
-                if "/" in current_text: current_text = ""
-                self.combo_color.set(f"{current_text} ({color_code.upper()})" if current_text else color_code.upper())
+        # --- NEU: Auto-Übersetzer für manuelle Eingaben per Tastatur ---
+        def format_manual_color_entry(event=None):
+            current_text = self.combo_color.get().strip()
+            if not current_text: return
+
+            parts = [p.strip() for p in current_text.split('/')]
+            new_parts = []
+
+            for part in parts:
+                # Suchen wir nach einem Hex-Code in diesem Abschnitt
+                hex_match = re.search(r'#[0-9a-fA-F]{6}', part)
+                if hex_match:
+                    hex_code = hex_match.group(0).upper()
+                    matched_name = ""
+                    
+                    # Prio 1: Suche in der Liste des Users
+                    for preset in self.settings.get("colors", COMMON_COLORS):
+                        if hex_code in preset:
+                            matched_name = preset.split('(')[0].strip()
+                            break
+                            
+                    # Prio 2: Suche in unserer großen core/colors.py Datenbank
+                    if not matched_name:
+                        matched_name = get_color_name_from_hex(hex_code)
+
+                    if matched_name:
+                        new_parts.append(f"{matched_name} ({hex_code})")
+                    else:
+                        # Wenn wir gar keinen Namen kennen, behalten wir exakt das, was der User getippt hat
+                        new_parts.append(part)
+                else:
+                    # Kein Hex-Code drin -> Einfach unverändert lassen
+                    new_parts.append(part)
+
+            # Neu zusammenbauen
+            new_text = " / ".join(new_parts)
+            
+            # Nur aktualisieren, wenn sich wirklich was geändert hat
+            if new_text != current_text:
+                self.combo_color.set(new_text)
                 self.update_color_preview()
 
-        def add_multi_color():
-            color_code = colorchooser.askcolor(title="Weitere Farbe hinzufügen (Dual/Tri)", parent=self.root)[1]
-            if color_code:
-                current = self.combo_color.get().strip()
-                if current:
-                    self.combo_color.set(f"{current} / {color_code.upper()}")
-                else:
-                    self.combo_color.set(color_code.upper())
-                self.update_color_preview()
+        # Bindings: Die Auto-Korrektur feuert, wenn man das Feld verlässt (FocusOut) oder Enter drückt
+        self.combo_color.bind("<FocusOut>", format_manual_color_entry)
+        self.combo_color.bind("<Return>", format_manual_color_entry)
+
+        def pick_smart_color():
+            # Öffnet den Windows-Farbdialog
+            color_code = colorchooser.askcolor(title="Farbe wählen", parent=self.root)[1]
+            if not color_code: return
+            
+            color_code = color_code.upper()
+            current_text = self.combo_color.get().strip()
+            
+            matched_name = ""
+            for preset in self.settings.get("colors", COMMON_COLORS):
+                if color_code in preset:
+                    matched_name = preset.split('(')[0].strip()
+                    break
+                    
+            if not matched_name:
+                matched_name = get_color_name_from_hex(color_code)
+
+            new_entry = f"{matched_name} ({color_code})" if matched_name else color_code
+
+            if not current_text:
+                self.combo_color.set(new_entry)
+            else:
+                self.combo_color.set(f"{current_text} / {new_entry}")
                 
-        # Die beiden Buttons nebeneinander
-        ttk.Button(frm_col, text="🎨", width=3, command=pick_single_color).pack(side="left", padx=(5, 2))
-        ttk.Button(frm_col, text="➕ 🎨", width=6, command=add_multi_color).pack(side="left", padx=(0, 6))
+            self.update_color_preview()
+                
+        # Ein einziger, smarter Button!
+        ttk.Button(frm_col, text="🎨", width=4, command=pick_smart_color).pack(side="left", padx=(5, 2))
         
         self.lbl_color_preview = tk.Label(frm_col, borderwidth=0)
         self.lbl_color_preview.pack(side="left")
@@ -1236,8 +1414,18 @@ class FilamentApp:
     def update_locations_dropdown(self): self.combo_type['values'] = self.get_dynamic_locations()
     def update_spool_dropdown(self):
         _, _, self.spools = self.data_manager.load_all(DEFAULT_SETTINGS) # type: ignore
-        values = ["-"] + [f"{s['id']} - {s['name']}" for s in self.spools]; curr = self.combo_spool.get(); self.combo_spool['values'] = values
-        if curr not in values: self.combo_spool.current(0)
+        
+        # NEU: Spulen alphabetisch (case-insensitive) sortieren!
+        sorted_spools = sorted(self.spools, key=lambda s: s['name'].lower())
+        
+        # Format "ID - Name" beibehalten, aber aus der sortierten Liste generieren
+        values = ["-"] + [f"{s['id']} - {s['name']}" for s in sorted_spools]
+        
+        curr = self.combo_spool.get()
+        self.combo_spool['values'] = values
+        
+        if curr not in values: 
+            self.combo_spool.current(0)
     def get_selected_spool_id(self):
         try: return -1 if self.combo_spool.get() == "-" else int(self.combo_spool.get().split(" - ")[0])
         except: return -1
@@ -1317,7 +1505,10 @@ class FilamentApp:
         if loc.startswith("AMS"): 
             new_values = ["1", "2", "3", "4"]
         else:
-            shelf_names = self.settings.get("shelf_names", {})
+            # NEU: Lese die Namen für das exakt gewählte Regal aus!
+            shelf_names_all = self.settings.get("shelf_names_v2", {})
+            shelf_names = shelf_names_all.get(loc, {})
+            
             lbl_r = self.settings.get('label_row', 'Fach')
             lbl_c = self.settings.get('label_col', 'Slot')
             for s in parse_shelves_string(self.settings.get("shelves", "REGAL|4|8")):
@@ -1325,12 +1516,11 @@ class FilamentApp:
                     r, c, log = s['rows'], s['cols'], self.settings.get("logistics_order")
                     slots = []
                     for rw in (range(r, 0, -1) if log else range(1, r + 1)):
-                        # Holt den eigenen Namen für das Fach, sonst Standard (z.B. "Fach 1")
                         row_name = shelf_names.get(str(rw), f"{lbl_r} {rw}")
                         for cl in range(1, c + 1):
                             slots.append(f"{row_name} - {lbl_c} {cl}")
                     new_values = slots
-                    break # Wir haben das Regal gefunden, können die Schleife beenden
+                    break
 
         # 1. Die neue Liste im Hintergrund zuweisen
         self.combo_loc_id['values'] = new_values
@@ -1339,6 +1529,23 @@ class FilamentApp:
         current_val = self.combo_loc_id.get()
         if current_val not in new_values:
             self.combo_loc_id.set(new_values[0])
+
+        # 1. Die neue Liste im Hintergrund zuweisen
+        self.combo_loc_id['values'] = new_values
+        
+        # 2. Steht noch Blödsinn vom alten Lagerort im Feld? Dann automatisch korrigieren!
+        current_val = self.combo_loc_id.get()
+        if current_val not in new_values:
+            self.combo_loc_id.set(new_values[0])
+            
+        # --- NEU: Dynamisches Wording für das Label ---
+        # Sucht das Widget, das vor der Combobox gepackt wurde (das Label)
+        for child in self.combo_loc_id.master.winfo_children():
+            if isinstance(child, ttk.Label) and ("Slot" in child.cget("text") or "Detail" in child.cget("text")):
+                if loc in ["LAGER", "VERBRAUCHT"] or loc in self.settings.get("custom_locs", ""):
+                    child.config(text="Detail / Info:")
+                else:
+                    child.config(text=f"{self.settings.get('label_col', 'Slot')} / Nr.:")
     
     def subtract_printer_usage(self):
         url = self.settings.get("printer_url")
@@ -1364,32 +1571,85 @@ class FilamentApp:
         except Exception as e:
             messagebox.showerror("Fehler", f"Berechnungsfehler: {e}")
 
-    def treeview_sort_column(self, col, reverse):
+    def _sort_inventory(self):
+        # Liest die aktuell gewählte Sortierspalte aus (Standard ist 'id')
+        col = getattr(self, 'current_sort_col', 'id')
+        reverse = getattr(self, 'current_sort_reverse', False)
+        
         def get_sort_value(i):
             if col == "location":
-                return f"{i.get('type', '')} {i.get('loc_id', '')}".strip()
+                t = str(i.get('type', '')).upper()
+                # NEU: Absolute Hierarchie für Lagerorte erzwingen!
+                if t.startswith("AMS"): prefix = "0"          # AMS immer ganz oben
+                elif t == "LAGER": prefix = "2"               # LAGER unten
+                elif t == "VERBRAUCHT": prefix = "3"          # VERBRAUCHT ganz ans Ende
+                else: prefix = "1"                            # Alle Regale in die Mitte
+                return f"{prefix}_{t} {i.get('loc_id', '')}".strip()
+                
             elif col == "weight":
                 return str(calculate_net_weight(i.get('weight_gross', '0'), i.get('spool_id', -1), self.spools))
             elif col == "status":
                 return "VERBRAUCHT" if i.get('type') == "VERBRAUCHT" else "KAUFEN" if i.get('reorder') else ""
             return str(i.get(col, ""))
 
-        self.inventory.sort(key=lambda i: [int(c) if c.isdigit() else c.lower() for c in re.split(r'(\d+)', get_sort_value(i))], reverse=reverse)
+        try:
+            self.inventory.sort(key=lambda i: [int(c) if c.isdigit() else c.lower() for c in re.split(r'(\d+)', get_sort_value(i))], reverse=reverse)
+        except Exception:
+            pass
+
+    def treeview_sort_column(self, col, reverse):
+        # Merkt sich für immer, welche Spalte du geklickt hast!
+        self.current_sort_col = col
+        self.current_sort_reverse = reverse
+        
         self.tree.heading(col, command=lambda: self.treeview_sort_column(col, not reverse))
         self.refresh_table()
+
     def update_filter_dropdowns(self):
-        mats = sorted(list(set(i.get("material", "") for i in self.inventory if i.get("material")))); cols = sorted(list(set(i.get("color", "") for i in self.inventory if i.get("color")))); locs = self.get_dynamic_locations()
-        self.combo_filter_mat['values'] = ["Alle Materialien"] + mats; self.combo_filter_color['values'] = ["Alle Farben"] + cols; self.combo_filter_loc['values'] = ["Alle Orte"] + locs
-    def reset_filters(self): self.filter_mat_var.set("Alle Materialien"); self.filter_color_var.set("Alle Farben"); self.filter_loc_var.set("Alle Orte"); self.search_var.set(""); self.refresh_table()
+        # Holt alle einzigartigen Materialien und Farben aus dem Inventar
+        mats = sorted(list(set(i.get("material", "") for i in self.inventory if i.get("material"))))
+        cols = sorted(list(set(i.get("color", "") for i in self.inventory if i.get("color"))))
+        locs = self.get_dynamic_locations()
+        
+        # Füllt die Dropdowns in der oberen Suchleiste
+        self.combo_filter_mat['values'] = ["Alle Materialien"] + mats
+        self.combo_filter_color['values'] = ["Alle Farben"] + cols
+        self.combo_filter_loc['values'] = ["Alle Orte"] + locs
+
+    def reset_filters(self): 
+        # Setzt alle Filter zurück auf Standard und leert die Suche
+        self.filter_mat_var.set("Alle Materialien")
+        self.filter_color_var.set("Alle Farben")
+        self.filter_loc_var.set("Alle Orte")
+        self.search_var.set("")
+        self.refresh_table()
+
     def refresh_table(self, *args):
         self.icon_cache = []
-        for row in self.tree.get_children(): self.tree.delete(row)
+        for row in self.tree.get_children(): 
+            self.tree.delete(row)
+            
+        # --- NEU: Sortiert die Liste vor JEDEM Zeichnen automatisch neu! ---
+        self._sort_inventory()
+        
         filters = {"material": self.filter_mat_var.get(), "color": self.filter_color_var.get(), "location": self.filter_loc_var.get()}
         for i in self.data_manager.get_filtered_inventory(self.inventory, self.search_var.get(), filters):
-            loc_s, stat = f"{i['type']} {i.get('loc_id', '')}".strip(), " | ".join(filter(None, ["VERBRAUCHT" if i['type'] == "VERBRAUCHT" else "", "KAUFEN" if i.get('reorder') else ""]))
-            icon = create_color_icon(get_colors_from_text(i['color'])); self.icon_cache.append(icon); net = calculate_net_weight(i.get('weight_gross', '0'), i.get('spool_id', -1), self.spools)
-            self.tree.insert("", "end", iid=str(i['id']), image=icon, values=(i['id'], i['brand'], i.get('material', '-'), i['color'], i.get('subtype', 'Standard'), f"{net}g", i.get('flow', 'Auto' if 'bambu' in i['brand'].lower() else '-'), loc_s, stat), tags=(["alert"] if i.get('reorder') else ["grayed"] if i['type'] == "VERBRAUCHT" else []))
-        self.tree.tag_configure("alert", background="#ffe6e6", foreground="#d9534f"); self.tree.tag_configure("grayed", foreground="#999999")
+            loc_s = f"{i['type']} {i.get('loc_id', '')}".strip()
+            stat = " | ".join(filter(None, ["VERBRAUCHT" if i['type'] == "VERBRAUCHT" else "", "KAUFEN" if i.get('reorder') else ""]))
+            
+            icon = create_color_icon(get_colors_from_text(i['color']))
+            self.icon_cache.append(icon)
+            
+            net = calculate_net_weight(i.get('weight_gross', '0'), i.get('spool_id', -1), self.spools)
+            flow_val = i.get('flow', 'Auto' if 'bambu' in i['brand'].lower() else '-')
+            
+            self.tree.insert("", "end", iid=str(i['id']), image=icon, values=(
+                i['id'], i['brand'], i.get('material', '-'), i['color'], i.get('subtype', 'Standard'), 
+                f"{net}g", flow_val, loc_s, stat
+            ), tags=(["alert"] if i.get('reorder') else ["grayed"] if i['type'] == "VERBRAUCHT" else []))
+            
+        self.tree.tag_configure("alert", background="#ffe6e6", foreground="#d9534f")
+        self.tree.tag_configure("grayed", foreground="#999999")
     def get_input_data(self):
         try:
             cap = int(self.var_capacity.get().strip() or 1000)
@@ -1531,62 +1791,69 @@ class FilamentApp:
         self.add_filament()
         messagebox.showinfo("Erfolg", "Spule erfolgreich geklont!")
 
-    def edit_shelf_names(self, parent_win=None):
+    def edit_shelf_names(self, parent_win=None, current_shelves=None, current_lbl_r=None, target_shelf_name=None):
+        if not target_shelf_name: return
+        
         target_win = parent_win if parent_win else self.root
-        # 1. Ein kleines Popup-Fenster erstellen
         win = tk.Toplevel(target_win)
-        win.title("🏷️ Regal-Fächer benennen")
-        win.geometry("350x400")
+        win.title(f"🏷️ Fächer benennen: {target_shelf_name}")
         win.transient(target_win)
         win.grab_set()
         
-        ttk.Label(win, text="Gib deinen Regalfächern eigene Namen!", font=FONT_BOLD).pack(pady=10)
+        ttk.Label(win, text=f"Eigene Namen für '{target_shelf_name}':", font=FONT_BOLD).pack(pady=10)
 
-        # FIX: Wir lesen die maximale Anzahl an Reihen aus dem Regal-String!
-        parsed_shelves = parse_shelves_string(self.settings.get("shelves", "REGAL|4|8"))
-        shelf_count = max([s['rows'] for s in parsed_shelves], default=5)
+        shelves_str = current_shelves if current_shelves else self.settings.get("shelves", "REGAL|4|8")
+        from core.logic import parse_shelves_string
+        parsed_shelves = parse_shelves_string(shelves_str)
         
-        old_names = self.settings.get("shelf_names", {})
-        lbl_r = self.settings.get('label_row', 'Fach')
+        # Holt exakt das Regal, das wir bearbeiten wollen
+        target_shelf = next((s for s in parsed_shelves if s['name'] == target_shelf_name), None)
+        if not target_shelf: return
+        shelf_count = target_shelf['rows']
+        
+        win_height = max(250, 120 + (shelf_count * 32))
+        win.geometry(f"350x{win_height}")
+        
+        # NEU: Ein verschachteltes Dictionary (V2), um Regale zu trennen!
+        all_shelf_names = self.settings.get("shelf_names_v2", {})
+        old_names = all_shelf_names.get(target_shelf_name, {})
+        
+        lbl_r = current_lbl_r if current_lbl_r else self.settings.get('label_row', 'Fach')
         
         entries = {}
-        
-        # 2. Für jedes Fach ein Eingabefeld generieren
         frame_list = ttk.Frame(win)
         frame_list.pack(fill="both", expand=True, padx=20, pady=5)
         
         for i in range(1, shelf_count + 1):
             frm = ttk.Frame(frame_list)
             frm.pack(fill="x", pady=3)
-            ttk.Label(frm, text=f"{lbl_r} {i}:", width=8).pack(side="left")
+            ttk.Label(frm, text=f"{lbl_r} {i}:", width=12).pack(side="left")
             ent = ttk.Entry(frm)
             ent.pack(side="right", fill="x", expand=True)
-            # Alten Namen oder Standard eintragen
             ent.insert(0, old_names.get(str(i), f"{lbl_r} {i}"))
             entries[str(i)] = ent
 
-        # 3. Die Speicher- & Migrations-Logik
         def save_names():
             new_names = {k: v.get().strip() for k, v in entries.items()}
             
-            # Inventory durchsuchen und alte Namen durch neue ersetzen!
             changes_made = 0
             for i in range(1, shelf_count + 1):
                 old_val = old_names.get(str(i), f"{lbl_r} {i}")
                 new_val = new_names.get(str(i), f"{lbl_r} {i}")
                 
-                if old_val != new_val: # Nur wenn sich der Name wirklich geändert hat
+                if old_val != new_val: 
                     lbl_c = self.settings.get('label_col', 'Slot')
                     search_str = f"{old_val} - {lbl_c} "
                     replace_str = f"{new_val} - {lbl_c} "
                     
                     for item in self.inventory:
-                        if item.get("loc_id", "").startswith(search_str):
-                            item["loc_id"] = item["loc_id"].replace(search_str, replace_str)
+                        # KUGELSICHER: Nur ändern, wenn die Spule auch in DIESEM Regal liegt!
+                        if item.get("type") == target_shelf_name and item.get("loc_id", "").startswith(search_str):
+                            item["loc_id"] = item["loc_id"].replace(search_str, replace_str, 1)
                             changes_made += 1
             
-            # Neue Namen speichern
-            self.settings["shelf_names"] = new_names
+            all_shelf_names[target_shelf_name] = new_names
+            self.settings["shelf_names_v2"] = all_shelf_names
             self.data_manager.save_settings(self.settings)
             
             if changes_made > 0:
@@ -1594,11 +1861,11 @@ class FilamentApp:
                 self.refresh_table()
                 
             self.update_slot_dropdown()
-            messagebox.showinfo("Gespeichert", f"Regal-Namen erfolgreich aktualisiert!\nEs wurden {changes_made} bestehende Spulen an die neuen Namen angepasst.")
+            messagebox.showinfo("Gespeichert", f"Namen für {target_shelf_name} aktualisiert!\n{changes_made} Spulen wurden automatisch angepasst.", parent=win)
             win.destroy()
 
         ttk.Button(win, text="💾 Speichern & Aktualisieren", command=save_names, style="Accent.TButton").pack(pady=15)
-
+    
     def send_to_storage(self):
         sel = self.tree.selection()
         if not sel:

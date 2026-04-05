@@ -2291,22 +2291,54 @@ class FilamentApp:
         try:
             import cv2 # type: ignore
             from pyzbar import pyzbar # type: ignore
-        except ImportError:
-            messagebox.showerror("Fehler", "Für den QR-Scan werden 'opencv-python' und 'pyzbar' benötigt.\nBitte installiere diese via pip:\npip install opencv-python pyzbar")
+        except Exception as e:
+            messagebox.showerror("Fehler", f"Scanner-Module konnten nicht geladen werden.\nDetails: {e}")
             return
-        cap = cv2.VideoCapture(0)
-        if not cap.isOpened(): messagebox.showerror("Fehler", "Kamera konnte nicht geöffnet werden."); return
-        win_name = "VibeSpool QR-Scanner (ESC zum Schließen)"; found_id = None
+            
+        # NEU: Nutze DirectShow (CAP_DSHOW) für Windows - das startet Kameras oft viel zuverlässiger!
+        cap = cv2.VideoCapture(0, cv2.CAP_DSHOW)
+        
+        if not cap.isOpened(): 
+            messagebox.showerror("Fehler", "Kamera (Index 0) konnte nicht geöffnet werden.\nHast du eine Webcam angeschlossen?")
+            return
+            
+        win_name = "VibeSpool QR-Scanner (ESC zum Schließen)"
+        found_id = None
+        
+        # NEU: Test-Bild abrufen, um zu prüfen ob Windows die Kamera blockiert
+        ret, frame = cap.read()
+        if not ret or frame is None:
+            messagebox.showerror("Kamera Fehler", "Die Kamera liefert kein Bild!\n\nBitte prüfe in Windows:\nEinstellungen -> Datenschutz & Sicherheit -> Kamera -> 'Desktop-Apps den Zugriff erlauben' muss EINGESCHALTET sein!")
+            cap.release()
+            return
+
         while True:
             ret, frame = cap.read()
             if not ret: break
-            for barcode in pyzbar.decode(frame):
-                barcode_data = barcode.data.decode("utf-8"); match = re.search(r'(?:ID:\s*|FIL_)?(\d+)', barcode_data, re.IGNORECASE)
-                if match: found_id = match.group(1); break
+            
+            try:
+                for barcode in pyzbar.decode(frame):
+                    barcode_data = barcode.data.decode("utf-8")
+                    match = re.search(r'(?:ID:\s*|FIL_)?(\d+)', barcode_data, re.IGNORECASE)
+                    if match: 
+                        found_id = match.group(1)
+                        break
+            except Exception as e:
+                messagebox.showerror("DLL Fehler", f"Absturz beim Dekodieren. Fehlen DLLs?\n{e}")
+                break
+                
             cv2.imshow(win_name, frame)
-            if found_id or cv2.waitKey(1) & 0xFF == 27: break
-        cap.release(); cv2.destroyAllWindows()
-        if found_id: self.entry_scan.delete(0, tk.END); self.entry_scan.insert(0, found_id); self.on_quick_scan()
+            
+            if found_id or cv2.waitKey(1) & 0xFF == 27: 
+                break
+                
+        cap.release()
+        cv2.destroyAllWindows()
+        
+        if found_id: 
+            self.entry_scan.delete(0, tk.END)
+            self.entry_scan.insert(0, found_id)
+            self.on_quick_scan()
 
     def refresh_all_data(self): 
         self.inventory, self.settings, self.spools = self.data_manager.load_all(DEFAULT_SETTINGS) # type: ignore

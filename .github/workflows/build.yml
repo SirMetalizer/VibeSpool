@@ -39,13 +39,12 @@ jobs:
     - name: EXE bauen (Windows)
       if: matrix.os == 'windows-latest'
       # --hidden-import zwingt den Compiler, die Kamera-Bibliotheken nicht zu vergessen
-      run: pyinstaller --noconsole --windowed --onefile --hidden-import cv2 --hidden-import pyzbar --name "VibeSpool_Win" filament_gui.py
+      run: pyinstaller --noconsole --windowed --onefile --hidden-import cv2 --collect-all pyzbar --name "VibeSpool_Win" filament_gui.py
 
     - name: APP bauen und zippen (Mac)
       if: matrix.os == 'macos-latest'
       run: |
-        # Auch hier die --hidden-import Befehle hinzugefügt
-        pyinstaller --noconsole --windowed --hidden-import cv2 --hidden-import pyzbar --name "VibeSpool_Mac" filament_gui.py
+        pyinstaller --noconsole --windowed --hidden-import cv2 --collect-all pyzbar --name "VibeSpool_Mac" filament_gui.py
         cd dist
         zip -r VibeSpool_Mac.zip VibeSpool_Mac.app
 

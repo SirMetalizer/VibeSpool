@@ -50,3 +50,16 @@ Du kannst den Code einfach mit einem Barcode-Scanner (oder der Webcam über den 
 ### 🛡️ Windows Defender schlägt Alarm und blockiert den Download. Ist VibeSpool ein Virus?
 **Nein, VibeSpool ist zu 100 % sicher und quelloffen.** Da VibeSpool in Python programmiert ist und für Windows in eine kompakte `.exe`-Datei verpackt wird (mit *PyInstaller*), entpackt sich das Programm beim Start kurzzeitig im Hintergrund. Windows Defender und andere KI-basierte Scanner stufen dieses Verhalten oft fälschlicherweise als verdächtig ein (ein sogenannter *False Positive*). 
 Du kannst in den Windows Defender Details auf "Trotzdem ausführen" klicken. Der gesamte Quellcode ist hier auf GitHub öffentlich einsehbar – es gibt keine versteckten Funktionen!
+
+### 🖨️ Wie drucke ich Etiketten für meine Spulen?
+VibeSpool hat einen integrierten "Label Creator"!
+* Klicke im Menü auf der linken Seite auf das **🏷️ Label** Icon.
+* Wähle die gewünschte Spule aus der Liste aus.
+* Das Programm generiert sofort ein fertiges Etikett mit QR-Code (VibeSpool ID), Material, Farbe und Drucktemperaturen.
+* Klicke auf "Als PNG speichern". Du kannst dieses Bild dann mit jedem Standard-Drucker oder Etikettendrucker (z.B. Brother, Dymo) ausdrucken und auf deine Spule kleben!
+
+### 📦 Mein Regal ist sehr tief (2 Spulen stehen hintereinander). Geht das?
+Ja, VibeSpool unterstützt sogenannte "Doppeltiefe Regale"!
+* Gehe in die **⚙ Optionen**.
+* Setze im Reiter **📦 Lager** ganz unten den Haken bei "Doppeltiefe Regale (2 Rollen pro Slot)" und speichere.
+* VibeSpool teilt ab sofort jeden Slot in "Vorne (V)" und "Hinten (H)" auf. In der grafischen Regalansicht werden diese übersichtlich übereinander gestapelt dargestellt. Deine bereits vorhandenen Spulen werden dabei automatisch sicher nach vorne geschoben.

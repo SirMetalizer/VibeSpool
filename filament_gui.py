@@ -4,7 +4,10 @@ import os
 import json
 import zipfile
 import webbrowser 
-import urllib.request 
+import urllib.request
+import http.server
+import socketserver
+import socket 
 import threading      
 import re            
 import csv
@@ -25,9 +28,299 @@ def fetch_last_print_usage(url, key):
 def fetch_recent_jobs(url, key): 
     return []
 
+# --- MOBILE COMPANION (WEBSERVER) ---
+def get_local_ip():
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(('10.255.255.255', 1))
+        IP = s.getsockname()[0]
+        s.close()
+        return IP
+    except: return '127.0.0.1'
+
+MOBILE_HTML = """
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>VibeSpool Scanner</title>
+    <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
+    <style>
+        body { background-color: #2b2b2b; color: white; font-family: 'Segoe UI', sans-serif; text-align: center; margin: 0; padding: 20px; }
+        h1 { font-size: 24px; margin-bottom: 20px; color: #0078d7; }
+        .btn-scan { display: inline-block; background-color: #0078d7; color: white; font-size: 20px; font-weight: bold; padding: 15px 30px; border-radius: 12px; cursor: pointer; box-shadow: 0 4px 6px rgba(0,0,0,0.3); }
+        .btn-scan:active { background-color: #005a9e; }
+        input[type="file"] { display: none; }
+        #status { margin-top: 20px; padding: 15px; border-radius: 8px; background: #3c3f41; font-weight: bold; }
+        .success { background: #28a745 !important; } .error { background: #d9534f !important; }
+        
+        /* Das neue Dashboard */
+        #dashboard { display: none; margin-top: 20px; background: #3c3f41; padding: 15px; border-radius: 10px; text-align: left;}
+        #dash-title { color: #0078d7; font-size: 18px; margin-top: 0; margin-bottom: 5px; font-weight: bold;}
+        #dash-net { font-size: 14px; color: #bbb; margin-bottom: 15px; }
+        .control-group { margin-bottom: 15px; display: flex; gap: 10px; }
+        .control-group input, .control-group select { flex-grow: 1; padding: 12px; font-size: 16px; border-radius: 5px; border: 1px solid #555; background: #2b2b2b; color: white; }
+        .btn-action { padding: 12px 15px; font-size: 16px; font-weight: bold; border: none; border-radius: 5px; color: white; cursor: pointer; }
+        .btn-red { background: #d9534f; } .btn-green { background: #28a745; }
+        #btn-reset { width: 100%; padding: 15px; background: #555; color: white; font-size: 18px; font-weight: bold; border: none; border-radius: 8px; margin-top: 10px; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <h1 id="main-title">📱 VibeSpool Scanner</h1>
+    
+    <label class="btn-scan" id="scan-trigger">
+        📷 Etikett scannen
+        <input type="file" id="qr-input-file" accept="image/*" capture="environment">
+    </label>
+    
+    <div id="status">Tippe auf den Button und mach ein Foto!</div>
+
+    <div id="dashboard">
+        <h3 id="dash-title">Spule</h3>
+        <div id="dash-net">Rest: 0g</div>
+        <input type="hidden" id="current-id">
+
+        <div class="control-group">
+            <input type="number" id="val-usage" placeholder="Verbrauch (z.B. 140)">
+            <button class="btn-action btn-red" onclick="sendAction('usage')">Abziehen</button>
+        </div>
+
+        <div class="control-group">
+            <select id="val-loc"></select>
+            <button class="btn-action btn-green" onclick="sendAction('move')">Umbuchen</button>
+        </div>
+
+        <button id="btn-reset" onclick="resetUI()">Fertig / Nächste Spule</button>
+    </div>
+
+    <script>
+        const fileInput = document.getElementById('qr-input-file');
+        const statusDiv = document.getElementById("status");
+
+        function resetUI() {
+            document.getElementById('dashboard').style.display = 'none';
+            document.getElementById('scan-trigger').style.display = 'inline-block';
+            document.getElementById('main-title').style.display = 'block';
+            statusDiv.innerText = "Bereit. Mach ein neues Foto!";
+            statusDiv.className = "";
+        }
+
+        function sendAction(actionType) {
+            let id = document.getElementById('current-id').value;
+            let val = "";
+            
+            if (actionType === 'usage') {
+                val = document.getElementById('val-usage').value;
+                if (!val) return alert("Bitte Gewicht eingeben!");
+            } else if (actionType === 'move') {
+                val = document.getElementById('val-loc').value;
+                if (!val) return;
+            }
+
+            fetch(`/action?id=${id}&action=${actionType}&val=${encodeURIComponent(val)}`)
+                .then(res => res.json())
+                .then(data => {
+                    if (data.status === 'ok') {
+                        alert("✅ Erfolgreich gespeichert!");
+                        if (actionType === 'usage') document.getElementById('val-usage').value = '';
+                    } else {
+                        // Zeigt die Warnung an, falls der Platz belegt ist!
+                        alert("⚠️ Aktion abgelehnt:\\n" + data.msg);
+                    }
+                });
+        }
+
+        fileInput.addEventListener('change', e => {
+            if (e.target.files.length == 0) return;
+            const file = e.target.files[0];
+            statusDiv.innerText = "Analysiere..."; statusDiv.className = "";
+
+            const reader = new FileReader();
+            reader.onload = function(event) {
+                const img = new Image();
+                img.onload = function() {
+                    const canvas = document.createElement('canvas');
+                    let w = img.width, h = img.height;
+                    if (w > h && w > 800) { h *= 800/w; w = 800; } 
+                    else if (h > 800) { w *= 800/h; h = 800; }
+                    canvas.width = w; canvas.height = h;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0, w, h);
+                    const imageData = ctx.getImageData(0, 0, w, h);
+
+                    const code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: "dontInvert" });
+
+                    if (code) {
+                        statusDiv.innerText = "Gefunden! Lade Daten...";
+                        statusDiv.className = "success";
+                        
+                        // NEU: Daten vom PC abrufen und Dashboard aufbauen!
+                        fetch('/scan?code=' + encodeURIComponent(code.data))
+                            .then(response => response.json())
+                            .then(data => {
+                                if (data.status === 'ok') {
+                                    document.getElementById('scan-trigger').style.display = 'none';
+                                    document.getElementById('main-title').style.display = 'none';
+                                    statusDiv.style.display = 'none';
+                                    
+                                    document.getElementById('dashboard').style.display = 'block';
+                                    document.getElementById('dash-title').innerText = data.name;
+                                    document.getElementById('dash-net').innerText = "Aktueller Rest: " + data.net + " g";
+                                    document.getElementById('current-id').value = data.id;
+                                    
+                                    let select = document.getElementById('val-loc');
+                                    select.innerHTML = '<option value="">-- Neuen Ort wählen --</option>';
+                                    data.locs.forEach(l => {
+                                        select.innerHTML += `<option value="${l.val}">${l.label}</option>`;
+                                    });
+                                } else {
+                                    statusDiv.innerText = "Fehler: " + data.msg;
+                                    statusDiv.className = "error";
+                                }
+                            });
+                    } else {
+                        statusDiv.innerText = "Kein QR-Code erkannt. Bitte nochmal versuchen!";
+                        statusDiv.className = "error";
+                    }
+                };
+                img.src = event.target.result;
+            };
+            reader.readAsDataURL(file);
+            fileInput.value = '';
+        });
+    </script>
+</body>
+</html>
+"""
+
+class MobileScannerHandler(http.server.SimpleHTTPRequestHandler):
+    def do_GET(self):
+        from urllib.parse import urlparse, parse_qs
+        import json
+        parsed_path = urlparse(self.path)
+        
+        if parsed_path.path == '/':
+            self.send_response(200)
+            self.send_header('Content-type', 'text/html; charset=utf-8')
+            self.end_headers()
+            self.wfile.write(MOBILE_HTML.encode('utf-8'))
+            
+        elif parsed_path.path == '/scan':
+            query = parse_qs(parsed_path.query)
+            code = query.get('code', [''])[0]
+            app_inst = getattr(self.server, 'app_instance', None)
+            
+            response_data = {"status": "error", "msg": "Spule nicht in der Datenbank."}
+            
+            if code and app_inst:
+                import re
+                match = re.search(r'(?:ID:\s*|FIL_)?(\d+)', code, re.IGNORECASE)
+                spool_id = int(match.group(1)) if match else None
+                
+                if spool_id:
+                    item = next((i for i in app_inst.inventory if i.get('id') == spool_id), None)
+                    if item:
+                        # 1. Desktop UI umschalten (läuft weiterhin im Hintergrund)
+                        app_inst.root.after(0, lambda: app_inst.process_mobile_scan(code))
+                        
+                        # 2. Orte für das Dropdown am Handy sammeln
+                        locs = [
+                            {"label": "📦 Ins LAGER", "val": "LAGER|-"}, 
+                            {"label": "🗑️ Als LEER markieren", "val": "VERBRAUCHT|-"}
+                        ]
+                        
+                        # Regale und Fächer parsen (aus core.logic)
+                        from core.logic import parse_shelves_string, calculate_net_weight
+                        parsed_shelves = parse_shelves_string(app_inst.settings.get("shelves", "REGAL|4|8"))
+                        lbl_r = app_inst.settings.get("label_row", "Fach")
+                        lbl_c = app_inst.settings.get("label_col", "Slot")
+                        all_names = app_inst.settings.get("shelf_names_v2", {})
+                        is_double = app_inst.settings.get("double_depth", False)
+                        
+                        for sh in parsed_shelves:
+                            name = sh['name']
+                            s_names = all_names.get(name, {})
+                            for r in range(1, sh['rows'] + 1):
+                                row_n = s_names.get(str(r), f"{lbl_r} {r}")
+                                for c in range(1, sh['cols'] + 1):
+                                    if is_double:
+                                        locs.append({"label": f"{name} {row_n} - {lbl_c} {c} (V)", "val": f"{name}|{row_n} - {lbl_c} {c} (V)"})
+                                        locs.append({"label": f"{name} {row_n} - {lbl_c} {c} (H)", "val": f"{name}|{row_n} - {lbl_c} {c} (H)"})
+                                    else:
+                                        locs.append({"label": f"{name} {row_n} - {lbl_c} {c}", "val": f"{name}|{row_n} - {lbl_c} {c}"})
+                                        
+                        for a in range(1, app_inst.settings.get("num_ams", 1) + 1):
+                            for s in range(1, 5):
+                                locs.append({"label": f"AMS {a} Slot {s}", "val": f"AMS {a}|{s}"})
+                                
+                        net_w = calculate_net_weight(item.get('weight_gross', '0'), item.get('spool_id', -1), app_inst.spools)
+                        
+                        response_data = {
+                            "status": "ok",
+                            "id": spool_id,
+                            "name": f"{item.get('brand','')} {item.get('material','')} {item.get('color','')}",
+                            "net": int(net_w),
+                            "locs": locs
+                        }
+
+            self.send_response(200)
+            self.send_header('Content-type', 'application/json; charset=utf-8')
+            self.send_header('Access-Control-Allow-Origin', '*')
+            self.end_headers()
+            self.wfile.write(json.dumps(response_data).encode('utf-8'))
+            
+        elif parsed_path.path == '/action':
+            # Verarbeitet die Klicks ("Abziehen" / "Umbuchen") vom Handy
+            query = parse_qs(parsed_path.query)
+            spool_id = query.get('id', [''])[0]
+            action = query.get('action', [''])[0]
+            val = query.get('val', [''])[0]
+            
+            app_inst = getattr(self.server, 'app_instance', None)
+            response_data = {"status": "error", "msg": "Unbekannter Fehler"}
+            
+            if app_inst and spool_id and action:
+                spool_id_int = int(spool_id)
+                
+                # KOLLISIONSPRÜFUNG: Wenn wir umbuchen, schauen wir erst, ob der Platz frei ist!
+                if action == "move" and "|" in val:
+                    target_type, target_loc = val.split("|", 1)
+                    col = app_inst.check_location_collision(target_type, target_loc, ignore_id=spool_id_int)
+                    
+                    if col:
+                        # Platz ist belegt! Wir blockieren die Aktion und schicken eine Warnung ans Handy
+                        response_data = {
+                            "status": "error", 
+                            "msg": f"Der Platz ist bereits belegt durch:\n#{col['id']} {col.get('brand','')} {col.get('color','')}"
+                        }
+                    else:
+                        app_inst.root.after(0, lambda: app_inst.process_mobile_action(spool_id_int, action, val))
+                        response_data = {"status": "ok"}
+                else:
+                    # Normaler Verbrauch (usage)
+                    app_inst.root.after(0, lambda: app_inst.process_mobile_action(spool_id_int, action, val))
+                    response_data = {"status": "ok"}
+                    
+            self.send_response(200)
+            self.send_header('Content-type', 'application/json; charset=utf-8')
+            self.send_header('Access-Control-Allow-Origin', '*')
+            self.end_headers()
+            self.wfile.write(json.dumps(response_data).encode('utf-8'))
+
+def start_mobile_server(app_inst):
+    port = 8282
+    handler = MobileScannerHandler
+    try:
+        httpd = socketserver.TCPServer(("", port), handler)
+        setattr(httpd, 'app_instance', app_inst) # Pylance-Safe Zuweisung
+        threading.Thread(target=httpd.serve_forever, daemon=True).start()
+    except Exception as e:
+        print(f"Webserver konnte nicht starten: {e}")
+
 
 # --- KONFIGURATION ---
-APP_VERSION = "1.9.6"
+APP_VERSION = "1.9.7"
 GITHUB_REPO = "SirMetalizer/VibeSpool" 
 
 # --- DEFAULTS ---
@@ -49,9 +342,15 @@ DEFAULT_SETTINGS = {
     "bambu_ip": "",
     "bambu_access": "",
     "bambu_serial": "",
+    "mqtt_enable": False,
+    "mqtt_host": "",
+    "mqtt_port": "1883",
+    "mqtt_user": "",
+    "mqtt_pass": "",
     "materials": ["PLA", "PLA+", "PETG", "ABS", "ASA", "TPU", "PC", "PA-CF", "PVA", "Sonstiges"],
     "subtypes": ["Standard", "Matte", "Silk", "High Speed", "Dual Color", "Tri Color", "Glow in Dark", "Transparent", "Translucent", "Marmor", "Holz", "Glitzer/Sparkle"],
-    "colors": ["Black", "White", "Grey", "Silver", "Ash Gray", "Red", "Maroon Red", "Blue", "Light Blue", "Navy", "Green", "Dark Green", "Mint", "Olive", "Yellow", "Orange", "Terracotta", "Purple", "Plum", "Lavender", "Pink", "Magenta", "Brown", "Beige", "Turquoise", "Cyan", "Gold", "Copper", "Bronze", "Rainbow", "Marble", "Wood"]
+    "colors": ["Black", "White", "Grey", "Silver", "Ash Gray", "Red", "Maroon Red", "Blue", "Light Blue", "Navy", "Green", "Dark Green", "Mint", "Olive", "Yellow", "Orange", "Terracotta", "Purple", "Plum", "Lavender", "Pink", "Magenta", "Brown", "Beige", "Turquoise", "Cyan", "Gold", "Copper", "Bronze", "Rainbow", "Marble", "Wood"],
+    "brands": ["Bambu", "eSun", "Geeetech", "Sunlu", "Polymaker", "Prusa", "Eryone"]
 }
 
 MATERIALS = ["PLA", "PLA+", "PETG", "ABS", "ASA", "TPU", "PC", "PA-CF", "PVA", "Sonstiges"]
@@ -329,7 +628,7 @@ class SettingsDialog(tk.Toplevel):
         super().__init__(parent)
         self.data_manager = data_manager; self.on_save = on_save; self.app = app_instance
         _, self.settings, _ = self.data_manager.load_all(DEFAULT_SETTINGS)
-        self.title("VibeSpool Einstellungen"); self.geometry("750x500"); self.configure(bg=parent.cget('bg')); center_window(self, parent)
+        self.title("VibeSpool Einstellungen"); self.geometry("950x500"); self.configure(bg=parent.cget('bg')); center_window(self, parent)
         self.transient(parent); self.grab_set()
         
         # FOOTER
@@ -380,23 +679,19 @@ class SettingsDialog(tk.Toplevel):
         self.ent_custom.insert(0, self.settings.get("custom_locs", "Filamenttrockner"))
         self.ent_custom.pack(fill="x", pady=2)
         self.var_double = tk.BooleanVar(value=self.settings.get("double_depth", False))
-        ttk.Checkbutton(tab_lager, text="Doppeltiefe Regale (2 Rollen pro Slot)", variable=self.var_double).pack(anchor="w", pady=(10, 0))
-
-
-        # TAB 2: HARDWARE
-        tab_hw = ttk.Frame(self.nb, padding=15); self.nb.add(tab_hw, text="🔌 Hardware")
-        self.var_logistics = tk.BooleanVar(value=self.settings.get("logistics_order", False))
-        ttk.Checkbutton(tab_hw, text="Logistik-Modus (unten = Reihe 1)", variable=self.var_logistics).pack(anchor="w", pady=5)
+        ttk.Checkbutton(tab_lager, text="Doppeltiefe Regale (2 Rollen pro Slot)", variable=self.var_double).pack(anchor="w", pady=(10, 5))
         
-        f_names = ttk.Frame(tab_hw); f_names.pack(fill="x", pady=5)
+        ttk.Separator(tab_lager, orient="horizontal").pack(fill="x", pady=10)
+        self.var_logistics = tk.BooleanVar(value=self.settings.get("logistics_order", False))
+        ttk.Checkbutton(tab_lager, text="Logistik-Modus (unten = Reihe 1)", variable=self.var_logistics).pack(anchor="w", pady=5)
+        
+        f_names = ttk.Frame(tab_lager); f_names.pack(fill="x", pady=5)
         ttk.Label(f_names, text="Reihen-Name:").grid(row=0, column=0, sticky="w")
         self.ent_row = ttk.Entry(f_names, width=15); self.ent_row.insert(0, self.settings.get("label_row", "Fach")); self.ent_row.grid(row=0, column=1, sticky="w", pady=2, padx=5)
         ttk.Label(f_names, text="Spalten-Name:").grid(row=1, column=0, sticky="w")
         self.ent_col = ttk.Entry(f_names, width=15); self.ent_col.insert(0, self.settings.get("label_col", "Slot")); self.ent_col.grid(row=1, column=1, sticky="w", pady=2, padx=5)
         
-        ttk.Label(tab_hw, text="Anzahl AMS Einheiten:").pack(anchor="w", pady=(10,0))
-        self.ent_ams = ttk.Entry(tab_hw, width=10); self.ent_ams.insert(0, str(self.settings.get("num_ams", 1))); self.ent_ams.pack(anchor="w", pady=2)
-        # (Zusatz-Orte wurden hier restlos entfernt)
+        ttk.Checkbutton(tab_lager, text="Doppeltiefe Regale (2 Rollen pro Slot)", variable=self.var_double).pack(anchor="w", pady=(10, 0))
 
         # TAB 3: DRUCKER
         tab_prn = ttk.Frame(self.nb, padding=15); self.nb.add(tab_prn, text="🤖 Drucker")
@@ -408,6 +703,13 @@ class SettingsDialog(tk.Toplevel):
         self.ent_prn_url = ttk.Entry(tab_prn); self.ent_prn_url.insert(0, self.settings.get("printer_url", "")); self.ent_prn_url.pack(fill="x", pady=2)
         
         ttk.Separator(tab_prn, orient="horizontal").pack(fill="x", pady=15)
+        
+        # NEU: Bambu Lab Bereich
+        ttk.Separator(tab_prn, orient="horizontal").pack(fill="x", pady=15)
+        
+        # NEU: AMS Anzahl im Drucker-Tab
+        ttk.Label(tab_prn, text="Anzahl AMS Einheiten:", font=FONT_BOLD).pack(anchor="w")
+        self.ent_ams = ttk.Entry(tab_prn, width=10); self.ent_ams.insert(0, str(self.settings.get("num_ams", 1))); self.ent_ams.pack(anchor="w", pady=(2, 10))
         
         # NEU: Bambu Lab Bereich
         ttk.Label(tab_prn, text="Bambu Lab AMS (via MQTT)", font=FONT_BOLD).pack(anchor="w")
@@ -455,6 +757,35 @@ class SettingsDialog(tk.Toplevel):
             
         ttk.Button(p_btn_frm, text="Ordner ändern", command=change_path).pack(side="left", padx=2)
         ttk.Button(p_btn_frm, text="Standard", command=set_standard).pack(side="left")
+
+        ttk.Separator(tab_sys, orient="horizontal").pack(fill="x", pady=10)
+        
+        # --- NEU: HOME ASSISTANT / MQTT ---
+        ttk.Label(tab_sys, text="🏡 Smart Home / Home Assistant", font=FONT_BOLD).pack(anchor="w")
+        self.var_mqtt = tk.BooleanVar(value=self.settings.get("mqtt_enable", False))
+        
+        frm_mqtt = ttk.Frame(tab_sys, padding=10)
+        
+        def toggle_mqtt():
+            if self.var_mqtt.get(): frm_mqtt.pack(fill="x", pady=5)
+            else: frm_mqtt.pack_forget()
+            
+        ttk.Checkbutton(tab_sys, text="MQTT Broadcasting aktivieren", variable=self.var_mqtt, command=toggle_mqtt).pack(anchor="w", pady=2)
+        
+        ttk.Label(frm_mqtt, text="Broker IP / Host:").grid(row=0, column=0, sticky="w", pady=2)
+        self.ent_mqtt_host = ttk.Entry(frm_mqtt, width=25); self.ent_mqtt_host.insert(0, self.settings.get("mqtt_host", "")); self.ent_mqtt_host.grid(row=0, column=1, sticky="w", padx=5)
+        
+        ttk.Label(frm_mqtt, text="Port:").grid(row=1, column=0, sticky="w", pady=2)
+        self.ent_mqtt_port = ttk.Entry(frm_mqtt, width=10); self.ent_mqtt_port.insert(0, self.settings.get("mqtt_port", "1883")); self.ent_mqtt_port.grid(row=1, column=1, sticky="w", padx=5)
+        
+        ttk.Label(frm_mqtt, text="Benutzer:").grid(row=2, column=0, sticky="w", pady=2)
+        self.ent_mqtt_user = ttk.Entry(frm_mqtt, width=25); self.ent_mqtt_user.insert(0, self.settings.get("mqtt_user", "")); self.ent_mqtt_user.grid(row=2, column=1, sticky="w", padx=5)
+        
+        ttk.Label(frm_mqtt, text="Passwort:").grid(row=3, column=0, sticky="w", pady=2)
+        self.ent_mqtt_pass = ttk.Entry(frm_mqtt, width=25, show="*"); self.ent_mqtt_pass.insert(0, self.settings.get("mqtt_pass", "")); self.ent_mqtt_pass.grid(row=3, column=1, sticky="w", padx=5)
+        
+        # Initialer Zustand der Checkbox
+        if self.var_mqtt.get(): frm_mqtt.pack(fill="x", pady=5)
 
         # TAB 5: LISTEN (Materialien & Farben)
         tab_lists = ttk.Frame(self.nb, padding=15); self.nb.add(tab_lists, text="📋 Listen")
@@ -520,6 +851,7 @@ class SettingsDialog(tk.Toplevel):
         create_list_manager(list_container, "Materialien", "materials", DEFAULT_SETTINGS["materials"])
         create_list_manager(list_container, "Farben", "colors", DEFAULT_SETTINGS["colors"])
         create_list_manager(list_container, "Effekt / Typ", "subtypes", DEFAULT_SETTINGS["subtypes"])
+        create_list_manager(list_container, "Hersteller", "brands", DEFAULT_SETTINGS["brands"])
         self.nb.select(start_tab)
 
     def refresh_settings_shelf_list(self):
@@ -630,9 +962,15 @@ class SettingsDialog(tk.Toplevel):
                 "bambu_ip": self.ent_bambu_ip.get().strip(),
                 "bambu_access": self.ent_bambu_acc.get().strip(),
                 "bambu_serial": self.ent_bambu_ser.get().strip(),
+                "mqtt_enable": self.var_mqtt.get(),
+                "mqtt_host": self.ent_mqtt_host.get().strip(),
+                "mqtt_port": self.ent_mqtt_port.get().strip(),
+                "mqtt_user": self.ent_mqtt_user.get().strip(),
+                "mqtt_pass": self.ent_mqtt_pass.get().strip(),
                 "materials": self.list_vars["materials"],
                 "colors": self.list_vars["colors"],
-                "subtypes": self.list_vars["subtypes"]
+                "subtypes": self.list_vars["subtypes"],
+                "brands": self.list_vars["brands"]
             })
             
             self.on_save(self.settings)
@@ -1131,7 +1469,8 @@ class LabelCreatorDialog(tk.Toplevel):
         btn_frm = ttk.Frame(frm_right)
         btn_frm.pack(fill="x", side="bottom", pady=10)
         
-        ttk.Button(btn_frm, text="💾 Als PNG speichern", command=self.save_label, style="Accent.TButton").pack(side="right")
+        ttk.Button(btn_frm, text="💾 Aktuelles Label als PNG", command=self.save_label).pack(side="right", padx=(5, 0))
+        ttk.Button(btn_frm, text="📑 ALLE als PDF exportieren", command=self.trigger_pdf_export, style="Accent.TButton").pack(side="right")
         
         self.current_img = None
         self.current_item = None
@@ -1211,6 +1550,9 @@ class LabelCreatorDialog(tk.Toplevel):
         if fp:
             self.current_img.save(fp)
             messagebox.showinfo("Gespeichert", f"Das Etikett wurde erfolgreich gespeichert!\nDu kannst es nun ausdrucken.")
+    def trigger_pdf_export(self):
+        # Ruft den neuen Smart Export Dialog auf
+        PdfExportDialog(self, self.inventory, getattr(self, 'spools', []))
 
 
 class FilamentApp:
@@ -1253,17 +1595,19 @@ class FilamentApp:
         self.combo_filter_mat = ttk.Combobox(top_bar, textvariable=self.filter_mat_var, state="readonly", width=15); self.combo_filter_mat.pack(side="left", padx=5); self.combo_filter_mat.bind("<<ComboboxSelected>>", lambda e: self.refresh_table())
         self.combo_filter_color = ttk.Combobox(top_bar, textvariable=self.filter_color_var, state="readonly", width=15); self.combo_filter_color.pack(side="left", padx=5); self.combo_filter_color.bind("<<ComboboxSelected>>", lambda e: self.refresh_table())
         self.combo_filter_loc = ttk.Combobox(top_bar, textvariable=self.filter_loc_var, state="readonly", width=15); self.combo_filter_loc.pack(side="left", padx=5); self.combo_filter_loc.bind("<<ComboboxSelected>>", lambda e: self.refresh_table())
+        self.filter_brand_var = tk.StringVar(value="Alle Hersteller")
+        self.combo_filter_brand = ttk.Combobox(top_bar, textvariable=self.filter_brand_var, state="readonly", width=15); self.combo_filter_brand.pack(side="left", padx=5); self.combo_filter_brand.bind("<<ComboboxSelected>>", lambda e: self.refresh_table())
         ttk.Button(top_bar, text="🔄 Reset", command=self.reset_filters).pack(side="left", padx=5); ttk.Label(top_bar, text=" Quick-ID:").pack(side="left", padx=(10,0)); self.entry_scan = ttk.Entry(top_bar, width=8); self.entry_scan.pack(side="left", padx=5); self.entry_scan.bind("<Return>", self.on_quick_scan)
         ttk.Button(top_bar, text="📷", width=3, command=self.scan_qr_webcam).pack(side="left")
+        ttk.Button(top_bar, text="📱 Handy", command=self.open_mobile_companion).pack(side="left", padx=5)
         self.btn_opts = ttk.Menubutton(top_bar, text="⚙ Optionen")
         self.menu_opts = tk.Menu(self.btn_opts, tearoff=0)
         self.menu_opts.add_command(label="⚙ Alle Einstellungen öffnen", command=self.open_settings)
         self.menu_opts.add_separator()
         self.menu_opts.add_command(label="📦 Lager-Layout planen", command=lambda: self.open_settings(0))
-        self.menu_opts.add_command(label="🔌 Hardware & AMS", command=lambda: self.open_settings(1))
-        self.menu_opts.add_command(label="🤖 Drucker-Anbindung", command=lambda: self.open_settings(2))
-        self.menu_opts.add_command(label="⚙ System-Optionen", command=lambda: self.open_settings(3))
-        self.menu_opts.add_command(label="📋 Listen-Verwaltung", command=lambda: self.open_settings(4))
+        self.menu_opts.add_command(label="🤖 Drucker & AMS", command=lambda: self.open_settings(1))
+        self.menu_opts.add_command(label="⚙ System-Optionen & Smart Home", command=lambda: self.open_settings(2))
+        self.menu_opts.add_command(label="📋 Listen-Verwaltung", command=lambda: self.open_settings(3))
         self.menu_opts.add_separator()
         self.menu_opts.add_command(label="🔄 Update-Check", command=self.manual_update_check)
         self.btn_opts["menu"] = self.menu_opts
@@ -1353,8 +1697,10 @@ class FilamentApp:
 
         # --- Marke ---
         ttk.Label(tab_basis, text="Marke:").pack(anchor="w", pady=(10,0))
-        self.entry_brand = ttk.Entry(tab_basis, font=FONT_MAIN)
+        self.entry_brand = ttk.Combobox(tab_basis, values=sorted(self.settings.get("brands", []), key=str.lower), font=FONT_MAIN)
         self.entry_brand.pack(fill="x", pady=2)
+        self.entry_brand.bind("<<ComboboxSelected>>", self.auto_match_spool)
+        self.entry_brand.bind("<FocusOut>", self.auto_match_spool)
 
         # --- NEU: Material & Effekt in EINER Zeile ---
         mat_eff_frame = ttk.Frame(tab_basis)
@@ -1465,7 +1811,14 @@ class FilamentApp:
 
         # --- Trennlinie & Spule ---
         ttk.Separator(tab_basis, orient="horizontal").pack(fill="x", pady=5)
-        ttk.Label(tab_basis, text="Spule / Leergewicht:").pack(anchor="w", pady=(5,0))
+        
+        frm_spool_header = ttk.Frame(tab_basis)
+        frm_spool_header.pack(fill="x", pady=(5,0))
+        ttk.Label(frm_spool_header, text="Spule / Leergewicht:").pack(side="left")
+        
+        self.var_is_refill = tk.BooleanVar(value=False)
+        ttk.Checkbutton(frm_spool_header, text="🔄 Refill", variable=self.var_is_refill).pack(side="right")
+
         self.combo_spool = ttk.Combobox(tab_basis, state="readonly", font=FONT_MAIN)
         self.combo_spool.pack(fill="x", pady=2)
         
@@ -1626,11 +1979,34 @@ class FilamentApp:
                 self.root.after(0, lambda: self.show_update_prompt(latest, url))
         threading.Thread(target=run_update_check, daemon=True).start()
         self.apply_theme()
+        
+        start_mobile_server(self)
+        self.broadcast_mqtt()
 
     def update_color_preview(self, event=None):
         cols = get_colors_from_text(self.combo_color.get())
         img = create_color_icon(cols, (30, 20), "#888888")
         self.lbl_color_preview.config(image=img); setattr(self.lbl_color_preview, 'image', img) # type: ignore
+
+    def auto_match_spool(self, event=None):
+        # Wenn es ein Refill ist, schalten wir die Automatik ab!
+        if getattr(self, 'var_is_refill', None) and self.var_is_refill.get(): 
+            return
+            
+        brand = self.entry_brand.get().strip().lower()
+        if not brand: return
+        
+        # Suche nach einer Spule, die ähnlich heißt wie die Marke
+        for val in self.combo_spool['values']:
+            if val == "-": continue
+            spool_name = val.split(" - ", 1)[1].lower()
+            
+            # Treffer! (z.B. "Bambu" steckt in "Bambu Lab Reusable Spool")
+            if brand in spool_name or spool_name in brand:
+                if self.combo_spool.get() != val:
+                    self.combo_spool.set(val)
+                    self.on_spool_changed() # Netto sofort neu berechnen!
+                break
 
     def show_tip(self, event, text):
         self.tip = tk.Toplevel(self.root); self.tip.wm_overrideredirect(True)
@@ -1797,6 +2173,7 @@ class FilamentApp:
             self.combo_material['values'] = s.get("materials", MATERIALS)
             self.combo_color['values'] = s.get("colors", COMMON_COLORS)
             self.combo_subtype['values'] = s.get("subtypes", SUBTYPES)
+            self.entry_brand['values'] = sorted(s.get("brands", []), key=str.lower)
             self.update_locations_dropdown()
             self.update_slot_dropdown()
             self.update_filter_dropdowns()
@@ -1937,6 +2314,7 @@ class FilamentApp:
     def update_filter_dropdowns(self):
         # Holt alle einzigartigen Materialien und Farben aus dem Inventar
         mats = sorted(list(set(i.get("material", "") for i in self.inventory if i.get("material"))))
+        brands = sorted(list(set(i.get("brand", "") for i in self.inventory if i.get("brand"))))
         cols = sorted(list(set(i.get("color", "") for i in self.inventory if i.get("color"))))
         locs = self.get_dynamic_locations()
         
@@ -1944,12 +2322,14 @@ class FilamentApp:
         self.combo_filter_mat['values'] = ["Alle Materialien"] + mats
         self.combo_filter_color['values'] = ["Alle Farben"] + cols
         self.combo_filter_loc['values'] = ["Alle Orte"] + locs
+        self.combo_filter_brand['values'] = ["Alle Hersteller"] + brands
 
     def reset_filters(self): 
         # Setzt alle Filter zurück auf Standard und leert die Suche
         self.filter_mat_var.set("Alle Materialien")
         self.filter_color_var.set("Alle Farben")
         self.filter_loc_var.set("Alle Orte")
+        self.filter_brand_var.set("Alle Hersteller")
         self.search_var.set("")
         self.refresh_table()
 
@@ -1963,6 +2343,9 @@ class FilamentApp:
         
         filters = {"material": self.filter_mat_var.get(), "color": self.filter_color_var.get(), "location": self.filter_loc_var.get()}
         for i in self.data_manager.get_filtered_inventory(self.inventory, self.search_var.get(), filters):
+            # NEU: Manueller Hersteller-Filter
+            if self.filter_brand_var.get() != "Alle Hersteller" and i.get('brand') != self.filter_brand_var.get():
+                continue
             loc_s = f"{i['type']} {i.get('loc_id', '')}".strip()
             stat = " | ".join(filter(None, ["VERBRAUCHT" if i['type'] == "VERBRAUCHT" else "", "KAUFEN" if i.get('reorder') else ""]))
             
@@ -1998,7 +2381,7 @@ class FilamentApp:
                 if gross_val < 0:
                     gross_val = 0.0
 
-            return {"id": int(self.entry_id.get().strip()) if self.entry_id.get().strip() else None, "rfid": self.entry_rfid.get().strip(), "brand": self.entry_brand.get().strip(), "material": self.combo_material.get().strip(), "color": self.combo_color.get().strip(), "subtype": self.combo_subtype.get().strip(), "type": self.combo_type.get(), "loc_id": self.combo_loc_id.get().strip(), "flow": self.entry_flow.get().strip(), "pa": self.entry_pa.get().strip(), "spool_id": spool_id, "weight_gross": gross_val, "capacity": cap, "is_empty": self.combo_type.get() == "VERBRAUCHT", "reorder": self.var_reorder.get(), "supplier": self.entry_supplier.get().strip(), "sku": self.entry_sku.get().strip(), "price": self.var_price.get().strip(), "link": self.entry_link.get().strip(), "temp_n": self.entry_temp_n.get().strip(), "temp_b": self.entry_temp_b.get().strip()}
+            return {"id": int(self.entry_id.get().strip()) if self.entry_id.get().strip() else None, "rfid": self.entry_rfid.get().strip(), "brand": self.entry_brand.get().strip(), "material": self.combo_material.get().strip(), "color": self.combo_color.get().strip(), "subtype": self.combo_subtype.get().strip(), "type": self.combo_type.get(), "loc_id": self.combo_loc_id.get().strip(), "flow": self.entry_flow.get().strip(), "pa": self.entry_pa.get().strip(), "spool_id": spool_id, "weight_gross": gross_val, "capacity": cap, "is_refill": self.var_is_refill.get(), "is_empty": self.combo_type.get() == "VERBRAUCHT", "reorder": self.var_reorder.get(), "supplier": self.entry_supplier.get().strip(), "sku": self.entry_sku.get().strip(), "price": self.var_price.get().strip(), "link": self.entry_link.get().strip(), "temp_n": self.entry_temp_n.get().strip(), "temp_b": self.entry_temp_b.get().strip()}
         except Exception as e: 
             messagebox.showwarning(
                 "Eingabe-Fehler", 
@@ -2041,7 +2424,7 @@ class FilamentApp:
                 return
                 
         self.inventory.append(d)
-        self.data_manager.save_inventory(self.inventory)
+        self.data_manager.save_inventory(self.inventory); self.broadcast_mqtt()
         self.refresh_table()
         self.clear_inputs()
 
@@ -2091,6 +2474,7 @@ class FilamentApp:
         for val in self.combo_spool['values']:
             if val.startswith(f"{i.get('spool_id', -1)} -"): self.combo_spool.set(val); break
         self.var_capacity.set(str(i.get('capacity', 1000))); gross = str(i.get('weight_gross', '0')).replace(',', '.'); float_g = float(gross) if gross else 0; self.var_gross.set(str(float_g).rstrip('0').rstrip('.') if float_g > 0 else ""); self.var_price.set(str(i.get('price', ''))); self.update_net_weight_display(); self.entry_supplier.insert(0, i.get('supplier', '')); self.entry_sku.insert(0, i.get('sku', '')); self.entry_link.insert(0, i.get('link', '')); self.entry_temp_n.insert(0, i.get('temp_n', '')); self.entry_temp_b.insert(0, i.get('temp_b', ''))
+        self.var_is_refill.set(i.get('is_refill', False))
     
     def clear_inputs(self, deselect=True):
         self.last_selected_spool_id = -1
@@ -2108,6 +2492,7 @@ class FilamentApp:
         self.update_net_weight_display()
         self.update_slot_dropdown()
         self.var_reorder.set(False)
+        self.var_is_refill.set(False)
         self.update_color_preview()
         if deselect: 
             self.tree.selection_remove(self.tree.selection())
@@ -2339,6 +2724,84 @@ class FilamentApp:
             self.entry_scan.delete(0, tk.END)
             self.entry_scan.insert(0, found_id)
             self.on_quick_scan()
+
+    def open_mobile_companion(self):
+        local_ip = get_local_ip()
+        url = f"http://{local_ip}:8282"
+        
+        win = tk.Toplevel(self.root)
+        win.title("📱 Handy Scanner verbinden")
+        win.geometry("450x550")
+        win.configure(bg=self.root.cget('bg'))
+        center_window(win, self.root)
+        
+        ttk.Label(win, text="Scanne diesen Code mit deinem Handy:", font=("Segoe UI", 12, "bold")).pack(pady=20)
+        
+        from PIL import Image, ImageTk
+        import qrcode
+        from qrcode.image.pil import PilImage
+        
+        qr = qrcode.QRCode(version=1, box_size=8, border=2)
+        qr.add_data(url)
+        qr.make(fit=True)
+        
+        # Pylance-Safe: Wir zwingen die Bibliothek zu einem PIL-Image
+        qr_wrapper = qr.make_image(image_factory=PilImage, fill_color="black", back_color="white")
+        img = qr_wrapper.get_image().convert('RGB')
+        
+        photo = ImageTk.PhotoImage(img)
+        lbl_img = tk.Label(win, image=photo, borderwidth=2, relief="solid")
+        lbl_img.image = photo # type: ignore
+        lbl_img.pack(pady=10)
+        
+        ttk.Label(win, text="Oder gib diese URL in deinen Handy-Browser ein:", font=("Segoe UI", 10)).pack(pady=(20, 5))
+        ent = ttk.Entry(win, font=("Segoe UI", 12, "bold"), justify="center")
+        ent.insert(0, url)
+        ent.config(state="readonly")
+        ent.pack(fill="x", padx=40, pady=5)
+        
+        ttk.Label(win, text="⚠️ Hinweis: PC und Handy müssen im selben WLAN sein!", foreground="#0078d7").pack(pady=10)
+
+    def process_mobile_scan(self, code):
+        # Das Handy schickt uns den Text, VibeSpool fügt ihn oben ein und drückt quasi "Enter"
+        self.entry_scan.delete(0, tk.END)
+        self.entry_scan.insert(0, code)
+        self.on_quick_scan()
+
+    def process_mobile_action(self, spool_id, action, val):
+        item = next((i for i in self.inventory if i.get('id') == spool_id), None)
+        if not item: return
+
+        changes_made = False
+
+        if action == "usage":
+            try:
+                used = float(val.replace(',', '.'))
+                curr = float(str(item.get('weight_gross', '0')).replace(',', '.'))
+                if used > 0 and curr > 0:
+                    item['weight_gross'] = max(0, curr - used)
+                    changes_made = True
+            except: pass
+
+        elif action == "move":
+            # Das Handy schickt das Format "TYP|SLOT" (z.B. "REGAL|Fach 1 - Slot 2")
+            if "|" in val:
+                target_type, target_loc = val.split("|", 1)
+                
+                # Wir schieben die Spule knallhart um
+                item['type'] = target_type
+                item['loc_id'] = target_loc
+                changes_made = True
+
+        if changes_made:
+            # Änderungen speichern und Tabelle aktualisieren
+            self.data_manager.save_inventory(self.inventory)
+            self.refresh_table()
+
+            # Wenn die Spule auf dem PC gerade markiert/geöffnet ist, updaten wir das Formular live!
+            sel = self.tree.selection()
+            if sel and int(sel[0]) == spool_id:
+                self.on_select(None)
 
     def refresh_all_data(self): 
         self.inventory, self.settings, self.spools = self.data_manager.load_all(DEFAULT_SETTINGS) # type: ignore
@@ -2726,6 +3189,219 @@ class FilamentApp:
 
         except Exception as e:
             messagebox.showerror("Fehler beim Import", f"Die Datei konnte nicht gelesen werden. Ist sie evtl. noch in Excel geöffnet?\n\nDetails: {e}")
+
+    def broadcast_mqtt(self):
+        # 1. Ist MQTT überhaupt aktiviert?
+        if not self.settings.get("mqtt_enable", False):
+            return
+            
+        host = self.settings.get("mqtt_host", "")
+        if not host: return
+        
+        # 2. Daten für Home Assistant sammeln und verpacken
+        from core.logic import calculate_net_weight
+        import json
+        import threading
+        
+        total_spools = 0
+        total_net_weight = 0
+        low_spools = []
+        ams_data = {}
+        
+        for item in self.inventory:
+            if item.get('type') == 'VERBRAUCHT': continue
+            total_spools += 1
+            net = calculate_net_weight(item.get('weight_gross', '0'), item.get('spool_id', -1), self.spools)
+            total_net_weight += net
+            
+            # Alarm für fast leere Spulen (< 100g)
+            if net > 0 and net < 100:
+                low_spools.append({
+                    "id": item['id'], 
+                    "name": f"{item.get('brand', '')} {item.get('color', '')}", 
+                    "net": int(net),
+                    "loc": f"{item.get('type', '')} {item.get('loc_id', '')}"
+                })
+            
+            # AMS Belegung auslesen
+            loc_type = str(item.get('type', ''))
+            if loc_type.startswith("AMS"):
+                slot = str(item.get('loc_id', ''))
+                # Formatiert z.B. "AMS 1" -> "AMS_1_Slot_3"
+                ams_key = f"{loc_type.replace(' ', '_')}_Slot_{slot}"
+                ams_data[ams_key] = {
+                    "id": item['id'],
+                    "name": f"{item.get('brand', '')} {item.get('color', '')}",
+                    "material": item.get('material', ''),
+                    "net": int(net)
+                }
+
+        payload = {
+            "total_spools": total_spools,
+            "total_weight_g": int(total_net_weight),
+            "low_spools": low_spools,
+            "low_spools_count": len(low_spools),
+            "ams": ams_data
+        }
+        
+        # 3. Den Funker-Thread starten (damit die UI nicht hängt)
+        def send_task():
+            try:
+                import paho.mqtt.publish as publish
+                port = int(self.settings.get("mqtt_port", "1883"))
+                user = self.settings.get("mqtt_user", "")
+                password = self.settings.get("mqtt_pass", "")
+                
+                auth = None
+                if user or password:
+                    auth = {'username': user, 'password': password}
+                    
+                publish.single(
+                    topic="vibespool/state",
+                    payload=json.dumps(payload),
+                    hostname=host,
+                    port=port, 
+                    auth=auth, # type: ignore
+                    retain=True, # WICHTIG: Home Assistant merkt sich den Wert nach einem Neustart!
+                    client_id="VibeSpool_App"
+                )
+            except Exception as e:
+                print(f"MQTT Broadcasting Fehler: {e}")
+                
+        threading.Thread(target=send_task, daemon=True).start()
+    
+class PdfExportDialog(tk.Toplevel):
+    def __init__(self, parent, inventory, spools):
+        super().__init__(parent)
+        self.inventory = inventory
+        self.spools = spools
+        self.title("📑 PDF Smart Export")
+        self.geometry("450x300")
+        self.configure(bg=parent.cget('bg'))
+        from core.utils import center_window
+        center_window(self, parent)
+        self.transient(parent)
+        self.grab_set()
+
+        ttk.Label(self, text="Wie möchtest du die Etiketten drucken?", font=("Segoe UI", 12, "bold")).pack(pady=(15, 10))
+
+        self.var_format = tk.StringVar(value="A4")
+        
+        frm_opts = ttk.Frame(self, padding=10)
+        frm_opts.pack(fill="x")
+        
+        ttk.Radiobutton(frm_opts, text="📄 DIN A4 Bogen (Mehrere pro Seite / Gitter)", variable=self.var_format, value="A4", command=self.toggle_opts).pack(anchor="w", pady=5)
+        
+        self.frm_grid = ttk.Frame(frm_opts)
+        self.frm_grid.pack(fill="x", padx=20)
+        ttk.Label(self.frm_grid, text="Spalten:").grid(row=0, column=0, sticky="w")
+        self.var_cols = tk.IntVar(value=2)
+        ttk.Spinbox(self.frm_grid, from_=1, to=5, textvariable=self.var_cols, width=5).grid(row=0, column=1, padx=5, pady=2)
+        
+        ttk.Label(self.frm_grid, text="Reihen:").grid(row=1, column=0, sticky="w")
+        self.var_rows = tk.IntVar(value=4)
+        ttk.Spinbox(self.frm_grid, from_=1, to=15, textvariable=self.var_rows, width=5).grid(row=1, column=1, padx=5, pady=2)
+
+        ttk.Radiobutton(frm_opts, text="🏷️ Rollen-Etikettendrucker (1 Label = 1 Seite)", variable=self.var_format, value="ROLL", command=self.toggle_opts).pack(anchor="w", pady=(15, 5))
+
+        ttk.Button(self, text="🚀 PDF Generieren", command=self.generate, style="Accent.TButton").pack(pady=15, fill="x", padx=40)
+
+    def toggle_opts(self):
+        if self.var_format.get() == "A4":
+            self.frm_grid.pack(fill="x", padx=20)
+        else:
+            self.frm_grid.pack_forget()
+
+    def generate(self):
+        fp = filedialog.asksaveasfilename(defaultextension=".pdf", filetypes=[("PDF", "*.pdf")], title="Labels speichern", initialfile="VibeSpool_Labels.pdf")
+        if not fp: return
+
+        try:
+            from PIL import Image, ImageDraw, ImageFont
+            import qrcode
+            from qrcode.image.pil import PilImage
+
+            try:
+                font_title = ImageFont.truetype("arialbd.ttf", 45)
+                font_sub = ImageFont.truetype("arial.ttf", 35)
+                font_small = ImageFont.truetype("arial.ttf", 25)
+            except:
+                font_title = font_sub = font_small = ImageFont.load_default()
+
+            pdf_pages = []
+            
+            # Helper zum Zeichnen eines einzelnen Labels
+            def draw_single_label(item):
+                from core.utils import get_colors_from_text
+                img = Image.new('RGB', (800, 400), color='white')
+                draw = ImageDraw.Draw(img)
+                
+                qr = qrcode.QRCode(version=1, box_size=10, border=1)
+                qr.add_data(f"ID:{item['id']}") 
+                qr.make(fit=True)
+                qr_img = qr.make_image(image_factory=PilImage, fill_color="black", back_color="white").get_image().convert('RGB').resize((360, 360)) 
+                img.paste(qr_img, (20, 20))
+                
+                draw.text((400, 30), f"{item.get('brand', '')} {item.get('material', '')}", fill="black", font=font_title)
+                draw.text((400, 100), f"{item.get('color', '')}", fill="#333333", font=font_sub)
+                draw.text((400, 150), f"{item.get('subtype', 'Standard')}", fill="#666666", font=font_sub)
+                draw.text((400, 240), f"Nozzle: {item.get('temp_n', '-')} °C", fill="black", font=font_small)
+                draw.text((400, 280), f"Bed: {item.get('temp_b', '-')} °C", fill="black", font=font_small)
+                draw.text((400, 330), f"VibeSpool ID: {item['id']}", fill="black", font=font_title)
+                
+                cols = get_colors_from_text(item.get('color', ''))
+                hex_col = cols[0] if cols else "#FFFFFF"
+                draw.rectangle([400, 370, 760, 390], fill=hex_col, outline="black")
+                return img
+
+            # --- LOGIK FÜR ROLLEN-DRUCKER ---
+            if self.var_format.get() == "ROLL":
+                for item in self.inventory:
+                    pdf_pages.append(draw_single_label(item))
+
+            # --- LOGIK FÜR DIN A4 BÖGEN ---
+            else:
+                a4_w, a4_h = 2480, 3508 # DIN A4 bei 300 DPI
+                cols, rows = max(1, self.var_cols.get()), max(1, self.var_rows.get())
+                
+                # Wir berechnen die Ränder und Abstände automatisch!
+                label_w, label_h = 800, 400
+                margin_x = (a4_w - (cols * label_w)) // (cols + 1)
+                margin_y = (a4_h - (rows * label_h)) // (rows + 1)
+                
+                current_page = Image.new('RGB', (a4_w, a4_h), 'white')
+                x_idx, y_idx = 0, 0
+                
+                for item in self.inventory:
+                    lbl_img = draw_single_label(item)
+                    
+                    pos_x = margin_x + (x_idx * (label_w + margin_x))
+                    pos_y = margin_y + (y_idx * (label_h + margin_y))
+                    
+                    current_page.paste(lbl_img, (pos_x, pos_y))
+                    
+                    x_idx += 1
+                    if x_idx >= cols:
+                        x_idx = 0
+                        y_idx += 1
+                        
+                    # Wenn die Seite voll ist, speichern wir sie ab und nehmen ein neues A4 Blatt!
+                    if y_idx >= rows:
+                        pdf_pages.append(current_page)
+                        current_page = Image.new('RGB', (a4_w, a4_h), 'white')
+                        x_idx, y_idx = 0, 0
+                
+                # Die letzte (evtl. unfertige) Seite noch anhängen
+                if x_idx > 0 or y_idx > 0:
+                    pdf_pages.append(current_page)
+
+            if pdf_pages:
+                pdf_pages[0].save(fp, "PDF", resolution=300.0 if self.var_format.get() == "A4" else 100.0, save_all=True, append_images=pdf_pages[1:])
+                messagebox.showinfo("Exportiert", f"Erfolg!\n{len(self.inventory)} Etiketten wurden auf {len(pdf_pages)} Seite(n) verteilt.", parent=self)
+                self.destroy()
+
+        except Exception as e:
+            messagebox.showerror("Fehler", f"Fehler beim Generieren:\n{e}", parent=self)
 
 if __name__ == "__main__":
     try: windll.shcore.SetProcessDpiAwareness(1)

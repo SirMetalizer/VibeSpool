@@ -6,7 +6,9 @@
 
 **Die smarte Schaltzentrale für dein 3D-Druck Filament-Lager.** VibeSpool ist ein leichtgewichtiges, lokales Desktop-Tool (Python/Tkinter), das dir die volle visuelle, mobile und kaufmännische Kontrolle über deine Spulen gibt.
 
-<img width="1924" height="1044" alt="VibeSpool Main Dashboard" src="[https://github.com/user-attachments/assets/7234891c-0458-478b-8c5a-7d9e6cd184cb](https://github.com/user-attachments/assets/7234891c-0458-478b-8c5a-7d9e6cd184cb)" />
+<img width="1924" height="1044" alt="image" src="https://github.com/user-attachments/assets/7234891c-0458-478b-8c5a-7d9e6cd184cb" />
+
+<img width="913" height="444" alt="image" src="https://github.com/user-attachments/assets/50ab3ea3-a6af-47f0-b9bb-c1c97f0a8da8" />
 
 ---
 

@@ -50,28 +50,27 @@ Stelle sicher, dass **Python 3.10+** installiert ist.
    ```bash
    git clone [https://github.com/SirMetalizer/VibeSpool.git](https://github.com/SirMetalizer/VibeSpool.git)
    cd VibeSpool
+
 Abhängigkeiten installieren:
 
-Bash
-pip install Pillow pyzbar opencv-python qrcode paho-mqtt
+   ```bash
+   pip install Pillow pyzbar opencv-python qrcode paho-mqtt
+   ```
 Starten:
 
-Bash
-python filament_gui.py
-🆕 Was ist neu in Version 1.9.8? ("The Data & Workflow Update")
-Spalten-Konfigurator: Individuelles Ein/Ausblenden der Haupttabelle.
+   ```bash
+   python filament_gui.py
+   ```
+   
+## 🆕 Was ist neu in Version 1.9.8? ("The Data & Workflow Update")
+* Spalten-Konfigurator: Individuelles Ein/Ausblenden der Haupttabelle.
+* Quick-Actions: Rechtsklick-Menü für rasend schnelle Spulen-Verwaltung.
+* Erweiterte Statistiken: Neues 7-Tage-Verbrauchs-Diagramm im Finanzen-Tab.
+* Fehlerkorrektur-System: "+" Button, um falsch eingetragenen Slicer-Verbrauch rückgängig zu machen.
+* MQTT Self-Healing: Offline-Buffer für zuverlässige Home-Assistant Übertragungen.
+* Branding: Neues, offizielles VibeSpool App-Icon.
 
-Quick-Actions: Rechtsklick-Menü für rasend schnelle Spulen-Verwaltung.
-
-Erweiterte Statistiken: Neues 7-Tage-Verbrauchs-Diagramm im Finanzen-Tab.
-
-Fehlerkorrektur-System: "+" Button, um falsch eingetragenen Slicer-Verbrauch rückgängig zu machen.
-
-MQTT Self-Healing: Offline-Buffer für zuverlässige Home-Assistant Übertragungen.
-
-Branding: Neues, offizielles VibeSpool App-Icon.
-
-🤝 Support & Spenden
+## 🤝 Support & Spenden
 VibeSpool ist ein Open-Source Hobbyprojekt. Wenn dir das Tool hilft, freue ich mich riesig über einen virtuellen Kaffee!
 
 [![Donate](https://img.shields.io/badge/Donate-PayPal-blue.svg)](https://paypal.me/florianfranck)

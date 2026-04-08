@@ -195,118 +195,134 @@ MOBILE_HTML = """
 """
 
 class MobileScannerHandler(http.server.SimpleHTTPRequestHandler):
-    def do_GET(self):
-        from urllib.parse import urlparse, parse_qs
-        import json
-        parsed_path = urlparse(self.path)
-        
-        if parsed_path.path == '/':
-            self.send_response(200)
-            self.send_header('Content-type', 'text/html; charset=utf-8')
-            self.end_headers()
-            self.wfile.write(MOBILE_HTML.encode('utf-8'))
-            
-        elif parsed_path.path == '/scan':
-            query = parse_qs(parsed_path.query)
-            code = query.get('code', [''])[0]
-            app_inst = getattr(self.server, 'app_instance', None)
-            
-            response_data = {"status": "error", "msg": "Spule nicht in der Datenbank."}
-            
-            if code and app_inst:
-                import re
-                match = re.search(r'(?:ID:\s*|FIL_)?(\d+)', code, re.IGNORECASE)
-                spool_id = int(match.group(1)) if match else None
-                
-                if spool_id:
-                    item = next((i for i in app_inst.inventory if i.get('id') == spool_id), None)
-                    if item:
-                        # 1. Desktop UI umschalten (läuft weiterhin im Hintergrund)
-                        app_inst.root.after(0, lambda: app_inst.process_mobile_scan(code))
-                        
-                        # 2. Orte für das Dropdown am Handy sammeln
-                        locs = [
-                            {"label": "📦 Ins LAGER", "val": "LAGER|-"}, 
-                            {"label": "🗑️ Als LEER markieren", "val": "VERBRAUCHT|-"}
-                        ]
-                        
-                        # Regale und Fächer parsen (aus core.logic)
-                        from core.logic import parse_shelves_string, calculate_net_weight
-                        parsed_shelves = parse_shelves_string(app_inst.settings.get("shelves", "REGAL|4|8"))
-                        lbl_r = app_inst.settings.get("label_row", "Fach")
-                        lbl_c = app_inst.settings.get("label_col", "Slot")
-                        all_names = app_inst.settings.get("shelf_names_v2", {})
-                        is_double = app_inst.settings.get("double_depth", False)
-                        
-                        for sh in parsed_shelves:
-                            name = sh['name']
-                            s_names = all_names.get(name, {})
-                            for r in range(1, sh['rows'] + 1):
-                                row_n = s_names.get(str(r), f"{lbl_r} {r}")
-                                for c in range(1, sh['cols'] + 1):
-                                    if is_double:
-                                        locs.append({"label": f"{name} {row_n} - {lbl_c} {c} (V)", "val": f"{name}|{row_n} - {lbl_c} {c} (V)"})
-                                        locs.append({"label": f"{name} {row_n} - {lbl_c} {c} (H)", "val": f"{name}|{row_n} - {lbl_c} {c} (H)"})
-                                    else:
-                                        locs.append({"label": f"{name} {row_n} - {lbl_c} {c}", "val": f"{name}|{row_n} - {lbl_c} {c}"})
-                                        
-                        for a in range(1, app_inst.settings.get("num_ams", 1) + 1):
-                            for s in range(1, 5):
-                                locs.append({"label": f"AMS {a} Slot {s}", "val": f"AMS {a}|{s}"})
-                                
-                        net_w = calculate_net_weight(item.get('weight_gross', '0'), item.get('spool_id', -1), app_inst.spools)
-                        
-                        response_data = {
-                            "status": "ok",
-                            "id": spool_id,
-                            "name": f"{item.get('brand','')} {item.get('material','')} {item.get('color','')}",
-                            "net": int(net_w),
-                            "locs": locs
-                        }
+    # Unterdrückt die nervigen Konsolen-Logs im Hintergrund
+    def log_message(self, format, *args):
+        pass 
 
-            self.send_response(200)
-            self.send_header('Content-type', 'application/json; charset=utf-8')
-            self.send_header('Access-Control-Allow-Origin', '*')
-            self.end_headers()
-            self.wfile.write(json.dumps(response_data).encode('utf-8'))
+    def do_GET(self):
+        try:
+            from urllib.parse import urlparse, parse_qs
+            import json
+            parsed_path = urlparse(self.path)
             
-        elif parsed_path.path == '/action':
-            # Verarbeitet die Klicks ("Abziehen" / "Umbuchen") vom Handy
-            query = parse_qs(parsed_path.query)
-            spool_id = query.get('id', [''])[0]
-            action = query.get('action', [''])[0]
-            val = query.get('val', [''])[0]
+            # 1. Ignoriere automatische Browser-Anfragen nach Icons sofort!
+            if parsed_path.path == '/favicon.ico':
+                self.send_response(204)
+                self.end_headers()
+                return
             
-            app_inst = getattr(self.server, 'app_instance', None)
-            response_data = {"status": "error", "msg": "Unbekannter Fehler"}
-            
-            if app_inst and spool_id and action:
-                spool_id_int = int(spool_id)
+            if parsed_path.path == '/':
+                self.send_response(200)
+                self.send_header('Content-type', 'text/html; charset=utf-8')
+                self.end_headers()
+                self.wfile.write(MOBILE_HTML.encode('utf-8'))
                 
-                # KOLLISIONSPRÜFUNG: Wenn wir umbuchen, schauen wir erst, ob der Platz frei ist!
-                if action == "move" and "|" in val:
-                    target_type, target_loc = val.split("|", 1)
-                    col = app_inst.check_location_collision(target_type, target_loc, ignore_id=spool_id_int)
+            elif parsed_path.path == '/scan':
+                query = parse_qs(parsed_path.query)
+                code = query.get('code', [''])[0]
+                app_inst = getattr(self.server, 'app_instance', None)
+                
+                response_data = {"status": "error", "msg": "Spule nicht in der Datenbank."}
+                
+                if code and app_inst:
+                    import re
+                    match = re.search(r'(?:ID:\s*|FIL_)?(\d+)', code, re.IGNORECASE)
+                    spool_id = int(match.group(1)) if match else None
                     
-                    if col:
-                        # Platz ist belegt! Wir blockieren die Aktion und schicken eine Warnung ans Handy
-                        response_data = {
-                            "status": "error", 
-                            "msg": f"Der Platz ist bereits belegt durch:\n#{col['id']} {col.get('brand','')} {col.get('color','')}"
-                        }
+                    if spool_id:
+                        item = next((i for i in app_inst.inventory if i.get('id') == spool_id), None)
+                        if item:
+                            app_inst.root.after(0, lambda: app_inst.process_mobile_scan(code))
+                            
+                            locs = [
+                                {"label": "📦 Ins LAGER", "val": "LAGER|-"}, 
+                                {"label": "🚮 Als LEER markieren", "val": "VERBRAUCHT|-"}
+                            ]
+                            
+                            from core.logic import parse_shelves_string, calculate_net_weight
+                            parsed_shelves = parse_shelves_string(app_inst.settings.get("shelves", "REGAL|4|8"))
+                            lbl_r = app_inst.settings.get("label_row", "Fach")
+                            lbl_c = app_inst.settings.get("label_col", "Slot")
+                            all_names = app_inst.settings.get("shelf_names_v2", {})
+                            is_double = app_inst.settings.get("double_depth", False)
+                            
+                            for sh in parsed_shelves:
+                                name = sh['name']
+                                s_names = all_names.get(name, {})
+                                for r in range(1, sh['rows'] + 1):
+                                    row_n = s_names.get(str(r), f"{lbl_r} {r}")
+                                    for c in range(1, sh['cols'] + 1):
+                                        if is_double:
+                                            locs.append({"label": f"{name} {row_n} - {lbl_c} {c} (V)", "val": f"{name}|{row_n} - {lbl_c} {c} (V)"})
+                                            locs.append({"label": f"{name} {row_n} - {lbl_c} {c} (H)", "val": f"{name}|{row_n} - {lbl_c} {c} (H)"})
+                                        else:
+                                            locs.append({"label": f"{name} {row_n} - {lbl_c} {c}", "val": f"{name}|{row_n} - {lbl_c} {c}"})
+                                            
+                            for a in range(1, app_inst.settings.get("num_ams", 1) + 1):
+                                for s in range(1, 5):
+                                    locs.append({"label": f"AMS {a} Slot {s}", "val": f"AMS {a}|{s}"})
+                                    
+                            net_w = calculate_net_weight(item.get('weight_gross', '0'), item.get('spool_id', -1), app_inst.spools)
+                            
+                            response_data = {
+                                "status": "ok",
+                                "id": spool_id,
+                                "name": f"{item.get('brand','')} {item.get('material','')} {item.get('color','')}",
+                                "net": int(net_w),
+                                "locs": locs
+                            }
+
+                self.send_response(200)
+                self.send_header('Content-type', 'application/json; charset=utf-8')
+                self.send_header('Access-Control-Allow-Origin', '*')
+                self.end_headers()
+                self.wfile.write(json.dumps(response_data).encode('utf-8'))
+                
+            elif parsed_path.path == '/action':
+                query = parse_qs(parsed_path.query)
+                spool_id = query.get('id', [''])[0]
+                action = query.get('action', [''])[0]
+                val = query.get('val', [''])[0]
+                
+                app_inst = getattr(self.server, 'app_instance', None)
+                response_data = {"status": "error", "msg": "Unbekannter Fehler"}
+                
+                if app_inst and spool_id and action:
+                    spool_id_int = int(spool_id)
+                    if action == "move" and "|" in val:
+                        target_type, target_loc = val.split("|", 1)
+                        col = app_inst.check_location_collision(target_type, target_loc, ignore_id=spool_id_int)
+                        
+                        if col:
+                            response_data = {
+                                "status": "error", 
+                                "msg": f"Der Platz ist bereits belegt durch:\n#{col['id']} {col.get('brand','')} {col.get('color','')}"
+                            }
+                        else:
+                            app_inst.root.after(0, lambda: app_inst.process_mobile_action(spool_id_int, action, val))
+                            response_data = {"status": "ok"}
                     else:
                         app_inst.root.after(0, lambda: app_inst.process_mobile_action(spool_id_int, action, val))
                         response_data = {"status": "ok"}
-                else:
-                    # Normaler Verbrauch (usage)
-                    app_inst.root.after(0, lambda: app_inst.process_mobile_action(spool_id_int, action, val))
-                    response_data = {"status": "ok"}
-                    
-            self.send_response(200)
-            self.send_header('Content-type', 'application/json; charset=utf-8')
-            self.send_header('Access-Control-Allow-Origin', '*')
-            self.end_headers()
-            self.wfile.write(json.dumps(response_data).encode('utf-8'))
+                        
+                self.send_response(200)
+                self.send_header('Content-type', 'application/json; charset=utf-8')
+                self.send_header('Access-Control-Allow-Origin', '*')
+                self.end_headers()
+                self.wfile.write(json.dumps(response_data).encode('utf-8'))
+                
+        except Exception as e:
+            # --- DIE LEBENSRETTUNG ---
+            # Statt sang- und klanglos abzustürzen, fangen wir JEDEN Fehler ab!
+            print(f"Webserver Fehler abgefangen: {e}")
+            try:
+                self.send_response(500)
+                self.send_header('Content-type', 'text/plain; charset=utf-8')
+                self.send_header('Access-Control-Allow-Origin', '*')
+                self.end_headers()
+                self.wfile.write(f"VibeSpool Server Fehler: {e}".encode('utf-8'))
+            except:
+                pass
 
 def start_mobile_server(app_inst):
     port = 8289  # Neuer, freier Port!

@@ -63,3 +63,26 @@ Ja, VibeSpool unterstützt sogenannte "Doppeltiefe Regale"!
 * Gehe in die **⚙ Optionen**.
 * Setze im Reiter **📦 Lager** ganz unten den Haken bei "Doppeltiefe Regale (2 Rollen pro Slot)" und speichere.
 * VibeSpool teilt ab sofort jeden Slot in "Vorne (V)" und "Hinten (H)" auf. In der grafischen Regalansicht werden diese übersichtlich übereinander gestapelt dargestellt. Deine bereits vorhandenen Spulen werden dabei automatisch sicher nach vorne geschoben.
+
+### 🖱️ Wie kann ich das Layout der Haupttabelle anpassen?
+Wenn dein Monitor klein ist, kannst du Spalten ausblenden:
+* Mache einfach einen **Rechtsklick** oben auf die Tabellen-Kopfzeile.
+* Im aufpoppenden Menü kannst du Haken setzen oder entfernen.
+
+### ⚡ Gibt es eine schnellere Methode, Spulen zu verwalten?
+Ja! Das **Quick-Action Menü**:
+* Mache einen **Rechtsklick** direkt auf eine Spule in der Liste.
+* Du kannst die Spule sofort ins AMS schieben, klonen oder als "Leer" markieren.
+
+### 📉 Ich habe beim Slicer-Verbrauch zu viel abgezogen. Was nun?
+Neben dem "➖ Abziehen" Button findest du jetzt den **"➕ Korrektur"** Button.
+* Tippe den Differenzbetrag in das Feld und klicke auf "➕ Korrektur".
+* Das Gewicht wird zurückgebucht und die Statistik wird im Hintergrund sauber korrigiert!
+
+### 📊 Wo sehe ich, wie viel Filament ich verdruckt habe?
+* Klicke links im Hauptmenü auf **"📊 Finanzen"**.
+* Klicke unten auf den blauen Button **"📈 Verbrauchs-Verlauf (7 Tage)"**. 
+* Hier siehst du ein Balkendiagramm deines Materialverbrauchs der letzten Woche.
+
+### 📡 Was passiert mit meinen MQTT Daten bei WLAN-Ausfall?
+Nichts geht verloren! VibeSpool hat einen **Offline-Buffer**. Das Programm speichert die Daten lokal und sendet sie automatisch nach, sobald die Verbindung wieder steht.

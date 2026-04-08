@@ -309,18 +309,23 @@ class MobileScannerHandler(http.server.SimpleHTTPRequestHandler):
             self.wfile.write(json.dumps(response_data).encode('utf-8'))
 
 def start_mobile_server(app_inst):
-    port = 8282
+    port = 8289  # Neuer, freier Port!
     handler = MobileScannerHandler
     try:
-        httpd = socketserver.TCPServer(("", port), handler)
-        setattr(httpd, 'app_instance', app_inst) # Pylance-Safe Zuweisung
+        import http.server
+        # Erlaubt den sofortigen Neustart des Servers ohne Blockade
+        http.server.ThreadingHTTPServer.allow_reuse_address = True
+        
+        # Ein Threading-Server stürzt nicht ab, wenn das Handy etwas Falsches funkt
+        httpd = http.server.ThreadingHTTPServer(("", port), handler)
+        setattr(httpd, 'app_instance', app_inst) 
         threading.Thread(target=httpd.serve_forever, daemon=True).start()
     except Exception as e:
         print(f"Webserver konnte nicht starten: {e}")
 
 
 # --- KONFIGURATION ---
-APP_VERSION = "1.9.7"
+APP_VERSION = "1.9.8"
 GITHUB_REPO = "SirMetalizer/VibeSpool" 
 
 # --- DEFAULTS ---
@@ -350,7 +355,8 @@ DEFAULT_SETTINGS = {
     "materials": ["PLA", "PLA+", "PETG", "ABS", "ASA", "TPU", "PC", "PA-CF", "PVA", "Sonstiges"],
     "subtypes": ["Standard", "Matte", "Silk", "High Speed", "Dual Color", "Tri Color", "Glow in Dark", "Transparent", "Translucent", "Marmor", "Holz", "Glitzer/Sparkle"],
     "colors": ["Black", "White", "Grey", "Silver", "Ash Gray", "Red", "Maroon Red", "Blue", "Light Blue", "Navy", "Green", "Dark Green", "Mint", "Olive", "Yellow", "Orange", "Terracotta", "Purple", "Plum", "Lavender", "Pink", "Magenta", "Brown", "Beige", "Turquoise", "Cyan", "Gold", "Copper", "Bronze", "Rainbow", "Marble", "Wood"],
-    "brands": ["Bambu", "eSun", "Geeetech", "Sunlu", "Polymaker", "Prusa", "Eryone"]
+    "brands": ["Bambu", "eSun", "Geeetech", "Sunlu", "Polymaker", "Prusa", "Eryone"],
+    "visible_columns": ["id", "brand", "material", "color", "subtype", "weight", "flow", "location", "status"]
 }
 
 MATERIALS = ["PLA", "PLA+", "PETG", "ABS", "ASA", "TPU", "PC", "PA-CF", "PVA", "Sonstiges"]
@@ -1324,7 +1330,12 @@ class StatisticsDialog(tk.Toplevel):
         for col, head, w in zip(("mat", "count", "weight", "value"), ("Material", "Spulen", "Gewicht (kg)", "Wert (€)"), (120, 60, 100, 100)): tree.heading(col, text=head); tree.column(col, width=w, anchor="center")
         tree.pack(fill="both", expand=True, padx=20, pady=(0, 10))
         for mat, stats in sorted(mat_stats.items(), key=lambda x: x[1]['value'], reverse=True): tree.insert("", "end", values=(mat, stats['count'], f"{(stats['weight']/1000):.2f}", f"{stats['value']:.2f} €"))
-        ttk.Button(self, text="Schließen", command=self.destroy).pack(pady=10)
+        btn_frm = ttk.Frame(self)
+        btn_frm.pack(fill="x", pady=10, padx=20)
+        
+        # Der neue Button ruft unsere Diagramm-Funktion in der Haupt-App auf
+        ttk.Button(btn_frm, text="📈 Verbrauchs-Verlauf (7 Tage)", command=self.app.show_statistics_dialog, style="Accent.TButton").pack(side="left", expand=True, fill="x", padx=(0, 5))
+        ttk.Button(btn_frm, text="Schließen", command=self.destroy).pack(side="left", expand=True, fill="x", padx=(5, 0))
 
 class FlowCalculatorDialog(tk.Toplevel):
     def __init__(self, parent, current_flow_entry=None):
@@ -1575,6 +1586,23 @@ class FilamentApp:
         self.root.geometry(str(self.settings.get("geometry", "1500x980")))
         self.root.title(f"VibeSpool {APP_VERSION}"); self.root.protocol("WM_DELETE_WINDOW", self.on_closing)
         self.icon_cache = []
+        self.mqtt_retry_active = False # Pylance-Anmeldung für den Offline-Buffer
+
+        # --- APP ICON LADEN ---
+        try:
+            import os, sys
+            # Wenn als .exe ausgeführt, liegt das Bild im temporären _MEIPASS Ordner
+            # getattr() verhindert den Pylance-Fehler "not a known attribute"
+            if hasattr(sys, '_MEIPASS'):
+                base_path = getattr(sys, '_MEIPASS')
+            else:
+                base_path = os.path.abspath(".")
+                
+            icon_path = os.path.join(base_path, "core", "vibespool-icon.ico")
+            if os.path.exists(icon_path):
+                self.root.iconbitmap(icon_path)
+        except Exception:
+            pass
 
         # --- PRE-INIT UI ATTRIBUTES ---
         self.nav_btns: list[tk.Button] = []
@@ -1841,12 +1869,23 @@ class FilamentApp:
         
         self.entry_gross = ttk.Entry(frm_gross, font=FONT_MAIN, textvariable=self.var_gross)
         self.entry_gross.pack(side="left", fill="x", expand=True)
+        # --- Slicer-Verbrauch Bereich ---
         frm_slicer = ttk.Frame(tab_basis)
-        frm_slicer.pack(fill="x", pady=(2, 10))
-        ttk.Label(frm_slicer, text="Slicer-Verbrauch (g):").pack(side="left")
-        self.entry_slicer = ttk.Entry(frm_slicer, width=8, font=FONT_MAIN)
-        self.entry_slicer.pack(side="left", padx=5)
-        ttk.Button(frm_slicer, text="➖ Abziehen", command=self.deduct_slicer).pack(side="left")
+        frm_slicer.pack(fill="x", pady=(10, 10))
+        
+        # Zeile 1: Label
+        ttk.Label(frm_slicer, text="Slicer-Verbrauch (g):").pack(anchor="w", pady=(0, 2))
+        
+        # Zeile 2: Eingabefeld (Volle Breite, passend zu den anderen)
+        self.entry_slicer = ttk.Entry(frm_slicer, font=FONT_MAIN)
+        self.entry_slicer.pack(fill="x", pady=2)
+        
+        # Zeile 3: Buttons (Nebeneinander, strecken sich gleichmäßig)
+        frm_slicer_btns = ttk.Frame(frm_slicer)
+        frm_slicer_btns.pack(fill="x", pady=(2, 0))
+        
+        ttk.Button(frm_slicer_btns, text="➖ Abziehen", command=self.deduct_slicer).pack(side="left", expand=True, fill="x", padx=(0, 2))
+        ttk.Button(frm_slicer_btns, text="➕ Korrektur", command=self.add_slicer).pack(side="left", expand=True, fill="x", padx=(2, 0))
         
         # NEU: Der Sync-Button wird NUR gebaut, wenn er in den Settings aktiv ist!
         if self.settings.get("use_moonraker", False):
@@ -1967,6 +2006,11 @@ class FilamentApp:
         for col, text in zip(("id", "brand", "material", "color", "subtype", "weight", "flow", "location", "status"), ["ID", "Marke", "Material", "Farbe", "Effekt / Typ", "Rest(g)", "Flow", "Ort", "Status"]): self.tree.heading(col, text=text, command=lambda c=col: self.treeview_sort_column(c, False))
         self.tree.column("id", width=40, anchor="center"); self.tree.column("brand", width=120); self.tree.column("material", width=60, anchor="center"); self.tree.column("weight", width=60, anchor="center"); self.tree.column("flow", width=50, anchor="center"); self.tree.column("status", width=90, anchor="center"); self.tree.bind("<<TreeviewSelect>>", self.on_select)
         self.update_locations_dropdown(); self.update_spool_dropdown(); self.update_filter_dropdowns(); self.clear_inputs(); self.refresh_table()
+        
+        # Initialisiert die neuen Rechtsklick-Menüs
+        self.setup_context_menus()
+        # Bindet den Rechtsklick (Button-3 unter Windows, Button-2/Control-Klick unter macOS)
+        self.tree.bind("<Button-3>", self.on_tree_right_click)
         
         def _on_mousewheel(e):
             self.tree.yview_scroll(int(-1*(e.delta/120)), "units")
@@ -2151,6 +2195,20 @@ class FilamentApp:
                 new_gross = max(0, curr - used)
                 self.var_gross.set(f"{new_gross:g}")
                 self.entry_slicer.delete(0, tk.END) # Leert das Eingabefeld nach Erfolg
+                self.log_consumption(used)
+        except ValueError:
+            pass # Ignoriert Klicks, wenn Buchstaben drinstehen
+    
+    def add_slicer(self):
+        try:
+            added = float(self.entry_slicer.get().strip().replace(',', '.'))
+            curr = float(self.var_gross.get().strip().replace(',', '.') or 0)
+            if added > 0:
+                new_gross = curr + added
+                self.var_gross.set(f"{new_gross:g}")
+                self.entry_slicer.delete(0, tk.END)
+                # DAS WICHTIGSTE: Wir übergeben den Wert als MINUS an den Logger!
+                self.log_consumption(-added) 
         except ValueError:
             pass # Ignoriert Klicks, wenn Buchstaben drinstehen
     
@@ -2257,6 +2315,7 @@ class FilamentApp:
             if messagebox.askyesno("Drucker-Sync", f"Der letzte Druck hat {usage_g:.1f}g verbraucht.\nSoll dieser Wert vom Brutto-Gewicht ({curr_gross:.1f}g) abgezogen werden?"):
                 new_gross = max(0, curr_gross - usage_g)
                 self.var_gross.set(f"{new_gross:.1f}")
+                self.log_consumption(usage_g)
                 messagebox.showinfo("Erfolg", f"Gewicht aktualisiert! Neues Brutto: {new_gross:.1f}g\n\nVergiss nicht, die Änderungen zu speichern!")
         except Exception as e:
             messagebox.showerror("Fehler", f"Berechnungsfehler: {e}")
@@ -2355,8 +2414,12 @@ class FilamentApp:
             net = calculate_net_weight(i.get('weight_gross', '0'), i.get('spool_id', -1), self.spools)
             flow_val = i.get('flow', 'Auto' if 'bambu' in i['brand'].lower() else '-')
             
+            # --- NEU: Optik-Filter für die Farbanzeige in der Liste ---
+            # Schneidet alles ab, was wie ein Hex-Code in Klammern aussieht
+            display_color = re.sub(r'\s*\(\s*#[0-9a-fA-F]{6}\s*\)', '', i.get('color', '')).strip()
+            
             self.tree.insert("", "end", iid=str(i['id']), image=icon, values=(
-                i['id'], i['brand'], i.get('material', '-'), i['color'], i.get('subtype', 'Standard'), 
+                i['id'], i['brand'], i.get('material', '-'), display_color, i.get('subtype', 'Standard'), 
                 f"{net}g", flow_val, loc_s, stat
             ), tags=(["alert"] if i.get('reorder') else ["grayed"] if i['type'] == "VERBRAUCHT" else []))
             
@@ -2727,7 +2790,7 @@ class FilamentApp:
 
     def open_mobile_companion(self):
         local_ip = get_local_ip()
-        url = f"http://{local_ip}:8282"
+        url = f"http://{local_ip}:8289"
         
         win = tk.Toplevel(self.root)
         win.title("📱 Handy Scanner verbinden")
@@ -2914,12 +2977,17 @@ class FilamentApp:
         # Für jeden Slot eine Zeile aufbauen
         for idx, r in enumerate(result):
             row_idx = idx + 2
-            slot_num = int(r['slot']) + 1
+            
+            # NEU: Wir berechnen dynamisch das AMS und den Slot (0-3 = AMS 1, 4-7 = AMS 2)
+            raw_slot = int(r.get('slot', 0))
+            ams_num = r.get('ams', (raw_slot // 4)) + 1
+            slot_num = (raw_slot % 4) + 1
+            ams_name = f"AMS {ams_num}"
             
             # 1. Spalte: Was sagt Bambu?
             info_frame = tk.Frame(frm, bg=self.root.cget('bg'))
             info_frame.grid(row=row_idx, column=0, sticky="w", pady=10)
-            tk.Label(info_frame, text=f"Slot {slot_num}: ", font=FONT_BOLD, bg=self.root.cget('bg'), fg="white" if "dark" in str(self.root.cget('bg')) else "black").pack(side="left")
+            tk.Label(info_frame, text=f"{ams_name} Slot {slot_num}: ", font=FONT_BOLD, bg=self.root.cget('bg'), fg="white" if "dark" in str(self.root.cget('bg')) else "black").pack(side="left")
             
             if r['empty']:
                 tk.Label(info_frame, text="LEER", fg="#999999", bg=self.root.cget('bg')).pack(side="left")
@@ -2938,7 +3006,7 @@ class FilamentApp:
             cb_new.pack(side="left", padx=(0, 5))
             
             # --- SMART PRE-SELECTION (Auto-Mapping & Position Memory) ---
-            current_fil = next((i for i in active_filaments if i.get('type') == "AMS 1" and str(i.get('loc_id')) == str(slot_num)), None)
+            current_fil = next((i for i in active_filaments if i.get('type') == "ams_name" and str(i.get('loc_id')) == str(slot_num)), None)
             
             if current_fil:
                 name = f"{current_fil.get('brand', '')} {current_fil.get('material', '')} {current_fil.get('color', '')}".strip()
@@ -2968,7 +3036,7 @@ class FilamentApp:
             cb_old.grid(row=row_idx, column=2, padx=10, pady=10)
 
             # WICHTIG: Wir speichern das 'cb_new' Widget ab, damit wir es später aktualisieren können!
-            self.sync_vars.append({"slot_num": slot_num, "bambu_data": r, "var_new": var_new_spool, "var_old": var_old_loc, "cb_widget": cb_new})
+            self.sync_vars.append({"ams_name": ams_name, "slot_num": slot_num, "bambu_data": r, "var_new": var_new_spool, "var_old": var_old_loc, "cb_widget": cb_new})
 
         ttk.Separator(frm, orient="horizontal").grid(row=6, column=0, columnspan=3, sticky="ew", pady=15)
         
@@ -2982,18 +3050,27 @@ class FilamentApp:
         # 2. Daten vom Drucker sauber auslesen
         mat = r.get('material', 'PLA') or 'PLA'
         
-        # Bambu liefert den Hex oft als RGBA (z.B. "FF0000FF"). Wir brauchen nur die ersten 6 Zeichen.
+        # Bambu liefert den Hex oft als RGBA. Wir brauchen nur die ersten 6 Zeichen.
         hex_color = f"#{r.get('color_hex', 'FFFFFF')[:6]}".upper()
         if hex_color == "#": hex_color = "#FFFFFF"
         
-        brand = "Bambu" # Standardwert, da es im AMS gelesen wurde
+        # --- NEU: Der automatische Farb-Übersetzer! ---
+        from core.colors import get_color_name_from_hex
+        matched_name = get_color_name_from_hex(hex_color)
+        
+        # In die Datenbank schreiben wir Name + Code (für das Icon)
+        final_color_db = f"{matched_name} ({hex_color})" if matched_name else hex_color
+        
+        # In der Dropdown-Liste zeigen wir DIR aber nur den sauberen Namen!
+        display_color_name = matched_name if matched_name else hex_color
+        
+        brand = "Bambu" 
         
         # 3. Das neue Spulen-Paket schnüren
         new_item = {
-            "id": new_id, "rfid": "", "brand": brand, "material": mat, "color": hex_color, 
-            "subtype": "Standard", 
-            "type": "LAGER", # Landet virtuell kurz im Lager, bis der Sync final gespeichert wird!
-            "loc_id": "-", 
+            "id": new_id, "rfid": "", "brand": brand, "material": mat, 
+            "color": final_color_db,  # <--- Hier die übersetzte Farbe eintragen!
+            "subtype": "Standard", "type": "LAGER", "loc_id": "-", 
             "flow": "", "pa": "", "spool_id": -1, "weight_gross": 1000, "capacity": 1000,
             "is_empty": False, "reorder": False, "supplier": "", "sku": "", "price": "", 
             "link": "", "temp_n": "", "temp_b": ""
@@ -3004,8 +3081,8 @@ class FilamentApp:
         self.data_manager.save_inventory(self.inventory)
         self.refresh_table()
         
-        # 5. Den Dropdowns das neue Filament beibringen!
-        display_text = f"{new_id} - {brand} {mat} {hex_color} [LAGER -]"
+        # 5. Den Dropdowns das neue Filament beibringen (Ohne hässlichen Hex-Code!)
+        display_text = f"{new_id} - {brand} {mat} {display_color_name} [LAGER -]"
         
         for sv in getattr(self, 'sync_vars', []):
             cb = sv.get('cb_widget')
@@ -3043,12 +3120,13 @@ class FilamentApp:
 
         # --- NORMALE SPEICHERLOGIK ---
         for sv in self.sync_vars:
+            ams_name = sv['ams_name'] # NEU: Dynamischer AMS-Name
             slot_num_str = str(sv['slot_num']) # z.B. "3"
             new_selection = sv['var_new'].get() 
             old_destination = sv['var_old'].get() 
             
             # FIX 1: VibeSpool nennt das Regal intern "type" und das Fach "loc_id"!
-            old_filament = next((i for i in self.inventory if i.get('type') == "AMS 1" and str(i.get('loc_id')) == slot_num_str), None)
+            old_filament = next((i for i in self.inventory if i.get('type') == ams_name and str(i.get('loc_id')) == slot_num_str), None)
             
             new_id = -1
             if new_selection != "- Leer / Ignorieren -":
@@ -3070,13 +3148,13 @@ class FilamentApp:
                     old_filament['loc_id'] = ""
                 moved_old.append(f"#{old_filament['id']} nach {old_destination}")
             
-            # FIX 3: Neue Spule korrekt in AMS eintragen (type="AMS 1", loc_id="3")
+            # FIX 3: Neue Spule korrekt in AMS eintragen
             if new_id != -1:
                 new_filament = next((i for i in self.inventory if i.get('id') == new_id), None)
                 if new_filament:
-                    new_filament['type'] = "AMS 1"
+                    new_filament['type'] = ams_name
                     new_filament['loc_id'] = slot_num_str
-                    moved_new.append(f"#{new_filament['id']} in AMS 1 Slot {slot_num_str}")
+                    moved_new.append(f"#{new_filament['id']} in {ams_name} Slot {slot_num_str}")
 
         total_changes = len(moved_new) + len(moved_old)
         if total_changes > 0:
@@ -3189,6 +3267,193 @@ class FilamentApp:
 
         except Exception as e:
             messagebox.showerror("Fehler beim Import", f"Die Datei konnte nicht gelesen werden. Ist sie evtl. noch in Excel geöffnet?\n\nDetails: {e}")
+    
+    def show_statistics_dialog(self):
+        import datetime
+        import json
+        import os
+        
+        stat_win = tk.Toplevel(self.root)
+        stat_win.title("📊 Verbrauchs-Statistik (Letzte 7 Tage)")
+        stat_win.geometry("500x350")
+        stat_win.configure(bg=self.root.cget('bg'))
+        
+        # Daten laden
+        data_dir = self.settings.get("data_path", "")
+        history_file = os.path.join(data_dir, "history.json") if data_dir else "history.json"
+        history = {}
+        if os.path.exists(history_file):
+            with open(history_file, "r") as f:
+                history = json.load(f)
+                
+        # Die letzten 7 Tage generieren
+        today = datetime.date.today()
+        last_7_days = [(today - datetime.timedelta(days=i)).isoformat() for i in range(6, -1, -1)]
+        
+        # Werte extrahieren
+        values = [history.get(day, 0.0) for day in last_7_days]
+        max_val = max(values) if max(values) > 0 else 100 # Skalierungsschutz
+        
+        # Canvas (Leinwand) erstellen
+        c_width, c_height = 460, 250
+        canvas = tk.Canvas(stat_win, width=c_width, height=c_height, bg="#2b2b2b", highlightthickness=0)
+        canvas.pack(pady=20)
+        
+        bar_width = 40
+        spacing = 20
+        start_x = 30
+        
+        # Balken zeichnen
+        for i, val in enumerate(values):
+            x0 = start_x + i * (bar_width + spacing)
+            x1 = x0 + bar_width
+            # Höhe relativ zum Maximalwert berechnen
+            bar_height = (val / max_val) * (c_height - 50) 
+            y0 = c_height - 30 - bar_height
+            y1 = c_height - 30
+            
+            # Balken
+            color = "#00a8ff" if val > 0 else "#444444"
+            canvas.create_rectangle(x0, y0, x1, y1, fill=color, outline="")
+            
+            # Gramm-Text oben drüber
+            if val > 0:
+                canvas.create_text(x0 + bar_width/2, y0 - 10, text=f"{int(val)}g", fill="white", font=("Arial", 9))
+                
+            # Wochentag unten drunter (z.B. "Mo", "Di")
+            day_obj = datetime.datetime.strptime(last_7_days[i], "%Y-%m-%d")
+            day_name = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"][day_obj.weekday()]
+            canvas.create_text(x0 + bar_width/2, c_height - 10, text=day_name, fill="gray", font=("Arial", 10))
+    
+    def setup_context_menus(self):
+        # --- 1. DAS HEADER-MENÜ (Spalten-Konfigurator) ---
+        self.menu_header = tk.Menu(self.root, tearoff=0)
+        
+        self.col_vars = {}
+        all_cols = {"id": "ID", "brand": "Marke", "material": "Material", "color": "Farbe", 
+                    "subtype": "Effekt / Typ", "weight": "Rest(g)", "flow": "Flow", 
+                    "location": "Ort", "status": "Status"}
+                    
+        visible_now = self.settings.get("visible_columns", list(all_cols.keys()))
+        
+        def toggle_column():
+            # Welche Spalten haben einen Haken?
+            new_visible = [col for col, var in self.col_vars.items() if var.get()]
+            if not new_visible: # Mindestens eine Spalte muss an bleiben!
+                new_visible = ["id"]
+                self.col_vars["id"].set(True)
+                
+            self.tree.configure(displaycolumns=new_visible)
+            self.settings["visible_columns"] = new_visible
+            self.data_manager.save_settings(self.settings)
+
+        for col_id, col_name in all_cols.items():
+            var = tk.BooleanVar(value=(col_id in visible_now))
+            self.col_vars[col_id] = var
+            self.menu_header.add_checkbutton(label=col_name, variable=var, command=toggle_column)
+            
+        self.menu_header.add_separator()
+        self.menu_header.add_command(label="🔄 Standard-Ansicht", command=lambda: [v.set(True) for v in self.col_vars.values()] or toggle_column())
+
+        # Wende die gespeicherten Spalten direkt beim Start an!
+        self.tree.configure(displaycolumns=visible_now)
+
+        # --- 2. DAS ZEILEN-MENÜ (Quick-Actions) ---
+        self.menu_row = tk.Menu(self.root, tearoff=0)
+        self.menu_row.add_command(label="🔄 Quick-Swap (ins AMS)", command=self.quick_swap_dialog)
+        self.menu_row.add_command(label="🐑 Spule klonen", command=self.clone_filament)
+        self.menu_row.add_separator()
+        self.menu_row.add_command(label="📦 Ins Lager verschieben", command=self.send_to_storage)
+        self.menu_row.add_command(label="🚮 Als LEER markieren", command=self.quick_mark_empty)
+        self.menu_row.add_command(label="🛒 Auf Einkaufsliste setzen/entfernen", command=self.quick_toggle_reorder)
+        self.menu_row.add_separator()
+        self.menu_row.add_command(label="📝 Etikett-Vorschau öffnen", command=self.quick_open_label)
+        self.menu_row.add_command(label="❌ Spule löschen", command=self.delete_filament)
+
+    def on_tree_right_click(self, event):
+        # Wo genau wurde geklickt?
+        region = self.tree.identify("region", event.x, event.y)
+        
+        if region == "heading":
+            # Klick auf den Tabellenkopf!
+            self.menu_header.tk_popup(event.x_root, event.y_root)
+            
+        elif region == "cell" or region == "tree":
+            # Klick auf eine Zeile! Wir markieren die Zeile automatisch.
+            row_id = self.tree.identify_row(event.y)
+            if row_id:
+                self.tree.selection_set(row_id)
+                self.on_select(None) # Lade die Daten ins Formular links
+                self.menu_row.tk_popup(event.x_root, event.y_root)
+
+    # --- HILFSFUNKTIONEN FÜR DAS RECHTSKLICK-MENÜ ---
+    def quick_mark_empty(self):
+        sel = self.tree.selection()
+        if not sel: return
+        item = next((i for i in self.inventory if i['id'] == int(sel[0])), None)
+        if item:
+            # NEU: Verbrauch loggen, bevor er gelöscht wird!
+            self.log_consumption(item.get('weight_gross', 0.0))
+            
+            item['type'] = "VERBRAUCHT"
+            item['loc_id'] = "-"
+            item['weight_gross'] = 0.0
+            self.data_manager.save_inventory(self.inventory)
+            self.refresh_table()
+            self.clear_inputs()
+
+    def quick_toggle_reorder(self):
+        sel = self.tree.selection()
+        if not sel: return
+        item = next((i for i in self.inventory if i['id'] == int(sel[0])), None)
+        if item:
+            item['reorder'] = not item.get('reorder', False)
+            self.data_manager.save_inventory(self.inventory)
+            self.refresh_table()
+            self.on_select(None) # Checkbox links aktualisieren
+
+    def quick_open_label(self):
+        # Öffnet den LabelCreator und wählt direkt diese Spule aus!
+        sel = self.tree.selection()
+        if not sel: return
+        lbl_dialog = LabelCreatorDialog(self.root, self.inventory)
+        
+        # Simuliere einen Klick in der Liste des Label Creators
+        for idx, listbox_item in enumerate(lbl_dialog.listbox.get(0, tk.END)):
+            if listbox_item.startswith(f"[{sel[0]}]"):
+                lbl_dialog.listbox.selection_set(idx)
+                lbl_dialog.on_select(None)
+                break
+
+    def log_consumption(self, amount_g):
+        import datetime
+        import json
+        import os
+        
+        # NEU: Wir blocken nur noch echte Nullen, erlauben aber Minuswerte!
+        if amount_g == 0: return 
+        
+        data_dir = self.settings.get("data_path", "")
+        history_file = os.path.join(data_dir, "history.json") if data_dir else "history.json"
+        
+        history = {}
+        if os.path.exists(history_file):
+            try:
+                with open(history_file, "r") as f:
+                    history = json.load(f)
+            except: pass
+            
+        today = datetime.date.today().isoformat()
+        
+        # Heutigen Verbrauch berechnen (Wenn amount_g negativ ist, wird abgezogen!)
+        new_val = history.get(today, 0.0) + float(amount_g)
+        
+        # NEU: Verhindert, dass der Tagesverbrauch unter 0g fällt 
+        # (z.B. wenn man gestern gedruckt hat, aber heute erst die Korrektur einträgt)
+        history[today] = max(0.0, new_val)
+        
+        with open(history_file, "w") as f:
+            json.dump(history, f, indent=4)
 
     def broadcast_mqtt(self):
         # 1. Ist MQTT überhaupt aktiviert?
@@ -3202,6 +3467,7 @@ class FilamentApp:
         from core.logic import calculate_net_weight
         import json
         import threading
+        import os
         
         total_spools = 0
         total_net_weight = 0
@@ -3244,31 +3510,66 @@ class FilamentApp:
             "ams": ams_data
         }
         
+        # --- NEU: OFFLINE BUFFER LOGIK ---
+        data_dir = self.settings.get("data_path", "")
+        buffer_file = os.path.join(data_dir, "mqtt_buffer.json") if data_dir else "mqtt_buffer.json"
+        
+        # Wir speichern IMMER den aktuellsten Stand in den Puffer
+        try:
+            with open(buffer_file, "w") as f:
+                json.dump(payload, f)
+        except: pass
+
+        # Wenn der Retry-Thread schon läuft, müssen wir keinen neuen starten.
+        # Er schnappt sich beim nächsten Durchlauf automatisch die aktualisierte Datei!
+        if getattr(self, 'mqtt_retry_active', False):
+            return
+
         # 3. Den Funker-Thread starten (damit die UI nicht hängt)
         def send_task():
-            try:
-                import paho.mqtt.publish as publish
-                port = int(self.settings.get("mqtt_port", "1883"))
-                user = self.settings.get("mqtt_user", "")
-                password = self.settings.get("mqtt_pass", "")
+            self.mqtt_retry_active = True
+            import paho.mqtt.publish as publish
+            import time
+            
+            port = int(self.settings.get("mqtt_port", "1883"))
+            user = self.settings.get("mqtt_user", "")
+            password = self.settings.get("mqtt_pass", "")
+            
+            auth = None
+            if user or password:
+                auth = {'username': user, 'password': password}
                 
-                auth = None
-                if user or password:
-                    auth = {'username': user, 'password': password}
+            # Die Endlos-Schleife für den Puffer
+            while True:
+                if not os.path.exists(buffer_file):
+                    break # Nichts mehr zu tun!
                     
-                publish.single(
-                    topic="vibespool/state",
-                    payload=json.dumps(payload),
-                    hostname=host,
-                    port=port, 
-                    auth=auth, # type: ignore
-                    retain=True, # WICHTIG: Home Assistant merkt sich den Wert nach einem Neustart!
-                    client_id="VibeSpool_App"
-                )
-            except Exception as e:
-                print(f"MQTT Broadcasting Fehler: {e}")
+                try:
+                    # Lade immer den FRISCHESTEN Stand aus der Datei
+                    with open(buffer_file, "r") as f:
+                        current_payload = json.load(f)
+                        
+                    publish.single(
+                        topic="vibespool/state",
+                        payload=json.dumps(current_payload),
+                        hostname=host,
+                        port=port, 
+                        auth=auth, # type: ignore
+                        retain=True, # WICHTIG: Home Assistant merkt sich den Wert!
+                        client_id="VibeSpool_App"
+                    )
+                    
+                    # Erfolgreich gesendet! Puffer löschen und Schleife beenden
+                    os.remove(buffer_file)
+                    break
+                    
+                except Exception as e:
+                    print(f"MQTT Broker nicht erreichbar. Neuer Versuch in 30 Sekunden... ({e})")
+                    time.sleep(30) # Warte 30 Sekunden im Hintergrund
+                    
+            self.mqtt_retry_active = False
                 
-        threading.Thread(target=send_task, daemon=True).start()
+        threading.Thread(target=send_task, daemon=True).start() 
     
 class PdfExportDialog(tk.Toplevel):
     def __init__(self, parent, inventory, spools):

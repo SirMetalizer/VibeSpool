@@ -1,25 +1,23 @@
 # 📋 VibeSpool Development Backlog
 
-## ✅ Kürzlich abgeschlossen (v1.9.7 - "The Smart & Mobile Update")
-- [x] **Mobile Companion:** Browser-basierter Handyscanner mit Foto-Modus (keine HTTPS-Probleme).
-- [x] **Live-Dashboard:** Spulen am Handy bearbeiten, umbuchen und Verbrauch tracken.
-- [x] **Smart Home Integration:** MQTT Broadcasting für Home Assistant.
-- [x] **Label Creator:** Integriertes Tool für QR-Code-Etiketten.
-- [x] **PDF Smart Export:** Export-Logik für Rollendrucker und DIN-A4-Bögen (Gitter-Layout).
-- [x] **Lager-Logik:** Unterstützung für doppeltiefe Regale (Vorne/Hinten).
-- [x] **Sicherheits-Features:** Kollisionsprüfung bei Umbuchungen (PC & Mobile).
-- [x] **UX-Refresh:** Hersteller-Management, Auto-Refill-Logic und aufgeräumte Optionen.
+## ✅ Kürzlich abgeschlossen (v1.9.8 - "The Data & Workflow Update")
+- [x] **Spalten-Konfigurator:** Individuelles Ein- und Ausblenden von Tabellenspalten per Rechtsklick.
+- [x] **Schnell-Aktionen:** Echtes Rechtsklick-Kontextmenü für Spulen (Umbuchen, AMS-Swap, Klonen, Leeren, Label).
+- [x] **Erweiterte Statistiken:** 7-Tage Verbrauchs-Historie mit interaktivem Balkendiagramm und Korrektur-Funktion.
+- [x] **Fehlertoleranz (MQTT):** Self-Healing Offline-Buffer speichert Smart-Home-Daten bei Netzwerkabbrüchen und sendet sie automatisch nach.
+- [x] **Branding & UI-Polish:** Eigenes App-Icon (Kompilierung via GitHub Actions) und verbesserte dynamische Tabellen-Sortierung.
+- [x] **Auto-Verknüpfung (Profil-System):** Hersteller fest mit Standard-Leerspule/Tara verknüpfen, damit das Dropdown immer sofort stimmt.
 
-## 🚀 Priorität 1: Next Steps (v1.9.8)
-- [ ] **Spalten-Konfigurator:** Nutzer können Spalten in der Haupttabelle ein-/ausblenden.
-- [ ] **Erweiterte Statistiken:** Visualisierung des Verbrauchs über Zeiträume (Woche/Monat).
-- [ ] **Auto-Verknüpfung:** Hersteller fest mit Standard-Leerspule/Tara verknüpfen (Profil-System).
-- [ ] **Fehlertoleranz:** Offline-Buffer für MQTT (falls der Broker mal weg ist).
+## ✅ Historie (v1.9.7 - "The Smart & Mobile Update")
+- [x] Mobile Companion (Handyscanner & Dashboard).
+- [x] Smart Home Integration (MQTT für Home Assistant).
+- [x] Label Creator & PDF Smart Export (A4 / Rolle).
+- [x] Doppeltiefe Regale & Auto-Refill.
 
-## 💅 Priorität 2: UI/UX & Komfort
-- [ ] **Dark Mode Feinschliff:** Native Titelleisten-Anpassung für Windows.
-- [ ] **Schnell-Aktionen:** Rechtsklick-Menü in der Tabelle für häufige Aufgaben.
-- [ ] **Suche-Upgrade:** Globale Suche auch über Kommentare und SKUs.
+## 🚀 Priorität 1: Next Steps (v1.9.9)
+
+- [ ] **Erweiterte Filter & Suche:** Globale Suche auch über Kommentare, SKUs und Links.
+- [ ] **Dark Mode Feinschliff:** Native Titelleisten-Anpassung für Windows 11.
 
 ## 🔮 Langzeit-Vision (v2.0)
 - [ ] **Internationalisierung (i18n):** Voller Support für Englisch und weitere Sprachen.

@@ -36,7 +36,17 @@ class BambuScanner:
             if "print" in payload and "ams" in payload["print"]:
                 ams_info = payload["print"]["ams"]
                 if "ams" in ams_info and len(ams_info["ams"]) > 0:
-                    self.ams_data = ams_info["ams"][0].get("tray", [])
+                    all_trays = []
+                    
+                    # FEHLER BEHOBEN: Wir iterieren jetzt über ALLE angeschlossenen AMS-Einheiten!
+                    for ams_unit in ams_info["ams"]:
+                        ams_id = int(ams_unit.get("id", "0"))
+                        
+                        for tray in ams_unit.get("tray", []):
+                            tray["ams_id"] = ams_id  # Wir stempeln das Tray mit seiner AMS-Nummer
+                            all_trays.append(tray)
+                            
+                    self.ams_data = all_trays
                     self.client.disconnect()
         except:
             pass
@@ -75,16 +85,23 @@ class BambuScanner:
     def parse_trays(self, trays):
         parsed = []
         for tray in trays:
-            if not tray.get("tray_info_idx"):
-                parsed.append({"slot": tray.get("id"), "empty": True})
+            # Wenn weder Typ noch Info da sind, ist der Slot garantiert leer
+            if not tray.get("tray_type") and not tray.get("tray_info_idx"):
+                parsed.append({
+                    "ams": tray.get("ams_id", 0),
+                    "slot": tray.get("id"), 
+                    "empty": True
+                })
                 continue
                 
             parsed.append({
+                "ams": tray.get("ams_id", 0),
                 "slot": tray.get("id"),
                 "empty": False,
-                "material": tray.get("tray_sub_brands", ""),
-                "color_hex": tray.get("tray_color", ""),
-                "type": tray.get("tray_type", "")
+                # FEHLER BEHOBEN: 'tray_type' enthält zuverlässig PLA, PETG, ABS, etc.
+                "material": tray.get("tray_type", "PLA"), 
+                "color_hex": tray.get("tray_color", "FFFFFF"),
+                "sub_brand": tray.get("tray_sub_brands", "")
             })
         return parsed
 

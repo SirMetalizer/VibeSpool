@@ -23,6 +23,71 @@ from core.data_manager import DataManager
 from core.spool_presets import SPOOL_PRESETS
 from core.colors import get_color_name_from_hex
 
+# --- KONFIGURATION ---
+APP_VERSION = "1.9.9"
+GITHUB_REPO = "SirMetalizer/VibeSpool" 
+
+# --- DEFAULTS ---
+DEFAULT_SETTINGS = {
+    "shelves": "REGAL|4|8", 
+    "logistics_order": False,
+    "label_row": "Fach",
+    "label_col": "Slot",
+    "num_ams": 1,
+    "custom_locs": "Filamenttrockner",
+    "geometry": "1500x980", 
+    "theme": "dark",
+    "use_affiliate": True,
+    "rfid_mode": False,
+    "use_moonraker": False,
+    "printer_url": "",
+    "printer_api_key": "",
+    "use_bambu": False,
+    "bambu_ip": "",
+    "bambu_access": "",
+    "bambu_serial": "",
+    "mqtt_enable": False,
+    "mqtt_host": "",
+    "mqtt_port": "1883",
+    "mqtt_user": "",
+    "mqtt_pass": "",
+    "materials": ["PLA", "PLA+", "PETG", "ABS", "ASA", "TPU", "PC", "PA-CF", "PVA", "Sonstiges"],
+    "subtypes": ["Standard", "Matte", "Silk", "High Speed", "Dual Color", "Tri Color", "Glow in Dark", "Transparent", "Translucent", "Marmor", "Holz", "Glitzer/Sparkle"],
+    "colors": ["Black", "White", "Grey", "Silver", "Ash Gray", "Red", "Maroon Red", "Blue", "Light Blue", "Navy", "Green", "Dark Green", "Mint", "Olive", "Yellow", "Orange", "Terracotta", "Purple", "Plum", "Lavender", "Pink", "Magenta", "Brown", "Beige", "Turquoise", "Cyan", "Gold", "Copper", "Bronze", "Rainbow", "Marble", "Wood"],
+    "brands": ["Bambu", "eSun", "Geeetech", "Sunlu", "Polymaker", "Prusa", "Eryone"],
+    "visible_columns": ["id", "brand", "material", "color", "subtype", "weight", "flow", "location", "status"]
+}
+
+MATERIALS = ["PLA", "PLA+", "PETG", "ABS", "ASA", "TPU", "PC", "PA-CF", "PVA", "Sonstiges"]
+SUBTYPES = ["Standard", "Matte", "Silk", "High Speed", "Dual Color", "Tri Color", "Glow in Dark", "Transparent", "Translucent", "Marmor", "Holz", "Glitzer/Sparkle"]
+COMMON_COLORS = [
+    "Black", "White", "Grey", "Silver", "Ash Gray", 
+    "Red", "Maroon Red", "Blue", "Light Blue", "Navy", 
+    "Green", "Dark Green", "Mint", "Olive",
+    "Yellow", "Orange", "Terracotta", 
+    "Purple", "Plum", "Lavender", "Pink", "Magenta", 
+    "Brown", "Beige", "Turquoise", "Cyan",
+    "Gold", "Copper", "Bronze", 
+    "Rainbow", "Marble", "Wood"
+]
+
+THEMES = {
+    "light": {
+        "bg": "#f0f0f0", "fg": "#333333", "entry_bg": "#ffffff", "entry_fg": "#000000",
+        "tree_bg": "#ffffff", "tree_fg": "#000000", "head_bg": "#e1e1e1", "head_fg": "#333333", "lbl_frame": "#333333"
+    },
+    "dark": {
+        "bg": "#2b2b2b", "fg": "#e0e0e0", "entry_bg": "#3c3f41", "entry_fg": "#e0e0e0",
+        "tree_bg": "#3c3f41", "tree_fg": "#e0e0e0", "head_bg": "#4b4d4f", "head_fg": "#e0e0e0", "lbl_frame": "#e0e0e0"
+    }
+}
+
+COLOR_ACCENT = "#0078d7"    
+COLOR_DELETE = "#d9534f" 
+
+FONT_MAIN = ("Segoe UI", 10)
+FONT_BOLD = ("Segoe UI", 10, "bold")
+
 def fetch_last_print_usage(url, key): 
     return None
 def fetch_recent_jobs(url, key): 
@@ -37,6 +102,7 @@ def get_local_ip():
         s.close()
         return IP
     except: return '127.0.0.1'
+
 
 MOBILE_HTML = """
 <!DOCTYPE html>
@@ -340,70 +406,6 @@ def start_mobile_server(app_inst):
         print(f"Webserver konnte nicht starten: {e}")
 
 
-# --- KONFIGURATION ---
-APP_VERSION = "1.9.8"
-GITHUB_REPO = "SirMetalizer/VibeSpool" 
-
-# --- DEFAULTS ---
-DEFAULT_SETTINGS = {
-    "shelves": "REGAL|4|8", 
-    "logistics_order": False,
-    "label_row": "Fach",
-    "label_col": "Slot",
-    "num_ams": 1,
-    "custom_locs": "Filamenttrockner",
-    "geometry": "1500x980", 
-    "theme": "dark",
-    "use_affiliate": True,
-    "rfid_mode": False,
-    "use_moonraker": False,
-    "printer_url": "",
-    "printer_api_key": "",
-    "use_bambu": False,
-    "bambu_ip": "",
-    "bambu_access": "",
-    "bambu_serial": "",
-    "mqtt_enable": False,
-    "mqtt_host": "",
-    "mqtt_port": "1883",
-    "mqtt_user": "",
-    "mqtt_pass": "",
-    "materials": ["PLA", "PLA+", "PETG", "ABS", "ASA", "TPU", "PC", "PA-CF", "PVA", "Sonstiges"],
-    "subtypes": ["Standard", "Matte", "Silk", "High Speed", "Dual Color", "Tri Color", "Glow in Dark", "Transparent", "Translucent", "Marmor", "Holz", "Glitzer/Sparkle"],
-    "colors": ["Black", "White", "Grey", "Silver", "Ash Gray", "Red", "Maroon Red", "Blue", "Light Blue", "Navy", "Green", "Dark Green", "Mint", "Olive", "Yellow", "Orange", "Terracotta", "Purple", "Plum", "Lavender", "Pink", "Magenta", "Brown", "Beige", "Turquoise", "Cyan", "Gold", "Copper", "Bronze", "Rainbow", "Marble", "Wood"],
-    "brands": ["Bambu", "eSun", "Geeetech", "Sunlu", "Polymaker", "Prusa", "Eryone"],
-    "visible_columns": ["id", "brand", "material", "color", "subtype", "weight", "flow", "location", "status"]
-}
-
-MATERIALS = ["PLA", "PLA+", "PETG", "ABS", "ASA", "TPU", "PC", "PA-CF", "PVA", "Sonstiges"]
-SUBTYPES = ["Standard", "Matte", "Silk", "High Speed", "Dual Color", "Tri Color", "Glow in Dark", "Transparent", "Translucent", "Marmor", "Holz", "Glitzer/Sparkle"]
-COMMON_COLORS = [
-    "Black", "White", "Grey", "Silver", "Ash Gray", 
-    "Red", "Maroon Red", "Blue", "Light Blue", "Navy", 
-    "Green", "Dark Green", "Mint", "Olive",
-    "Yellow", "Orange", "Terracotta", 
-    "Purple", "Plum", "Lavender", "Pink", "Magenta", 
-    "Brown", "Beige", "Turquoise", "Cyan",
-    "Gold", "Copper", "Bronze", 
-    "Rainbow", "Marble", "Wood"
-]
-
-THEMES = {
-    "light": {
-        "bg": "#f0f0f0", "fg": "#333333", "entry_bg": "#ffffff", "entry_fg": "#000000",
-        "tree_bg": "#ffffff", "tree_fg": "#000000", "head_bg": "#e1e1e1", "head_fg": "#333333", "lbl_frame": "#333333"
-    },
-    "dark": {
-        "bg": "#2b2b2b", "fg": "#e0e0e0", "entry_bg": "#3c3f41", "entry_fg": "#e0e0e0",
-        "tree_bg": "#3c3f41", "tree_fg": "#e0e0e0", "head_bg": "#4b4d4f", "head_fg": "#e0e0e0", "lbl_frame": "#e0e0e0"
-    }
-}
-
-COLOR_ACCENT = "#0078d7"    
-COLOR_DELETE = "#d9534f" 
-
-FONT_MAIN = ("Segoe UI", 10)
-FONT_BOLD = ("Segoe UI", 10, "bold")
 
 # --- FENSTER KLASSEN ---
 class SpoolManager(tk.Toplevel):
@@ -1296,9 +1298,24 @@ class ShoppingListDialog(tk.Toplevel):
         if not sel: return messagebox.showinfo("Info", "Bitte ein Filament auswählen.", parent=self)
         item = next((x for x in self.inventory if x['id'] == int(sel[0])), None)
         if not item or not item.get('link'): return messagebox.showinfo("Info", "Für dieses Filament ist leider kein Link hinterlegt.", parent=self)
-        url = item['link'].strip(); url = url if url.startswith("http") else "https://" + url
-        if self.app.settings.get("use_affiliate", True) and "bambulab.com" in url.lower() and "modelId=" not in url: url += ("&" if "?" in url else "?") + "modelId=1889832"
+        
+        url = item['link'].strip()
+        url = url if url.startswith("http") else "https://" + url
+        
+        # --- AFFILIATE INJEKTION ---
+        if self.app.settings.get("use_affiliate", True):
+            url_lower = url.lower()
+            
+            # Bambu Lab MakerWorld
+            if "bambulab.com" in url_lower and "modelid=" not in url_lower: 
+                url += ("&" if "?" in url else "?") + "modelId=1889832"
+                
+            # Amazon (Alle Domains & Kurzlinks)
+            elif ("amazon." in url_lower or "amzn.to" in url_lower) and "tag=" not in url_lower:
+                url += ("&" if "?" in url else "?") + "tag=metmeyoumetwe-21"
+                
         webbrowser.open(url)
+
     def export_csv(self):
         filepath = filedialog.asksaveasfilename(defaultextension=".csv", filetypes=[("CSV", "*.csv")], title="Einkaufsliste exportieren")
         if not filepath: return
@@ -1425,11 +1442,24 @@ class BackupDialog(tk.Toplevel):
         fp = filedialog.asksaveasfilename(defaultextension=".zip", filetypes=[("ZIP", "*.zip")], initialfile="VibeSpool_Backup.zip")
         if not fp: return
         try:
+            base_d = getattr(self.data_manager, 'base_dir', '')
+            hist_f = os.path.join(base_d, "history.json") if base_d else "history.json"
+            mqtt_f = os.path.join(base_d, "mqtt_buffer.json") if base_d else "mqtt_buffer.json"
+            
             with zipfile.ZipFile(fp, 'w') as z:
-                for f, n in [(self.data_manager.data_file, "inventory.json"), (self.data_manager.settings_file, "settings.json"), (self.data_manager.spools_file, "spools.json")]:
+                for f, n in [
+                    (self.data_manager.data_file, "inventory.json"), 
+                    (self.data_manager.settings_file, "settings.json"), 
+                    (self.data_manager.spools_file, "spools.json"),
+                    (hist_f, "history.json"),
+                    (mqtt_f, "mqtt_buffer.json")
+                ]:
                     if os.path.exists(f): z.write(f, n)
-            messagebox.showinfo("Erfolg", "Backup erstellt!", parent=self); self.destroy()
-        except Exception as e: messagebox.showerror("Fehler", str(e), parent=self)
+            messagebox.showinfo("Erfolg", "Backup erstellt!", parent=self)
+            self.destroy()
+        except Exception as e: 
+            messagebox.showerror("Fehler", str(e), parent=self)
+    
     def import_data(self):
         fp = filedialog.askopenfilename(filetypes=[("ZIP", "*.zip")])
         if not fp: return
@@ -1596,8 +1626,11 @@ class FilamentApp:
         self.inventory = inventory_data if isinstance(inventory_data, list) else []
         self.settings = settings_data if isinstance(settings_data, dict) else {}
         self.spools = spools_data if isinstance(spools_data, list) else []
+
+        # --- NEU: Gespeicherte Sortierung laden ---
+        self.current_sort_col = self.settings.get("sort_col", "id")
+        self.current_sort_reverse = self.settings.get("sort_reverse", False)
         
-        # Already assigned above with type safety checks
         
         self.root.geometry(str(self.settings.get("geometry", "1500x980")))
         self.root.title(f"VibeSpool {APP_VERSION}"); self.root.protocol("WM_DELETE_WINDOW", self.on_closing)
@@ -1664,8 +1697,9 @@ class FilamentApp:
         # --- SIDEBAR BUTTONS ---
         self.nav_btns = []
         def add_nav_btn(text, cmd, icon_txt=None):
+            # NEU: justify="center" erzwingt die mittige Ausrichtung
             btn = tk.Button(self.nav_sidebar, text=f"{icon_txt}\n{text}" if icon_txt else text, command=cmd, 
-                           font=("Segoe UI", 8), bd=0, pady=15, cursor="hand2")
+                           font=("Segoe UI", 8), bd=0, pady=15, cursor="hand2", justify="center")
             btn.pack(fill="x")
             self.nav_btns.append(btn)
             btn.bind("<Enter>", lambda e: self.on_nav_btn_hover(btn, True))
@@ -1673,7 +1707,10 @@ class FilamentApp:
 
         add_nav_btn("Regal", lambda: ShelfVisualizer(self.root, self.inventory, self.settings, self.spools, self), "📦")
         add_nav_btn("Spulen", lambda: SpoolManager(self.root, self.data_manager, self.update_spool_dropdown), "🧵")
-        add_nav_btn("Label", lambda: LabelCreatorDialog(self.root, self.inventory), "🏷️")
+        
+        # FIX: Ein Leerzeichen vor dem Emoji schiebt es optisch genau in die Mitte!
+        add_nav_btn("Label", lambda: LabelCreatorDialog(self.root, self.inventory), "   🏷️")
+        
         add_nav_btn("Finanzen", lambda: StatisticsDialog(self.root, self.inventory, self), "📊")
         add_nav_btn("Swap", self.quick_swap_dialog, "🔄")
         add_nav_btn("Flow", lambda: FlowCalculatorDialog(self.root, self.entry_flow), "🧪")
@@ -1949,10 +1986,27 @@ class FilamentApp:
         ttk.Label(tab_erp, text="SKU / Art-Nr.:").grid(row=1, column=0, sticky="w", pady=5)
         self.entry_sku = ttk.Entry(tab_erp); self.entry_sku.grid(row=1, column=1, sticky="ew", pady=2)
         ttk.Label(tab_erp, text="Preis (€):").grid(row=2, column=0, sticky="w", pady=5); self.entry_price = ttk.Entry(tab_erp, textvariable=self.var_price); self.entry_price.grid(row=2, column=1, sticky="ew", pady=2)
-        ttk.Label(tab_erp, text="Link:").grid(row=3, column=0, sticky="w", pady=5); self.entry_link = ttk.Entry(tab_erp); self.entry_link.grid(row=3, column=1, sticky="ew", pady=2)
+        ttk.Label(tab_erp, text="Link:").grid(row=3, column=0, sticky="w", pady=5)
+        
+        # Frame für Link-Eingabe + Button nebeneinander
+        frm_link_action = ttk.Frame(tab_erp)
+        frm_link_action.grid(row=3, column=1, sticky="ew", pady=2)
+        
+        self.entry_link = ttk.Entry(frm_link_action)
+        self.entry_link.pack(side="left", fill="x", expand=True)
+        
+        # Der neue "Direkt-Öffnen" Button
+        btn_go = ttk.Button(frm_link_action, text="🔗", width=3, command=self.quick_open_shop)
+        btn_go.pack(side="left", padx=(5, 0))
+        btn_go.bind("<Enter>", lambda e: self.show_tip(e, "Link im Browser öffnen (inkl. Affiliate)"))
+        btn_go.bind("<Leave>", self.hide_tip)
         ttk.Separator(tab_erp, orient="horizontal").grid(row=4, column=0, columnspan=2, sticky="ew", pady=10)
         ttk.Label(tab_erp, text="Nozzle Temp (°C):").grid(row=5, column=0, sticky="w", pady=5); self.entry_temp_n = ttk.Entry(tab_erp); self.entry_temp_n.grid(row=5, column=1, sticky="ew", pady=2)
         ttk.Label(tab_erp, text="Bed Temp (°C):").grid(row=6, column=0, sticky="w", pady=5); self.entry_temp_b = ttk.Entry(tab_erp); self.entry_temp_b.grid(row=6, column=1, sticky="ew", pady=2)
+        # --- NEU: Notiz / Kommentar ---
+        ttk.Label(tab_erp, text="Notiz / Kommentar:").grid(row=7, column=0, sticky="w", pady=5)
+        self.entry_note = ttk.Entry(tab_erp)
+        self.entry_note.grid(row=7, column=1, sticky="ew", pady=2)
         tab_erp.columnconfigure(1, weight=1)
        
         btn_frame = ttk.Frame(sidebar)
@@ -2088,6 +2142,11 @@ class FilamentApp:
     def on_closing(self): 
         try:
             self.settings["geometry"] = self.root.geometry()
+            
+            # --- NEU: Sortierung beim Beenden in die settings.json schreiben ---
+            self.settings["sort_col"] = getattr(self, 'current_sort_col', 'id')
+            self.settings["sort_reverse"] = getattr(self, 'current_sort_reverse', False)
+            
             self.data_manager.save_settings(self.settings)
         except Exception: 
             pass
@@ -2098,6 +2157,15 @@ class FilamentApp:
     
     def apply_theme(self):
         theme = self.settings.get("theme", "dark"); c = THEMES[theme]; self.root.configure(bg=c["bg"]); s = self.style
+        # --- NATIVE WINDOWS TITELLEISTE (DARK MODE) ---
+        try:
+            import ctypes
+            # Holt die interne Windows-Fenster-ID (HWND) von Tkinter
+            hwnd = ctypes.windll.user32.GetParent(self.root.winfo_id())
+            value = ctypes.c_int(1 if theme == "dark" else 0)
+            ctypes.windll.dwmapi.DwmSetWindowAttribute(hwnd, 20, ctypes.byref(value), ctypes.sizeof(value))
+        except Exception:
+            pass # Wenn es ein Mac oder altes Windows ist, passiert einfach nichts
         s.configure(".", background=c["bg"], foreground=c["fg"], font=FONT_MAIN)
         s.configure("TLabel", background=c["bg"], foreground=c["fg"])
         s.configure("TCheckbutton", background=c["bg"], foreground=c["fg"])
@@ -2417,10 +2485,26 @@ class FilamentApp:
         self._sort_inventory()
         
         filters = {"material": self.filter_mat_var.get(), "color": self.filter_color_var.get(), "location": self.filter_loc_var.get()}
-        for i in self.data_manager.get_filtered_inventory(self.inventory, self.search_var.get(), filters):
-            # NEU: Manueller Hersteller-Filter
+        
+        # Suchbegriff in kleine Buchstaben umwandeln und in einzelne Wörter zerlegen
+        search_term = self.search_var.get().lower().strip()
+        search_words = search_term.split() if search_term else []
+        
+        # Wir übergeben "" an den DataManager, da wir die Textsuche jetzt viel mächtiger hier selbst machen!
+        for i in self.data_manager.get_filtered_inventory(self.inventory, "", filters):
+            # Manueller Hersteller-Filter
             if self.filter_brand_var.get() != "Alle Hersteller" and i.get('brand') != self.filter_brand_var.get():
                 continue
+                
+            # --- DIE NEUE OMNI-SUCHE ---
+            if search_words:
+                # Wirft ALLE Werte (ID, Farbe, SKU, Link, Notiz etc.) in einen riesigen String
+                all_values = " ".join(str(v) for v in i.values() if v is not None).lower()
+                
+                # Prüft, ob JEDES eingegebene Wort irgendwo in diesem Spulen-Datensatz vorkommt
+                if not all(word in all_values for word in search_words):
+                    continue
+
             loc_s = f"{i['type']} {i.get('loc_id', '')}".strip()
             stat = " | ".join(filter(None, ["VERBRAUCHT" if i['type'] == "VERBRAUCHT" else "", "KAUFEN" if i.get('reorder') else ""]))
             
@@ -2448,19 +2532,20 @@ class FilamentApp:
             
             gross_str = self.var_gross.get().strip().replace(',', '.')
             
-            # FIX: Wir prüfen NUR noch, ob das Feld wirklich komplett leer ist.
-            # Eine eingetippte '0' ist ab sofort eine absolut gültige Eingabe!
-            if not gross_str:
+            # --- NEU: Kugelsichere Logik für leere Spulen ---
+            if self.combo_type.get() == "VERBRAUCHT":
+                gross_val = 0.0
+                self.var_gross.set("0") # UI direkt mit nullen
+            elif not gross_str:
                 sp = next((s for s in self.spools if s['id'] == spool_id), None)
                 gross_val = float(cap + (sp['weight'] if sp else 0))
                 self.var_gross.set(f"{gross_val:g}") # Update im UI sichtbar machen
             else:
                 gross_val = float(gross_str)
-                # Optionaler Schutz: Falls jemand versehentlich "-5" tippt, machen wir 0 daraus
                 if gross_val < 0:
                     gross_val = 0.0
 
-            return {"id": int(self.entry_id.get().strip()) if self.entry_id.get().strip() else None, "rfid": self.entry_rfid.get().strip(), "brand": self.entry_brand.get().strip(), "material": self.combo_material.get().strip(), "color": self.combo_color.get().strip(), "subtype": self.combo_subtype.get().strip(), "type": self.combo_type.get(), "loc_id": self.combo_loc_id.get().strip(), "flow": self.entry_flow.get().strip(), "pa": self.entry_pa.get().strip(), "spool_id": spool_id, "weight_gross": gross_val, "capacity": cap, "is_refill": self.var_is_refill.get(), "is_empty": self.combo_type.get() == "VERBRAUCHT", "reorder": self.var_reorder.get(), "supplier": self.entry_supplier.get().strip(), "sku": self.entry_sku.get().strip(), "price": self.var_price.get().strip(), "link": self.entry_link.get().strip(), "temp_n": self.entry_temp_n.get().strip(), "temp_b": self.entry_temp_b.get().strip()}
+            return {"id": int(self.entry_id.get().strip()) if self.entry_id.get().strip() else None, "rfid": self.entry_rfid.get().strip(), "brand": self.entry_brand.get().strip(), "material": self.combo_material.get().strip(), "color": self.combo_color.get().strip(), "subtype": self.combo_subtype.get().strip(), "type": self.combo_type.get(), "loc_id": self.combo_loc_id.get().strip(), "flow": self.entry_flow.get().strip(), "pa": self.entry_pa.get().strip(), "spool_id": spool_id, "weight_gross": gross_val, "capacity": cap, "is_refill": self.var_is_refill.get(), "is_empty": self.combo_type.get() == "VERBRAUCHT", "reorder": self.var_reorder.get(), "supplier": self.entry_supplier.get().strip(), "sku": self.entry_sku.get().strip(), "price": self.var_price.get().strip(), "link": self.entry_link.get().strip(), "temp_n": self.entry_temp_n.get().strip(), "temp_b": self.entry_temp_b.get().strip(), "note": self.entry_note.get().strip()}
         except Exception as e: 
             messagebox.showwarning(
                 "Eingabe-Fehler", 
@@ -2552,12 +2637,12 @@ class FilamentApp:
         self.entry_brand.insert(0, i['brand']); self.combo_material.set(i.get('material', 'PLA')); self.combo_color.set(i['color']); self.combo_subtype.set(i.get('subtype', 'Standard')); self.update_color_preview(); self.combo_type.set(i['type']); self.update_slot_dropdown(); self.combo_loc_id.set(i.get('loc_id', '')); self.entry_flow.insert(0, i.get('flow', '')); self.entry_pa.insert(0, i.get('pa', '')); self.var_reorder.set(i.get('reorder', False))
         for val in self.combo_spool['values']:
             if val.startswith(f"{i.get('spool_id', -1)} -"): self.combo_spool.set(val); break
-        self.var_capacity.set(str(i.get('capacity', 1000))); gross = str(i.get('weight_gross', '0')).replace(',', '.'); float_g = float(gross) if gross else 0; self.var_gross.set(str(float_g).rstrip('0').rstrip('.') if float_g > 0 else ""); self.var_price.set(str(i.get('price', ''))); self.update_net_weight_display(); self.entry_supplier.insert(0, i.get('supplier', '')); self.entry_sku.insert(0, i.get('sku', '')); self.entry_link.insert(0, i.get('link', '')); self.entry_temp_n.insert(0, i.get('temp_n', '')); self.entry_temp_b.insert(0, i.get('temp_b', ''))
+        self.var_capacity.set(str(i.get('capacity', 1000))); gross = str(i.get('weight_gross', '0')).replace(',', '.'); float_g = float(gross) if gross else 0; self.var_gross.set(str(float_g).rstrip('0').rstrip('.') if float_g > 0 else "0"); self.var_price.set(str(i.get('price', ''))); self.update_net_weight_display(); self.entry_supplier.insert(0, i.get('supplier', '')); self.entry_sku.insert(0, i.get('sku', '')); self.entry_link.insert(0, i.get('link', '')); self.entry_temp_n.insert(0, i.get('temp_n', '')); self.entry_temp_b.insert(0, i.get('temp_b', '')); self.entry_note.insert(0, i.get('note', ''));
         self.var_is_refill.set(i.get('is_refill', False))
     
     def clear_inputs(self, deselect=True):
         self.last_selected_spool_id = -1
-        for e in [self.entry_id, self.entry_rfid, self.entry_brand, self.entry_flow, self.entry_pa, self.entry_supplier, self.entry_sku, self.entry_link, self.entry_temp_n, self.entry_temp_b]: 
+        for e in [self.entry_id, self.entry_rfid, self.entry_brand, self.entry_flow, self.entry_pa, self.entry_supplier, self.entry_sku, self.entry_link, self.entry_temp_n, self.entry_temp_b, self.entry_note]: 
             e.delete(0, tk.END)
         self.var_capacity.set("1000")
         self.var_gross.set("")
@@ -3295,7 +3380,7 @@ class FilamentApp:
         stat_win.configure(bg=self.root.cget('bg'))
         
         # Daten laden
-        data_dir = self.settings.get("data_path", "")
+        data_dir = getattr(self.data_manager, 'base_dir', '')
         history_file = os.path.join(data_dir, "history.json") if data_dir else "history.json"
         history = {}
         if os.path.exists(history_file):
@@ -3376,6 +3461,10 @@ class FilamentApp:
 
         # --- 2. DAS ZEILEN-MENÜ (Quick-Actions) ---
         self.menu_row = tk.Menu(self.root, tearoff=0)
+        
+        self.menu_row.add_command(label="🛒 Im Shop öffnen", command=self.quick_open_shop)
+        self.menu_row.add_separator()
+        
         self.menu_row.add_command(label="🔄 Quick-Swap (ins AMS)", command=self.quick_swap_dialog)
         self.menu_row.add_command(label="🐑 Spule klonen", command=self.clone_filament)
         self.menu_row.add_separator()
@@ -3441,6 +3530,37 @@ class FilamentApp:
                 lbl_dialog.on_select(None)
                 break
 
+    def quick_open_shop(self):
+        # 1. Wir schauen zuerst, ob im Eingabefeld ein Link steht (beim Bearbeiten)
+        # Falls nicht, nehmen wir den Link der markierten Spule aus der Liste
+        url = self.entry_link.get().strip()
+        
+        if not url:
+            sel = self.tree.selection()
+            if not sel: return
+            item = next((i for i in self.inventory if i['id'] == int(sel[0])), None)
+            if item and item.get('link'):
+                url = item['link'].strip()
+
+        if not url:
+            messagebox.showinfo("Info", "Für dieses Filament ist leider kein Link hinterlegt.", parent=self.root)
+            return
+            
+        # URL validieren
+        url = url if url.startswith("http") else "https://" + url
+        
+        # --- AFFILIATE LOGIK (v1.9.9) ---
+        if self.settings.get("use_affiliate", True):
+            url_lower = url.lower()
+            # Bambu Lab
+            if "bambulab.com" in url_lower and "modelid=" not in url_lower: 
+                url += ("&" if "?" in url else "?") + "modelId=1889832"
+            # Amazon (Alle Domains & amzn.to Kurzlinks)
+            elif ("amazon." in url_lower or "amzn.to" in url_lower) and "tag=" not in url_lower:
+                url += ("&" if "?" in url else "?") + "tag=metmeyoumetwe-21"
+                
+        webbrowser.open(url)
+
     def log_consumption(self, amount_g):
         import datetime
         import json
@@ -3449,7 +3569,7 @@ class FilamentApp:
         # NEU: Wir blocken nur noch echte Nullen, erlauben aber Minuswerte!
         if amount_g == 0: return 
         
-        data_dir = self.settings.get("data_path", "")
+        data_dir = getattr(self.data_manager, 'base_dir', '')
         history_file = os.path.join(data_dir, "history.json") if data_dir else "history.json"
         
         history = {}
@@ -3527,7 +3647,7 @@ class FilamentApp:
         }
         
         # --- NEU: OFFLINE BUFFER LOGIK ---
-        data_dir = self.settings.get("data_path", "")
+        data_dir = getattr(self.data_manager, 'base_dir', '')
         buffer_file = os.path.join(data_dir, "mqtt_buffer.json") if data_dir else "mqtt_buffer.json"
         
         # Wir speichern IMMER den aktuellsten Stand in den Puffer

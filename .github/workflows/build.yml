@@ -25,7 +25,6 @@ jobs:
       with:
         python-version: '3.11'
 
-    # NEU: Mac benötigt die ZBar-Systembibliothek für pyzbar!
     - name: Install ZBar (nur macOS)
       if: matrix.os == 'macos-latest'
       run: brew install zbar
@@ -33,18 +32,18 @@ jobs:
     - name: Pakete installieren
       run: |
         python -m pip install --upgrade pip
-        # opencv-python und pyzbar für die Webcam hinzugefügt!
-        pip install pillow qrcode pyinstaller paho-mqtt opencv-python pyzbar
+        # NEU in v1.10.0: pystray (System-Tray) und requests (Cloud API) hinzugefügt!
+        pip install pillow qrcode pyinstaller paho-mqtt opencv-python pyzbar pystray requests
 
     - name: EXE bauen (Windows)
       if: matrix.os == 'windows-latest'
-      # NEU: --icon für die Dateioptik und --add-data, damit Tkinter das Bild findet!
-      run: pyinstaller --noconsole --windowed --onefile --hidden-import cv2 --collect-all pyzbar --icon="core/vibespool-icon.ico" --add-data "core/vibespool-icon.ico;core" --name "VibeSpool_Win" filament_gui.py
+      # NEU: --hidden-import pystray hinzugefügt, damit das Tray-Icon beim Kompilieren nicht vergessen wird
+      run: pyinstaller --noconsole --windowed --onefile --hidden-import cv2 --hidden-import pystray --collect-all pyzbar --icon="core/vibespool-icon.ico" --add-data "core/vibespool-icon.ico;core" --name "VibeSpool_Win" filament_gui.py
 
     - name: APP bauen und zippen (Mac)
       if: matrix.os == 'macos-latest'
       run: |
-        pyinstaller --noconsole --windowed --hidden-import cv2 --collect-all pyzbar --name "VibeSpool_Mac" filament_gui.py
+        pyinstaller --noconsole --windowed --hidden-import cv2 --hidden-import pystray --collect-all pyzbar --name "VibeSpool_Mac" filament_gui.py
         cd dist
         zip -r VibeSpool_Mac.zip VibeSpool_Mac.app
 

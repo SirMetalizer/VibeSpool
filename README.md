@@ -1,10 +1,10 @@
 # 🧵 VibeSpool - Das smarte Filament-Management-System
 
-![Version](https://img.shields.io/badge/version-1.9.9-blue.svg)
+![Version](https://img.shields.io/badge/version-1.10.0-blue.svg)
 ![Python](https://img.shields.io/badge/python-3.10%2B-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
-**Die smarte Schaltzentrale für dein 3D-Druck Filament-Lager.** VibeSpool ist ein leichtgewichtiges, lokales Desktop-Tool (Python/Tkinter), das dir die volle visuelle, mobile und kaufmännische Kontrolle über deine Spulen gibt.
+**Die smarte Schaltzentrale für dein 3D-Druck Filament-Lager.** VibeSpool ist ein lokales Desktop-Tool (Python/Tkinter), das dir die volle visuelle, mobile und kaufmännische Kontrolle über deine Spulen gibt.
 
 <img width="1924" height="1044" alt="VibeSpool Main Dashboard" src="https://github.com/user-attachments/assets/7234891c-0458-478b-8c5a-7d9e6cd184cb" />
 
@@ -12,29 +12,22 @@
 
 ## ✨ Features
 
-### 🔍 NEU: Omni-Search & Notizen
-Finde Spulen blitzschnell! Die neue globale Suche durchkämmt nicht nur Namen und Farben, sondern auch SKUs, Lieferanten, URLs und deine persönlichen Notizen. Tippe einfach "Amazon Rot" oder "12345" und VibeSpool filtert das Lager in Echtzeit.
+### ☁️ Bambu Cloud API & Smart-Match
+Verbinde VibeSpool mit der Bambu Cloud. Das System lädt deine fertigen Druckaufträge herunter, erkennt automatisch, welche Spulen im AMS verwendet wurden (**Smart-Match**) und teilt den Verbrauch bei Multi-Color-Drucken grammgenau auf.
 
-### 🌙 NEU: Native Windows 11 Dark Mode
-Schluss mit grellen Rändern! VibeSpool zwingt nun auch die native Windows-Titelleiste (inklusive Minimieren/Schließen-Buttons) in einen eleganten Dark Mode. 
+### 💰 Druckkosten-Rechner & Logbuch
+VibeSpool ist der ultimative PrintCalc-Killer. Das Tool kombiniert den Kaufpreis deiner Spulen mit deinem lokalen Strompreis und der Laufzeit des Drucks. Bei jedem Cloud-Sync siehst du auf den Cent genau, was dein Druck gekostet hat. Alles wird im **Spulen-Logbuch** dauerhaft als "Kontoauszug" gespeichert.
 
-### 📊 Erweiterte Statistiken & Historie
-Behalte deinen Verbrauch im Blick! VibeSpool loggt deinen Materialverbrauch im Hintergrund und visualisiert ihn in einem dynamischen 7-Tage-Balkendiagramm. Vertippt? Kein Problem, die Korrektur-Funktion rechnet das Gewicht sauber zurück.
+### 📥 System-Tray & Hintergrund-Monitor
+Schließe das Fenster und VibeSpool läuft lautlos im Windows-Tray (neben der Uhr) weiter. Es lauscht im Hintergrund auf deinen Drucker und meldet sich über smarte **Toast-Benachrichtigungen**, sobald ein Druck verrechnet wurde.
 
-### 🖱️ Workflow-Booster (Kontextmenüs)
-* **Spalten-Konfigurator:** Rechtsklick auf den Tabellenkopf, um unnötige Spalten einfach auszublenden.
-* **Quick-Actions:** Rechtsklick auf eine beliebige Spule für blitzschnelle Aktionen: Direkt ins AMS tauschen, Spule klonen, ausbuchen oder Etikett drucken.
-
-### 🛡️ Unzerstörbares MQTT (Offline-Buffer)
-Dein Lager wird Teil deines Smart Homes. VibeSpool puffert alle Smart-Home-Updates (Home Assistant) lokal zwischen und feuert sie automatisch ab, sobald die Verbindung wiederhergestellt ist.
-
-### 📱 Mobile Companion & Live-Dashboard
+### 📱 Mobile Companion & Handyscanner
 VibeSpool wird kabellos! Scanne einfach den QR-Code am Monitor und dein Handy wird zum **kabellosen Handyscanner**.
 * **Keine App-Installation:** Läuft direkt im Browser über deinen lokalen Webserver.
-* **Remote Control:** Buche Spulen am Regal um oder trage den Verbrauch am Handy ein.
+* **Hersteller-Barcodes:** Scanne Strichcodes von Originalverpackungen – VibeSpool lernt die Marken automatisch!
 
-### 🤖 Bambu Lab AMS Live-Sync
-Synchronisiere VibeSpool via MQTT mit deinem Bambu Lab Drucker. Lese AMS-Slots aus, weise sie per Drag & Drop deinen Beständen zu und importiere unbekannte Spulen mit einem Klick.
+### ⚖️ Die Schlaue Waage
+Nie wieder Leergewichte raten. Trage das Brutto-Gewicht ein, das deine Küchenwaage anzeigt. VibeSpool erkennt Hersteller und Material, zieht das korrekte Leerspulen-Gewicht ab und bucht das Netto-Gewicht ein.
 
 ---
 
@@ -52,34 +45,30 @@ Stelle sicher, dass **Python 3.10+** installiert ist.
    git clone [https://github.com/SirMetalizer/VibeSpool.git](https://github.com/SirMetalizer/VibeSpool.git)
    cd VibeSpool
    ```
+Abhängigkeiten installieren:
 
-2. **Abhängigkeiten installieren:**
    ```bash
-   pip install Pillow pyzbar opencv-python qrcode paho-mqtt
+pip install Pillow pyzbar opencv-python qrcode paho-mqtt
+   ```
+Starten:
+
+   ```bash
+python filament_gui.py
    ```
 
-3. **Starten:**
-   ```bash
-   python filament_gui.py
-   ```
+### 🆕 Was ist neu in Version 1.10.0? ("The Smart Pro Update")
 
----
+* **Bambu Cloud & Smart-Match**: Abzüge aus der Cloud werden jetzt vollautomatisch den richtigen AMS-Slots zugewiesen.
 
-## 🆕 Was ist neu in Version 1.9.9? ("The Search & Polish Update")
+* **Finanz-Dashboard**: Reale Berechnung von Strom- und Materialkosten pro Druck. Neues Unified-Dashboard mit Preis/kg Auswertung.
 
-* **Omni-Search:** Aggressive, globale Textsuche über alle Felder (inkl. Multi-Word-Support).
-* **Kaufmännisches Notizfeld:** Neues Eingabefeld für Spulen-spezifische Kommentare.
-* **Native Dark Mode:** Die Windows-Titelleiste passt sich nun dem dunklen Theme an.
-* **Sortier-Gedächtnis:** VibeSpool merkt sich nun die letzte Sortierung über Neustarts hinweg.
-* **Smart Refill Logic:** Leere Spulen setzen das Bruttogewicht nun 100% zuverlässig auf 0g.
-* **Amazon Affiliate Support:** Shop-Links zu Amazon unterstützen nun den Entwickler (deaktivierbar in den Einstellungen).
+* **Spulen-Logbuch**: Detaillierte Historie für jede einzelne Spule (Wann, wie viel, wie teuer).
 
----
+* **In-App Handbuch**: Ein integriertes Mini-Wiki erklärt alle Features direkt im Programm.
+
+* **System-Tray**: Die App kann nun minimiert im Hintergrund weiterlaufen.
 
 ## 🤝 Support & Spenden
 VibeSpool ist ein Open-Source Hobbyprojekt. Wenn dir das Tool hilft, freue ich mich riesig über einen virtuellen Kaffee!
 
-[![Donate](https://img.shields.io/badge/Donate-PayPal-blue.svg)](https://paypal.me/florianfranck)
-
----
-**Entwickelt von SirMetalizer** | *Mit speziellem Dank an Lena (Lead Inspiration & UX Design)* 💡
+**Entwickelt von SirMetalizer | Mit speziellem Dank an Lena (Lead Inspiration & UX Design) 💡**

@@ -8,9 +8,11 @@ import urllib.request
 import http.server
 import socketserver
 import socket 
-import threading      
+import threading
+import pystray      
 import re            
 import csv
+from core.bambu_cloud import BambuCloudAPI
 from ctypes import windll
 from PIL import Image, ImageTk, ImageDraw
 from datetime import datetime, timedelta
@@ -24,7 +26,7 @@ from core.spool_presets import SPOOL_PRESETS
 from core.colors import get_color_name_from_hex
 
 # --- KONFIGURATION ---
-APP_VERSION = "1.9.9"
+APP_VERSION = "1.10.0"
 GITHUB_REPO = "SirMetalizer/VibeSpool" 
 
 # --- DEFAULTS ---
@@ -111,18 +113,29 @@ MOBILE_HTML = """
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>VibeSpool Scanner</title>
-    <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
+    <script src="https://unpkg.com/html5-qrcode"></script>
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4/dist/tesseract.min.js"></script>
     <style>
-        body { background-color: #2b2b2b; color: white; font-family: 'Segoe UI', sans-serif; text-align: center; margin: 0; padding: 20px; }
-        h1 { font-size: 24px; margin-bottom: 20px; color: #0078d7; }
-        .btn-scan { display: inline-block; background-color: #0078d7; color: white; font-size: 20px; font-weight: bold; padding: 15px 30px; border-radius: 12px; cursor: pointer; box-shadow: 0 4px 6px rgba(0,0,0,0.3); }
+        body { background-color: #2b2b2b; color: white; font-family: 'Segoe UI', sans-serif; text-align: center; margin: 0; padding: 0; }
+        .header { background: #1e1e1e; padding: 15px; box-shadow: 0 2px 5px rgba(0,0,0,0.5); }
+        h1 { font-size: 22px; margin: 0; color: #0078d7; }
+
+        .tabs { display: flex; background: #3c3f41; }
+        .tab-btn { flex: 1; padding: 15px; background: none; border: none; color: #bbb; font-size: 15px; font-weight: bold; cursor: pointer; border-bottom: 3px solid transparent; }
+        .tab-btn.active { color: white; border-bottom: 3px solid #0078d7; }
+
+        .content { padding: 20px; }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+
+        .btn-scan { display: inline-block; background-color: #0078d7; color: white; font-size: 18px; font-weight: bold; padding: 15px 30px; border-radius: 12px; cursor: pointer; box-shadow: 0 4px 6px rgba(0,0,0,0.3); width: 100%; box-sizing: border-box;}
         .btn-scan:active { background-color: #005a9e; }
         input[type="file"] { display: none; }
-        #status { margin-top: 20px; padding: 15px; border-radius: 8px; background: #3c3f41; font-weight: bold; }
-        .success { background: #28a745 !important; } .error { background: #d9534f !important; }
         
-        /* Das neue Dashboard */
-        #dashboard { display: none; margin-top: 20px; background: #3c3f41; padding: 15px; border-radius: 10px; text-align: left;}
+        #status { margin-bottom: 20px; padding: 15px; border-radius: 8px; background: #3c3f41; font-weight: bold; display:none;}
+        .success { background: #28a745 !important; color: white; } .error { background: #d9534f !important; color: white;}
+
+        #dashboard { display: none; margin-top: 10px; background: #3c3f41; padding: 15px; border-radius: 10px; text-align: left;}
         #dash-title { color: #0078d7; font-size: 18px; margin-top: 0; margin-bottom: 5px; font-weight: bold;}
         #dash-net { font-size: 14px; color: #bbb; margin-bottom: 15px; }
         .control-group { margin-bottom: 15px; display: flex; gap: 10px; }
@@ -130,52 +143,174 @@ MOBILE_HTML = """
         .btn-action { padding: 12px 15px; font-size: 16px; font-weight: bold; border: none; border-radius: 5px; color: white; cursor: pointer; }
         .btn-red { background: #d9534f; } .btn-green { background: #28a745; }
         #btn-reset { width: 100%; padding: 15px; background: #555; color: white; font-size: 18px; font-weight: bold; border: none; border-radius: 8px; margin-top: 10px; cursor: pointer; }
+
+        .instruction-box { background: #3c3f41; padding: 20px; border-radius: 10px; text-align: left; line-height: 1.6; margin-bottom: 20px; border-left: 4px solid #0078d7;}
+        .instruction-box ol { padding-left: 20px; margin: 10px 0; }
     </style>
 </head>
 <body>
-    <h1 id="main-title">📱 VibeSpool Scanner</h1>
-    
-    <label class="btn-scan" id="scan-trigger">
-        📷 Etikett scannen
-        <input type="file" id="qr-input-file" accept="image/*" capture="environment">
-    </label>
-    
-    <div id="status">Tippe auf den Button und mach ein Foto!</div>
+    <div class="header">
+        <h1 id="main-title">📱 VibeSpool Scanner</h1>
+    </div>
 
-    <div id="dashboard">
-        <h3 id="dash-title">Spule</h3>
-        <div id="dash-net">Rest: 0g</div>
-        <input type="hidden" id="current-id">
+    <div class="tabs" id="tab-container">
+        <button class="tab-btn active" id="btn-tab-scan" onclick="switchTab('scan')">🔍 Suchen & Umbuchen</button>
+        <button class="tab-btn" id="btn-tab-new" onclick="switchTab('new')">➕ Neu anlegen</button>
+    </div>
 
-        <div class="control-group">
-            <input type="number" id="val-usage" placeholder="Verbrauch (z.B. 140)">
-            <button class="btn-action btn-red" onclick="sendAction('usage')">Abziehen</button>
+    <div class="content">
+        <div id="status">Bereit. Mach ein Foto oder gib eine ID ein!</div>
+
+        <div id="tab-scan" class="tab-content active">
+            <label class="btn-scan" id="scan-trigger-1">
+                📷 Etikett scannen
+                <input type="file" class="qr-input-file" accept="image/*" capture="environment">
+            </label>
+
+            <div id="manual-search-box" style="margin-top: 20px; background: #3c3f41; padding: 15px; border-radius: 10px;">
+                <p style="margin-top: 0; color: #bbb; font-weight:bold;">Oder ID / Code manuell eingeben:</p>
+                <div class="control-group">
+                    <input type="text" id="manual-id" placeholder="z.B. A134 oder 401234...">
+                    <button class="btn-action btn-green" onclick="searchManual()">Suchen</button>
+                </div>
+            </div>
         </div>
 
-        <div class="control-group">
-            <select id="val-loc"></select>
-            <button class="btn-action btn-green" onclick="sendAction('move')">Umbuchen</button>
+        <div id="tab-new" class="tab-content">
+            <div class="instruction-box">
+                <strong style="color:white; font-size: 18px;">Hersteller-Barcode eintragen:</strong>
+                <ol style="color:#ddd;">
+                    <li>Klicke am PC in VibeSpool auf <strong style="color:white;">Neu Hinzufügen</strong> (oder auf eine Spule).</li>
+                    <li>Scanne oder tippe hier den Strichcode der Originalverpackung ein.</li>
+                </ol>
+                <p style="color:#28a745; font-weight:bold; margin-bottom:0;">👉 VibeSpool tippt den Code dann magisch am PC für dich ein!</p>
+            </div>
+
+            <label class="btn-scan" id="scan-trigger-2" style="background-color: #28a745;">
+                📷 Barcode scannen
+                <input type="file" class="qr-input-file" accept="image/*" capture="environment">
+            </label>
+
+            <div id="manual-barcode-box" style="margin-top: 20px; background: #3c3f41; padding: 15px; border-radius: 10px;">
+                <p style="margin-top: 0; color: #bbb; font-weight:bold;">Code manuell abtippen:</p>
+                <div class="control-group">
+                    <input type="text" id="manual-barcode" placeholder="z.B. 69532145...">
+                    <button class="btn-action btn-green" onclick="submitManualBarcode()">Senden</button>
+                </div>
+            </div>
         </div>
 
-        <button id="btn-reset" onclick="resetUI()">Fertig / Nächste Spule</button>
+        <div id="dashboard">
+            <h3 id="dash-title">Spule</h3>
+            <div id="dash-net">Rest: 0g</div>
+            <input type="hidden" id="current-id">
+
+            <div class="control-group">
+                <input type="number" id="val-usage" placeholder="Verbrauch (z.B. 140)">
+                <button class="btn-action btn-red" onclick="sendAction('usage')">Abziehen</button>
+            </div>
+
+            <div class="control-group">
+                <select id="val-loc"></select>
+                <button class="btn-action btn-green" onclick="sendAction('move')">Umbuchen</button>
+            </div>
+
+            <button id="btn-reset" onclick="resetUI()">Fertig / Nächste Spule</button>
+        </div>
+        
+        <div id="reader-hidden" style="display:none;"></div>
     </div>
 
     <script>
-        const fileInput = document.getElementById('qr-input-file');
+        const fileInputs = document.querySelectorAll('.qr-input-file');
         const statusDiv = document.getElementById("status");
+        let currentTab = 'scan';
+
+        function switchTab(tabId) {
+            currentTab = tabId;
+            document.getElementById('tab-scan').classList.remove('active');
+            document.getElementById('tab-new').classList.remove('active');
+            document.getElementById('btn-tab-scan').classList.remove('active');
+            document.getElementById('btn-tab-new').classList.remove('active');
+
+            document.getElementById('tab-' + tabId).classList.add('active');
+            document.getElementById('btn-tab-' + tabId).classList.add('active');
+            
+            // NEU: Status ausblenden, wenn man den Tab wechselt (Bugfix)
+            statusDiv.style.display = 'none';
+            statusDiv.className = "";
+            statusDiv.innerText = "";
+
+            if(document.getElementById('dashboard').style.display === 'block') {
+                resetUI();
+            }
+        }
 
         function resetUI() {
             document.getElementById('dashboard').style.display = 'none';
-            document.getElementById('scan-trigger').style.display = 'inline-block';
-            document.getElementById('main-title').style.display = 'block';
-            statusDiv.innerText = "Bereit. Mach ein neues Foto!";
+            document.getElementById('tab-' + currentTab).style.display = 'block';
+            document.getElementById('tab-container').style.display = 'flex';
+            statusDiv.style.display = 'none';
             statusDiv.className = "";
+            document.getElementById('manual-id').value = "";
+            document.getElementById('manual-barcode').value = ""; // Feld leeren
+        }
+
+        function fetchDataFromServer(scanCode) {
+            statusDiv.style.display = 'block';
+            statusDiv.innerText = "Sende Anfrage an PC...";
+            statusDiv.className = "";
+
+            fetch('/scan?code=' + encodeURIComponent(scanCode))
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'ok') {
+                        document.getElementById('tab-scan').style.display = 'none';
+                        document.getElementById('tab-new').style.display = 'none';
+                        document.getElementById('tab-container').style.display = 'none';
+                        statusDiv.style.display = 'none';
+
+                        document.getElementById('dashboard').style.display = 'block';
+                        document.getElementById('dash-title').innerText = data.name;
+                        document.getElementById('dash-net').innerText = "Aktueller Rest: " + data.net + " g";
+                        document.getElementById('current-id').value = data.id;
+
+                        let select = document.getElementById('val-loc');
+                        select.innerHTML = '<option value="">-- Neuen Ort wählen --</option>';
+                        data.locs.forEach(l => {
+                            select.innerHTML += `<option value="${l.val}">${l.label}</option>`;
+                        });
+                    } else if (data.status === 'inserted') {
+                        statusDiv.innerText = data.msg;
+                        statusDiv.className = "success";
+                        setTimeout(resetUI, 3000);
+                    } else {
+                        statusDiv.innerText = "Fehler: " + data.msg;
+                        statusDiv.className = "error";
+                    }
+                }).catch(err => {
+                    statusDiv.innerText = "Netzwerkfehler zum PC.";
+                    statusDiv.className = "error";
+                });
+        }
+
+        function searchManual() {
+            const val = document.getElementById('manual-id').value.trim();
+            if(!val) return alert("Bitte eine ID eingeben!");
+            fetchDataFromServer(val);
+        }
+
+        // NEU: Funktion für das Absenden des manuellen Barcodes
+        function submitManualBarcode() {
+            const val = document.getElementById('manual-barcode').value.trim();
+            if(!val) return alert("Bitte einen Barcode eingeben!");
+            fetchDataFromServer(val);
         }
 
         function sendAction(actionType) {
             let id = document.getElementById('current-id').value;
             let val = "";
-            
+
             if (actionType === 'usage') {
                 val = document.getElementById('val-usage').value;
                 if (!val) return alert("Bitte Gewicht eingeben!");
@@ -191,69 +326,73 @@ MOBILE_HTML = """
                         alert("✅ Erfolgreich gespeichert!");
                         if (actionType === 'usage') document.getElementById('val-usage').value = '';
                     } else {
-                        // Zeigt die Warnung an, falls der Platz belegt ist!
                         alert("⚠️ Aktion abgelehnt:\\n" + data.msg);
                     }
                 });
         }
 
-        fileInput.addEventListener('change', e => {
-            if (e.target.files.length == 0) return;
-            const file = e.target.files[0];
-            statusDiv.innerText = "Analysiere..."; statusDiv.className = "";
+        async function performOCR(imageCanvas) {
+            statusDiv.style.display = 'block';
+            statusDiv.innerText = "Kein Barcode erkannt. Prüfe auf gedruckten Text (OCR)...";
+            try {
+                const result = await Tesseract.recognize(imageCanvas, 'deu+eng', {
+                    logger: m => { if(m.status === 'recognizing') statusDiv.innerText = `OCR Analyse: ${Math.round(m.progress * 100)}%`; }
+                });
 
-            const reader = new FileReader();
-            reader.onload = function(event) {
-                const img = new Image();
-                img.onload = function() {
-                    const canvas = document.createElement('canvas');
-                    let w = img.width, h = img.height;
-                    if (w > h && w > 800) { h *= 800/w; w = 800; } 
-                    else if (h > 800) { w *= 800/h; h = 800; }
-                    canvas.width = w; canvas.height = h;
-                    const ctx = canvas.getContext('2d');
-                    ctx.drawImage(img, 0, 0, w, h);
-                    const imageData = ctx.getImageData(0, 0, w, h);
+                const fullText = result.data.text;
+                const match = fullText.match(/(?:VibeSpool\\s*(?:ID|1D|lD|I0)?|\\b(?:ID|1D|lD|I0))\\s*[:=_\\-\\.]*\\s*([a-zA-Z0-9-]+)/i);
 
-                    const code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: "dontInvert" });
+                if (match && match[1]) {
+                    const foundId = match[1].trim();
+                    statusDiv.innerText = `Text erkannt: ID ${foundId} - Lade Daten...`;
+                    fetchDataFromServer(foundId);
+                } else {
+                    statusDiv.innerHTML = "Kein Strichcode/QR oder VibeSpool-Text gefunden.<br><br><b>Kamera las:</b><br><i style='font-size: 12px;'>" + fullText + "</i>";
+                    statusDiv.className = "error";
+                }
+            } catch (e) {
+                statusDiv.innerText = "Fehler bei der Texterkennung.";
+                statusDiv.className = "error";
+            }
+        }
 
-                    if (code) {
-                        statusDiv.innerText = "Gefunden! Lade Daten...";
+        const html5QrCode = new Html5Qrcode("reader-hidden");
+
+        fileInputs.forEach(input => {
+            input.addEventListener('change', e => {
+                if (e.target.files.length == 0) return;
+                const file = e.target.files[0];
+                statusDiv.style.display = 'block';
+                statusDiv.innerText = "Bild wird analysiert (Suche Strichcode / QR)..."; 
+                statusDiv.className = "";
+
+                html5QrCode.scanFile(file, true)
+                    .then(decodedText => {
+                        statusDiv.innerText = `Code erkannt! (${decodedText})`;
                         statusDiv.className = "success";
-                        
-                        // NEU: Daten vom PC abrufen und Dashboard aufbauen!
-                        fetch('/scan?code=' + encodeURIComponent(code.data))
-                            .then(response => response.json())
-                            .then(data => {
-                                if (data.status === 'ok') {
-                                    document.getElementById('scan-trigger').style.display = 'none';
-                                    document.getElementById('main-title').style.display = 'none';
-                                    statusDiv.style.display = 'none';
-                                    
-                                    document.getElementById('dashboard').style.display = 'block';
-                                    document.getElementById('dash-title').innerText = data.name;
-                                    document.getElementById('dash-net').innerText = "Aktueller Rest: " + data.net + " g";
-                                    document.getElementById('current-id').value = data.id;
-                                    
-                                    let select = document.getElementById('val-loc');
-                                    select.innerHTML = '<option value="">-- Neuen Ort wählen --</option>';
-                                    data.locs.forEach(l => {
-                                        select.innerHTML += `<option value="${l.val}">${l.label}</option>`;
-                                    });
-                                } else {
-                                    statusDiv.innerText = "Fehler: " + data.msg;
-                                    statusDiv.className = "error";
-                                }
-                            });
-                    } else {
-                        statusDiv.innerText = "Kein QR-Code erkannt. Bitte nochmal versuchen!";
-                        statusDiv.className = "error";
-                    }
-                };
-                img.src = event.target.result;
-            };
-            reader.readAsDataURL(file);
-            fileInput.value = '';
+                        fetchDataFromServer(decodedText);
+                    })
+                    .catch(err => {
+                        const reader = new FileReader();
+                        reader.onload = function(event) {
+                            const img = new Image();
+                            img.onload = function() {
+                                const canvas = document.createElement('canvas');
+                                let w = img.width, h = img.height;
+                                if (w > h && w > 800) { h *= 800/w; w = 800; }
+                                else if (h > 800) { w *= 800/h; h = 800; }
+                                canvas.width = w; canvas.height = h;
+                                const ctx = canvas.getContext('2d');
+                                ctx.drawImage(img, 0, 0, w, h);
+                                performOCR(canvas);
+                            };
+                            img.src = event.target.result;
+                        };
+                        reader.readAsDataURL(file);
+                    });
+                    
+                e.target.value = ''; 
+            });
         });
     </script>
 </body>
@@ -292,51 +431,66 @@ class MobileScannerHandler(http.server.SimpleHTTPRequestHandler):
                 
                 if code and app_inst:
                     import re
-                    match = re.search(r'(?:ID:\s*|FIL_)?(\d+)', code, re.IGNORECASE)
-                    spool_id = int(match.group(1)) if match else None
+                    clean_code = code.strip()
+                    item = None
                     
-                    if spool_id:
-                        item = next((i for i in app_inst.inventory if i.get('id') == spool_id), None)
-                        if item:
-                            app_inst.root.after(0, lambda: app_inst.process_mobile_scan(code))
-                            
-                            locs = [
-                                {"label": "📦 Ins LAGER", "val": "LAGER|-"}, 
-                                {"label": "🚮 Als LEER markieren", "val": "VERBRAUCHT|-"}
-                            ]
-                            
-                            from core.logic import parse_shelves_string, calculate_net_weight
-                            parsed_shelves = parse_shelves_string(app_inst.settings.get("shelves", "REGAL|4|8"))
-                            lbl_r = app_inst.settings.get("label_row", "Fach")
-                            lbl_c = app_inst.settings.get("label_col", "Slot")
-                            all_names = app_inst.settings.get("shelf_names_v2", {})
-                            is_double = app_inst.settings.get("double_depth", False)
-                            
-                            for sh in parsed_shelves:
-                                name = sh['name']
-                                s_names = all_names.get(name, {})
-                                for r in range(1, sh['rows'] + 1):
-                                    row_n = s_names.get(str(r), f"{lbl_r} {r}")
-                                    for c in range(1, sh['cols'] + 1):
-                                        if is_double:
-                                            locs.append({"label": f"{name} {row_n} - {lbl_c} {c} (V)", "val": f"{name}|{row_n} - {lbl_c} {c} (V)"})
-                                            locs.append({"label": f"{name} {row_n} - {lbl_c} {c} (H)", "val": f"{name}|{row_n} - {lbl_c} {c} (H)"})
-                                        else:
-                                            locs.append({"label": f"{name} {row_n} - {lbl_c} {c}", "val": f"{name}|{row_n} - {lbl_c} {c}"})
-                                            
-                            for a in range(1, app_inst.settings.get("num_ams", 1) + 1):
-                                for s in range(1, 5):
-                                    locs.append({"label": f"AMS {a} Slot {s}", "val": f"AMS {a}|{s}"})
-                                    
-                            net_w = calculate_net_weight(item.get('weight_gross', '0'), item.get('spool_id', -1), app_inst.spools)
-                            
-                            response_data = {
-                                "status": "ok",
-                                "id": spool_id,
-                                "name": f"{item.get('brand','')} {item.get('material','')} {item.get('color','')}",
-                                "net": int(net_w),
-                                "locs": locs
-                            }
+                    # 1. Prio: Exakter Treffer im neuen Hersteller-Barcode Feld!
+                    item = next((i for i in app_inst.inventory if str(i.get('barcode', '')).strip().lower() == clean_code.lower() and clean_code != ""), None)
+                    
+                    # 2. Prio: Reguläre VibeSpool ID Suche (als Text, nicht mehr als int!)
+                    if not item:
+                        match = re.search(r'(?:ID|1D|lD|VibeSpool)[\s:=_\-\.]*([a-zA-Z0-9-]+)', clean_code, re.IGNORECASE)
+                        extracted_id = match.group(1) if match else clean_code
+                        item = next((i for i in app_inst.inventory if str(i.get('id')) == str(extracted_id)), None)
+                    
+                    if item:
+                        spool_id = item['id']
+                        app_inst.root.after(0, lambda: app_inst.process_mobile_scan(code))
+                        
+                        locs = [
+                            {"label": "📦 Ins LAGER", "val": "LAGER|-"}, 
+                            {"label": "🚮 Als LEER markieren", "val": "VERBRAUCHT|-"}
+                        ]
+                        
+                        from core.logic import parse_shelves_string, calculate_net_weight
+                        parsed_shelves = parse_shelves_string(app_inst.settings.get("shelves", "REGAL|4|8"))
+                        lbl_r = app_inst.settings.get("label_row", "Fach")
+                        lbl_c = app_inst.settings.get("label_col", "Slot")
+                        all_names = app_inst.settings.get("shelf_names_v2", {})
+                        is_double = app_inst.settings.get("double_depth", False)
+                        
+                        for sh in parsed_shelves:
+                            name = sh['name']
+                            s_names = all_names.get(name, {})
+                            for r in range(1, sh['rows'] + 1):
+                                row_n = s_names.get(str(r), f"{lbl_r} {r}")
+                                for c in range(1, sh['cols'] + 1):
+                                    if is_double:
+                                        locs.append({"label": f"{name} {row_n} - {lbl_c} {c} (V)", "val": f"{name}|{row_n} - {lbl_c} {c} (V)"})
+                                        locs.append({"label": f"{name} {row_n} - {lbl_c} {c} (H)", "val": f"{name}|{row_n} - {lbl_c} {c} (H)"})
+                                    else:
+                                        locs.append({"label": f"{name} {row_n} - {lbl_c} {c}", "val": f"{name}|{row_n} - {lbl_c} {c}"})
+                                        
+                        for a in range(1, app_inst.settings.get("num_ams", 1) + 1):
+                            for s in range(1, 5):
+                                locs.append({"label": f"AMS {a} Slot {s}", "val": f"AMS {a}|{s}"})
+                                
+                        net_w = calculate_net_weight(item.get('weight_gross', '0'), item.get('spool_id', -1), app_inst.spools)
+                        
+                        response_data = {
+                            "status": "ok",
+                            "id": spool_id,
+                            "name": f"{item.get('brand','')} {item.get('material','')} {item.get('color','')}",
+                            "net": int(net_w),
+                            "locs": locs
+                        }
+                    else:
+                        # NEU: Spule nicht gefunden? Dann schick den Code ins Barcode-Feld am PC!
+                        app_inst.root.after(0, lambda: app_inst.process_unknown_scan(clean_code))
+                        response_data = {
+                            "status": "inserted",
+                            "msg": f"✅ Barcode erfolgreich am PC eingetragen!\n\n[{clean_code}]"
+                        }
 
                 self.send_response(200)
                 self.send_header('Content-type', 'application/json; charset=utf-8')
@@ -354,21 +508,25 @@ class MobileScannerHandler(http.server.SimpleHTTPRequestHandler):
                 response_data = {"status": "error", "msg": "Unbekannter Fehler"}
                 
                 if app_inst and spool_id and action:
-                    spool_id_int = int(spool_id)
+                    spool_id_str = str(spool_id) 
                     if action == "move" and "|" in val:
                         target_type, target_loc = val.split("|", 1)
-                        col = app_inst.check_location_collision(target_type, target_loc, ignore_id=spool_id_int)
+                        col = app_inst.check_location_collision(target_type, target_loc, ignore_id=spool_id_str)
                         
-                        if col:
+                        if col and target_type.startswith("AMS"):
+                            # --- FIX 3: MOBILE QUICK SWAP ---
+                            app_inst.root.after(0, lambda: app_inst.process_mobile_swap(spool_id_str, target_type, target_loc, col))
+                            response_data = {"status": "ok"}
+                        elif col:
                             response_data = {
                                 "status": "error", 
                                 "msg": f"Der Platz ist bereits belegt durch:\n#{col['id']} {col.get('brand','')} {col.get('color','')}"
                             }
                         else:
-                            app_inst.root.after(0, lambda: app_inst.process_mobile_action(spool_id_int, action, val))
+                            app_inst.root.after(0, lambda: app_inst.process_mobile_action(spool_id_str, action, val))
                             response_data = {"status": "ok"}
                     else:
-                        app_inst.root.after(0, lambda: app_inst.process_mobile_action(spool_id_int, action, val))
+                        app_inst.root.after(0, lambda: app_inst.process_mobile_action(spool_id_str, action, val))
                         response_data = {"status": "ok"}
                         
                 self.send_response(200)
@@ -543,7 +701,7 @@ class SpoolManager(tk.Toplevel):
         try:
             weight = int(float(self.ent_weight.get().strip().replace(',', '.')))
             for s in self.spools:
-                if s['id'] == int(sel[0]): 
+                if s['id'] == str(sel[0]): 
                     s['name'] = self.ent_name.get().strip()
                     s['weight'] = weight
             self.data_manager.save_spools(self.spools)
@@ -652,7 +810,7 @@ class SettingsDialog(tk.Toplevel):
         super().__init__(parent)
         self.data_manager = data_manager; self.on_save = on_save; self.app = app_instance
         _, self.settings, _ = self.data_manager.load_all(DEFAULT_SETTINGS)
-        self.title("VibeSpool Einstellungen"); self.geometry("950x500"); self.configure(bg=parent.cget('bg')); center_window(self, parent)
+        self.title("VibeSpool Einstellungen"); self.geometry("950x650"); self.configure(bg=parent.cget('bg')); center_window(self, parent)
         self.transient(parent); self.grab_set()
         
         # FOOTER
@@ -728,9 +886,7 @@ class SettingsDialog(tk.Toplevel):
         
         ttk.Separator(tab_prn, orient="horizontal").pack(fill="x", pady=15)
         
-        # NEU: Bambu Lab Bereich
-        ttk.Separator(tab_prn, orient="horizontal").pack(fill="x", pady=15)
-        
+        # NEU: Bambu Lab Bereich       
         # NEU: AMS Anzahl im Drucker-Tab
         ttk.Label(tab_prn, text="Anzahl AMS Einheiten:", font=FONT_BOLD).pack(anchor="w")
         self.ent_ams = ttk.Entry(tab_prn, width=10); self.ent_ams.insert(0, str(self.settings.get("num_ams", 1))); self.ent_ams.pack(anchor="w", pady=(2, 10))
@@ -746,8 +902,32 @@ class SettingsDialog(tk.Toplevel):
         self.ent_bambu_acc = ttk.Entry(tab_prn); self.ent_bambu_acc.insert(0, self.settings.get("bambu_access", "")); self.ent_bambu_acc.pack(fill="x", pady=2)
         ttk.Label(tab_prn, text="Seriennummer:").pack(anchor="w", pady=(5,0))
         self.ent_bambu_ser = ttk.Entry(tab_prn); self.ent_bambu_ser.insert(0, self.settings.get("bambu_serial", "")); self.ent_bambu_ser.pack(fill="x", pady=2)
+        # --- NEU: Bambu Cloud API Block ---
+        ttk.Separator(tab_prn, orient="horizontal").pack(fill="x", pady=15)
+        ttk.Label(tab_prn, text="Bambu Lab Cloud API", font=FONT_BOLD).pack(anchor="w")
+        
+        self.var_cloud = tk.BooleanVar(value=self.settings.get("use_bambu_cloud", True))
+        ttk.Checkbutton(tab_prn, text="Cloud-Historie & Smart-Match aktivieren", variable=self.var_cloud).pack(anchor="w", pady=(5, 5))
 
-        # TAB 4: SYSTEM
+        # --- NEU: TAB (DRUCKKOSTEN-RECHNER) ---
+        tab_fin = ttk.Frame(self.nb, padding=15)
+        self.nb.add(tab_fin, text="💰 Druckkosten-Rechner")
+
+        ttk.Label(tab_fin, text="Druckkosten-Rechner", font=("Segoe UI", 12, "bold")).pack(anchor="w", pady=(0, 10))
+        ttk.Label(tab_fin, text="Diese Werte werden genutzt, um bei Cloud-Drucken die Stromkosten zu berechnen.", foreground="gray", wraplength=450).pack(anchor="w", pady=(0, 15))
+
+        ttk.Label(tab_fin, text="Strompreis pro kWh (€):").pack(anchor="w")
+        self.ent_kwh = ttk.Entry(tab_fin)
+        self.ent_kwh.insert(0, str(self.settings.get("kwh_price", "0.30")))
+        self.ent_kwh.pack(fill="x", pady=2)
+
+        ttk.Label(tab_fin, text="Drucker-Stromverbrauch (Watt):").pack(anchor="w", pady=(15, 0))
+        ttk.Label(tab_fin, text="Richtwerte: Bambu A1 Mini ~80W | A1 ~100W | P1S/X1C ~250W", font=("Segoe UI", 8), foreground="gray").pack(anchor="w")
+        self.ent_watts = ttk.Entry(tab_fin)
+        self.ent_watts.insert(0, str(self.settings.get("printer_watts", "150")))
+        self.ent_watts.pack(fill="x", pady=(2, 20))
+        
+        # TAB 5: SYSTEM
         tab_sys = ttk.Frame(self.nb, padding=15); self.nb.add(tab_sys, text="⚙ System")
         self.var_affiliate = tk.BooleanVar(value=self.settings.get("use_affiliate", True))
         ttk.Checkbutton(tab_sys, text="Entwickler unterstützen (Affiliate)", variable=self.var_affiliate).pack(anchor="w", pady=2)
@@ -818,14 +998,45 @@ class SettingsDialog(tk.Toplevel):
         list_container = ttk.Frame(tab_lists)
         list_container.pack(fill="both", expand=True)
 
-        # Helper-Funktion baut uns 3 Listen-Manager (mit Spezial-Feature für Farben)
+        # Helper-Funktion baut uns Listen-Manager (mit Spezial-Feature für Farben)
         self.list_vars = {}
         def create_list_manager(parent, title, key, default_list):
             frm = ttk.LabelFrame(parent, text=title, padding=5)
             frm.pack(side="left", fill="both", expand=True, padx=2)
             
-            lb = tk.Listbox(frm, height=12, font=("Segoe UI", 9))
+            lb = tk.Listbox(frm, height=12, font=("Segoe UI", 9), selectmode=tk.SINGLE, cursor="hand2")
             lb.pack(fill="both", expand=True, pady=2)
+            
+            # --- NEU: Pylance-Safe Drag & Drop Logik ---
+            drag_state = {"idx": None}
+
+            def on_b1_press(event):
+                lb.selection_clear(0, tk.END)
+                idx = lb.nearest(event.y)
+                lb.selection_set(idx)
+                drag_state["idx"] = idx
+
+            def on_b1_motion(event):
+                start_idx = drag_state["idx"]
+                if start_idx is None: return
+                
+                new_idx = lb.nearest(event.y)
+                if new_idx != start_idx:
+                    item_text = lb.get(start_idx)
+                    lb.delete(start_idx)
+                    lb.insert(new_idx, item_text)
+                    lb.selection_clear(0, tk.END)
+                    lb.selection_set(new_idx)
+                    drag_state["idx"] = new_idx
+
+            def on_b1_release(event):
+                drag_state["idx"] = None
+                self.list_vars[key] = list(lb.get(0, tk.END))
+
+            lb.bind("<ButtonPress-1>", on_b1_press)
+            lb.bind("<B1-Motion>", on_b1_motion)
+            lb.bind("<ButtonRelease-1>", on_b1_release)
+            # -----------------------------------
             
             # Aktuelle Daten laden
             current_data = self.settings.get(key, default_list)
@@ -883,6 +1094,7 @@ class SettingsDialog(tk.Toplevel):
         for s in parse_shelves_string(self.var_shelves.get()): self.shelf_list.insert(tk.END, f"📦 {s['name']} ({s['rows']}x{s['cols']})")
 
     def do_save(self):
+        
         try:
             old_label_row = self.settings.get("label_row", "Fach")
             old_label_col = self.settings.get("label_col", "Slot")
@@ -968,8 +1180,18 @@ class SettingsDialog(tk.Toplevel):
                 if inventory_changed:
                     app_inst.data_manager.save_inventory(app_inst.inventory)
 
+            
+            # --- NEU: Finanzen auslesen ---
+            try: kwh_val = float(self.ent_kwh.get().replace(',', '.'))
+            except: kwh_val = 0.30
+            try: watts_val = int(self.ent_watts.get())
+            except: watts_val = 150
+
             # --- Normales Speichern der Einstellungen ---
             self.settings.update({
+                "kwh_price": kwh_val,         # NEU
+                "printer_watts": watts_val,   # NEU
+                "double_depth": self.var_double.get(),
                 "double_depth": self.var_double.get(),
                 "shelves": self.var_shelves.get(),
                 "logistics_order": self.var_logistics.get(),
@@ -983,6 +1205,7 @@ class SettingsDialog(tk.Toplevel):
                 "printer_url": self.ent_prn_url.get().strip(),
                 "printer_api_key": self.settings.get("printer_api_key", ""), 
                 "use_bambu": self.var_bambu.get(),
+                "use_bambu_cloud": self.var_cloud.get(),
                 "bambu_ip": self.ent_bambu_ip.get().strip(),
                 "bambu_access": self.ent_bambu_acc.get().strip(),
                 "bambu_serial": self.ent_bambu_ser.get().strip(),
@@ -1002,6 +1225,11 @@ class SettingsDialog(tk.Toplevel):
             # Tabelle sofort neu zeichnen
             if app_inst:
                 app_inst.refresh_table() 
+                # NEU: Cloud Button live zeigen/verstecken
+                if self.settings.get("use_bambu_cloud", True):
+                    app_inst.btn_cloud.pack(fill="x")
+                else:
+                    app_inst.btn_cloud.pack_forget()
                 
             self.destroy()
             
@@ -1296,7 +1524,7 @@ class ShoppingListDialog(tk.Toplevel):
     def open_shop_link(self):
         sel = self.tree.selection()
         if not sel: return messagebox.showinfo("Info", "Bitte ein Filament auswählen.", parent=self)
-        item = next((x for x in self.inventory if x['id'] == int(sel[0])), None)
+        item = next((x for x in self.inventory if x['id'] == str(sel[0])), None)
         if not item or not item.get('link'): return messagebox.showinfo("Info", "Für dieses Filament ist leider kein Link hinterlegt.", parent=self)
         
         url = item['link'].strip()
@@ -1330,13 +1558,20 @@ class ShoppingListDialog(tk.Toplevel):
 class StatisticsDialog(tk.Toplevel):
     def __init__(self, parent, inventory, app_instance):
         super().__init__(parent)
-        self.app = app_instance; self.inventory = inventory; self.title("📊 Finanz-Dashboard & Statistik")
-        self.geometry("600x550"); self.configure(bg=parent.cget('bg')); center_window(self, parent)
+        self.app = app_instance
+        self.inventory = inventory
+        self.title("📊 Analytics & Finanz-Dashboard")
+        self.geometry("950x600")
+        self.configure(bg=parent.cget('bg'))
+        from core.utils import center_window
+        center_window(self, parent)
 
+        # --- 1. DATEN BERECHNEN ---
         total_value, total_weight, total_spools, mat_stats = 0.0, 0, 0, {}
         for item in self.inventory:
             if item.get('type') == 'VERBRAUCHT': continue
             total_spools += 1
+            from core.logic import calculate_net_weight
             net = calculate_net_weight(item.get('weight_gross', '0'), item.get('spool_id', -1), self.app.spools)
             total_weight += net
             val = 0.0
@@ -1347,28 +1582,112 @@ class StatisticsDialog(tk.Toplevel):
             total_value += val
             mat = item.get('material', 'Unbekannt') or 'Unbekannt'
             if mat not in mat_stats: mat_stats[mat] = {'count': 0, 'weight': 0, 'value': 0.0}
-            mat_stats[mat]['count'] += 1; mat_stats[mat]['weight'] += net; mat_stats[mat]['value'] += val
+            mat_stats[mat]['count'] += 1
+            mat_stats[mat]['weight'] += net
+            mat_stats[mat]['value'] += val
 
-        ttk.Label(self, text="💰 Bestands-Statistik & Finanzen", font=("Segoe UI", 16, "bold")).pack(pady=(15, 5))
-        kpi_frame = tk.Frame(self, bg=parent.cget('bg')); kpi_frame.pack(fill="x", padx=20, pady=10)
-        ttk.Label(kpi_frame, text="Gesamtwert:", font=("Segoe UI", 12)).grid(row=0, column=0, sticky="w", pady=2)
-        ttk.Label(kpi_frame, text=f"{total_value:.2f} €", font=("Segoe UI", 14, "bold"), foreground="#28a745").grid(row=0, column=1, sticky="w", padx=15, pady=2)
-        ttk.Label(kpi_frame, text="Lagermenge:", font=("Segoe UI", 12)).grid(row=1, column=0, sticky="w", pady=2)
-        ttk.Label(kpi_frame, text=f"{(total_weight/1000):.2f} kg", font=("Segoe UI", 12, "bold")).grid(row=1, column=1, sticky="w", padx=15, pady=2)
-        ttk.Label(kpi_frame, text="Aktive Spulen:", font=("Segoe UI", 12)).grid(row=2, column=0, sticky="w", pady=2)
-        ttk.Label(kpi_frame, text=str(total_spools), font=("Segoe UI", 12, "bold")).grid(row=2, column=1, sticky="w", padx=15, pady=2)
-        ttk.Separator(self, orient="horizontal").pack(fill="x", padx=20, pady=10)
-        ttk.Label(self, text="Aufschlüsselung nach Material:", font=("Segoe UI", 12, "bold")).pack(anchor="w", padx=20, pady=(5, 5))
-        tree = ttk.Treeview(self, columns=("mat", "count", "weight", "value"), show="headings", height=8)
-        for col, head, w in zip(("mat", "count", "weight", "value"), ("Material", "Spulen", "Gewicht (kg)", "Wert (€)"), (120, 60, 100, 100)): tree.heading(col, text=head); tree.column(col, width=w, anchor="center")
-        tree.pack(fill="both", expand=True, padx=20, pady=(0, 10))
-        for mat, stats in sorted(mat_stats.items(), key=lambda x: x[1]['value'], reverse=True): tree.insert("", "end", values=(mat, stats['count'], f"{(stats['weight']/1000):.2f}", f"{stats['value']:.2f} €"))
+        # --- 2. HAUPT-LAYOUT ---
+        ttk.Label(self, text="💰 Bestands-Statistik & Finanzen", font=("Segoe UI", 16, "bold")).pack(pady=(15, 10))
+        
+        main_frm = ttk.Frame(self)
+        main_frm.pack(fill="both", expand=True, padx=20, pady=5)
+        
+        left_panel = ttk.Frame(main_frm)
+        left_panel.pack(side="left", fill="both", expand=True, padx=(0, 10))
+        
+        right_panel = ttk.Frame(main_frm)
+        right_panel.pack(side="right", fill="both", expand=True, padx=(10, 0))
+
+        # --- 3. LINKE SEITE (KPIs & Tabelle) ---
+        kpi_frame = tk.Frame(left_panel, bg="#1e1e1e" if "dark" in str(parent.cget('bg')) else "#ffffff", padx=15, pady=15, highlightthickness=1, highlightbackground="#0078d7")
+        kpi_frame.pack(fill="x", pady=(0, 15))
+        
+        ttk.Label(kpi_frame, text="Gesamtwert:", font=("Segoe UI", 12), background=kpi_frame.cget("bg")).grid(row=0, column=0, sticky="w", pady=2)
+        ttk.Label(kpi_frame, text=f"{total_value:.2f} €", font=("Segoe UI", 16, "bold"), foreground="#28a745", background=kpi_frame.cget("bg")).grid(row=0, column=1, sticky="w", padx=15, pady=2)
+        
+        ttk.Label(kpi_frame, text="Lagermenge:", font=("Segoe UI", 12), background=kpi_frame.cget("bg")).grid(row=1, column=0, sticky="w", pady=2)
+        ttk.Label(kpi_frame, text=f"{(total_weight/1000):.2f} kg", font=("Segoe UI", 14, "bold"), background=kpi_frame.cget("bg")).grid(row=1, column=1, sticky="w", padx=15, pady=2)
+        
+        ttk.Label(kpi_frame, text="Aktive Spulen:", font=("Segoe UI", 12), background=kpi_frame.cget("bg")).grid(row=2, column=0, sticky="w", pady=2)
+        ttk.Label(kpi_frame, text=str(total_spools), font=("Segoe UI", 14, "bold"), background=kpi_frame.cget("bg")).grid(row=2, column=1, sticky="w", padx=15, pady=2)
+
+        ttk.Label(left_panel, text="Aufschlüsselung nach Material:", font=("Segoe UI", 12, "bold")).pack(anchor="w", pady=(5, 5))
+        
+        # Tabelle (Jetzt mit Preis/kg Spalte!)
+        tree = ttk.Treeview(left_panel, columns=("mat", "count", "weight", "value", "avg"), show="headings", height=10)
+        for col, head, w in zip(("mat", "count", "weight", "value", "avg"), ("Material", "Stk", "Gewicht", "Wert", "Ø Preis/kg"), (100, 40, 80, 80, 80)): 
+            tree.heading(col, text=head)
+            tree.column(col, width=w, anchor="center" if col != "mat" else "w")
+        tree.pack(fill="both", expand=True)
+        
+        for mat, stats in sorted(mat_stats.items(), key=lambda x: x[1]['value'], reverse=True): 
+            kg = stats['weight'] / 1000
+            avg_price = (stats['value'] / kg) if kg > 0 else 0
+            tree.insert("", "end", values=(mat, stats['count'], f"{kg:.2f} kg", f"{stats['value']:.2f} €", f"{avg_price:.2f} €"))
+
+        # --- 4. RECHTE SEITE (Schickes Verbrauchs-Chart) ---
+        ttk.Label(right_panel, text="Verbrauch der letzten 7 Tage:", font=("Segoe UI", 12, "bold")).pack(anchor="w", pady=(0, 5))
+        
+        import datetime, json, os
+        data_dir = getattr(self.app.data_manager, 'base_dir', '')
+        history_file = os.path.join(data_dir, "history.json") if data_dir else "history.json"
+        history = {}
+        if os.path.exists(history_file):
+            try:
+                with open(history_file, "r") as f: history = json.load(f)
+            except: pass
+                
+        today = datetime.date.today()
+        last_7_days = [(today - datetime.timedelta(days=i)).isoformat() for i in range(6, -1, -1)]
+        values = [history.get(day, 0.0) for day in last_7_days]
+        max_val = max(values) if max(values) > 0 else 100 
+        
+        c_width, c_height = 420, 320
+        canvas_bg = "#1e1e1e" if "dark" in str(parent.cget('bg')) else "#f9f9f9"
+        canvas = tk.Canvas(right_panel, width=c_width, height=c_height, bg=canvas_bg, highlightthickness=1, highlightbackground="#333")
+        canvas.pack(fill="both", expand=True, pady=5)
+        
+        # Hintergrund-Gitterlinien (Hilfslinien)
+        text_col = "white" if "dark" in str(parent.cget('bg')) else "black"
+        for i in range(4):
+            y_line = 40 + i * ((c_height - 80) / 3)
+            val_line = max_val - (i * (max_val / 3))
+            canvas.create_line(40, y_line, c_width - 20, y_line, fill="#444", dash=(4, 4))
+            canvas.create_text(20, y_line, text=f"{int(val_line)}g", fill="gray", font=("Segoe UI", 8))
+        
+        # Balken zeichnen
+        bar_width = 35
+        spacing = (c_width - 80 - (7 * bar_width)) / 6
+        start_x = 50
+        
+        for i, val in enumerate(values):
+            x0 = start_x + i * (bar_width + spacing)
+            x1 = x0 + bar_width
+            bar_height = (val / max_val) * (c_height - 80) 
+            y0 = c_height - 40 - bar_height
+            y1 = c_height - 40
+            
+            color = "#0078d7" if val > 0 else ("#333333" if "dark" in str(parent.cget('bg')) else "#dddddd")
+            canvas.create_rectangle(x0, y0, x1, y1, fill=color, outline="")
+            
+            if val > 0:
+                canvas.create_text(x0 + bar_width/2, y0 - 12, text=f"{int(val)}g", fill=text_col, font=("Segoe UI", 9, "bold"))
+                
+            day_obj = datetime.datetime.strptime(last_7_days[i], "%Y-%m-%d")
+            day_name = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"][day_obj.weekday()]
+            # Das aktuelle Datum fett markieren
+            font_w = ("Segoe UI", 10, "bold") if i == 6 else ("Segoe UI", 9)
+            col_w = "#0078d7" if i == 6 else "gray"
+            canvas.create_text(x0 + bar_width/2, c_height - 20, text=day_name, fill=col_w, font=font_w)
+
+        # Zusammenfassung drunter
+        total_7d = sum(values)
+        ttk.Label(right_panel, text=f"Gesamtverbrauch (7 Tage): {total_7d:.1f} g", font=("Segoe UI", 10, "italic"), foreground="gray").pack(anchor="e", pady=5)
+
+        # --- 5. FOOTER BUTTONS ---
         btn_frm = ttk.Frame(self)
         btn_frm.pack(fill="x", pady=10, padx=20)
-        
-        # Der neue Button ruft unsere Diagramm-Funktion in der Haupt-App auf
-        ttk.Button(btn_frm, text="📈 Verbrauchs-Verlauf (7 Tage)", command=self.app.show_statistics_dialog, style="Accent.TButton").pack(side="left", expand=True, fill="x", padx=(0, 5))
-        ttk.Button(btn_frm, text="Schließen", command=self.destroy).pack(side="left", expand=True, fill="x", padx=(5, 0))
+        ttk.Button(btn_frm, text="Schließen", command=self.destroy, style="Accent.TButton").pack(side="right", padx=5)
 
 class FlowCalculatorDialog(tk.Toplevel):
     def __init__(self, parent, current_flow_entry=None):
@@ -1583,12 +1902,20 @@ class LabelCreatorDialog(tk.Toplevel):
             
             draw.text((400, 240), f"Nozzle: {temp_n} °C", fill="black", font=font_small)
             draw.text((400, 280), f"Bed: {temp_b} °C", fill="black", font=font_small)
-            draw.text((400, 330), f"VibeSpool ID: {item['id']}", fill="black", font=font_title)
+            
+            # --- NEU: Dynamische Text-Breite für die ID ---
+            id_str = str(item['id'])
+            # Bei langen IDs das "VibeSpool" weglassen, um Platz zu sparen
+            id_text = f"VibeSpool ID: {id_str}" if len(id_str) <= 3 else f"ID: {id_str}"
+            # Wenn die ID extrem lang ist, Schriftart verkleinern, damit sie nicht über den Rand ragt
+            use_font = font_title if len(id_text) < 14 else font_sub
+            
+            draw.text((400, 330), id_text, fill="black", font=use_font)
             
             # 3. Farb-Balken zur schnellen Erkennung
             cols = get_colors_from_text(color)
             hex_col = cols[0] if cols else "#FFFFFF"
-            draw.rectangle([400, 370, 760, 390], fill=hex_col, outline="black")
+            draw.rectangle([400, 385, 760, 405], fill=hex_col, outline="black")
             
             self.current_img = img
             
@@ -1611,6 +1938,12 @@ class LabelCreatorDialog(tk.Toplevel):
         # Ruft den neuen Smart Export Dialog auf
         PdfExportDialog(self, self.inventory, getattr(self, 'spools', []))
 
+def create_tray_icon():
+    # Zeichnet einen simplen blauen Kreis als Platzhalter-Icon
+    image = Image.new('RGBA', (64, 64), (255, 255, 255, 0))
+    draw = ImageDraw.Draw(image)
+    draw.ellipse((8, 8, 56, 56), fill=(0, 120, 215))
+    return image
 
 class FilamentApp:
     def __init__(self, root):
@@ -1630,6 +1963,7 @@ class FilamentApp:
         # --- NEU: Gespeicherte Sortierung laden ---
         self.current_sort_col = self.settings.get("sort_col", "id")
         self.current_sort_reverse = self.settings.get("sort_reverse", False)
+        self.last_selected_type = "LAGER"
         
         
         self.root.geometry(str(self.settings.get("geometry", "1500x980")))
@@ -1683,8 +2017,9 @@ class FilamentApp:
         self.menu_opts.add_separator()
         self.menu_opts.add_command(label="📦 Lager-Layout planen", command=lambda: self.open_settings(0))
         self.menu_opts.add_command(label="🤖 Drucker & AMS", command=lambda: self.open_settings(1))
-        self.menu_opts.add_command(label="⚙ System-Optionen & Smart Home", command=lambda: self.open_settings(2))
-        self.menu_opts.add_command(label="📋 Listen-Verwaltung", command=lambda: self.open_settings(3))
+        self.menu_opts.add_command(label="💰 Druckkosten-Rechner", command=lambda: self.open_settings(2))
+        self.menu_opts.add_command(label="⚙ System-Optionen & Smart Home", command=lambda: self.open_settings(3))
+        self.menu_opts.add_command(label="📋 Listen-Verwaltung", command=lambda: self.open_settings(4))
         self.menu_opts.add_separator()
         self.menu_opts.add_command(label="🔄 Update-Check", command=self.manual_update_check)
         self.btn_opts["menu"] = self.menu_opts
@@ -1693,7 +2028,7 @@ class FilamentApp:
         ttk.Button(top_bar, text="💾 Backup", command=lambda: BackupDialog(self.root, self.data_manager, self)).pack(side="right", padx=5); ttk.Button(top_bar, text="🛒 Einkaufsliste", command=lambda: ShoppingListDialog(self.root, self.inventory, self)).pack(side="right", padx=5); 
         ttk.Button(top_bar, text="📥 CSV Import", command=self.import_csv).pack(side="right", padx=5)
         ttk.Button(top_bar, text="☕ Spenden", command=self.open_paypal).pack(side="right", padx=5); self.btn_theme = ttk.Button(top_bar, text="...", command=self.toggle_theme); self.btn_theme.pack(side="right", padx=5); self.update_theme_button_text()
-        
+
         # --- SIDEBAR BUTTONS ---
         self.nav_btns = []
         def add_nav_btn(text, cmd, icon_txt=None):
@@ -1704,6 +2039,7 @@ class FilamentApp:
             self.nav_btns.append(btn)
             btn.bind("<Enter>", lambda e: self.on_nav_btn_hover(btn, True))
             btn.bind("<Leave>", lambda e: self.on_nav_btn_hover(btn, False))
+            return btn
 
         add_nav_btn("Regal", lambda: ShelfVisualizer(self.root, self.inventory, self.settings, self.spools, self), "📦")
         add_nav_btn("Spulen", lambda: SpoolManager(self.root, self.data_manager, self.update_spool_dropdown), "🧵")
@@ -1716,9 +2052,15 @@ class FilamentApp:
         add_nav_btn("Flow", lambda: FlowCalculatorDialog(self.root, self.entry_flow), "🧪")
         if self.settings.get("use_bambu", False):
             add_nav_btn("AMS", self.run_ams_sync, "🤖")
+        # --- NEU: Cloud Sync im linken Menü ---
+        self.btn_cloud = add_nav_btn("Cloud", self.open_bambu_cloud_sync, "☁️")
+        if not self.settings.get("use_bambu_cloud", True):
+            self.btn_cloud.pack_forget()
+            
         self.nav_sep = tk.Label(self.nav_sidebar, height=1)
         self.nav_sep.pack(fill="x", pady=10)
         add_nav_btn("Neu", self.clear_inputs, "➕")
+        add_nav_btn("Hilfe", self.show_howto, "❓") # NEU: Hilfe/Wiki Button
         
         # (NACH der Nav-Sidebar-Definition)
         main_frame = ttk.Frame(root, padding=10); main_frame.pack(fill="both", expand=True)
@@ -2007,25 +2349,37 @@ class FilamentApp:
         ttk.Label(tab_erp, text="Notiz / Kommentar:").grid(row=7, column=0, sticky="w", pady=5)
         self.entry_note = ttk.Entry(tab_erp)
         self.entry_note.grid(row=7, column=1, sticky="ew", pady=2)
+        # --- NEU: Eigener Hersteller Barcode ---
+        ttk.Label(tab_erp, text="Hersteller Barcode:").grid(row=8, column=0, sticky="w", pady=5)
+        self.entry_barcode = ttk.Entry(tab_erp)
+        self.entry_barcode.grid(row=8, column=1, sticky="ew", pady=2)
         tab_erp.columnconfigure(1, weight=1)
        
         btn_frame = ttk.Frame(sidebar)
         btn_frame.pack(fill="x", pady=(15, 0))
         
-        # --- 1. Hauptaktionen: Hinzufügen & Speichern (Nebeneinander) ---
-        main_action_frame = ttk.Frame(btn_frame)
-        main_action_frame.pack(fill="x", pady=3)
-        ttk.Button(main_action_frame, text="Neu Hinzufügen", command=self.add_filament, style="Accent.TButton").pack(side="left", fill="x", expand=True, padx=(0, 2))
-        ttk.Button(main_action_frame, text="Änderungen Speichern", command=self.update_filament).pack(side="left", fill="x", expand=True, padx=(2, 0))
+        # --- EINHEITLICHES BUTTON-GRID (3 Zeilen x 2 Spalten) ---
+        action_grid = ttk.Frame(btn_frame)
+        action_grid.pack(fill="x", pady=3)
         
-        # --- 2. Quick-Swap (Prominent platziert) ---
-        ttk.Button(btn_frame, text="🔄 Quick-Swap", command=self.quick_swap_dialog).pack(fill="x", pady=3)
+        # Spalten und Zeilen exakt gleich groß zwingen (uniform)
+        action_grid.columnconfigure(0, weight=1, uniform="btn_col")
+        action_grid.columnconfigure(1, weight=1, uniform="btn_col")
+        action_grid.rowconfigure(0, weight=1, uniform="btn_row")
+        action_grid.rowconfigure(1, weight=1, uniform="btn_row")
+        action_grid.rowconfigure(2, weight=1, uniform="btn_row")
         
-        # --- 3. Workflow-Booster (Klonen & Ins Lager) ---
-        aktion_frame = ttk.Frame(btn_frame)
-        aktion_frame.pack(fill="x", pady=3)
-        ttk.Button(aktion_frame, text="🐑 Klonen", command=self.clone_filament).pack(side="left", fill="x", expand=True, padx=(0, 2))
-        ttk.Button(aktion_frame, text="📦 Ins Lager", command=self.send_to_storage).pack(side="left", fill="x", expand=True, padx=(2, 0))
+        # Zeile 1: Hauptaktionen
+        ttk.Button(action_grid, text="Neu Hinzufügen", command=self.add_filament, style="Accent.TButton").grid(row=0, column=0, sticky="nsew", padx=(0, 2), pady=2)
+        ttk.Button(action_grid, text="Änderungen Speichern", command=self.update_filament).grid(row=0, column=1, sticky="nsew", padx=(2, 0), pady=2)
+        
+        # Zeile 2: Tools
+        ttk.Button(action_grid, text="🔄 Quick-Swap", command=self.quick_swap_dialog).grid(row=1, column=0, sticky="nsew", padx=(0, 2), pady=2)
+        ttk.Button(action_grid, text="📜 Logbuch", command=self.show_spool_history).grid(row=1, column=1, sticky="nsew", padx=(2, 0), pady=2)
+        
+        # Zeile 3: Workflow
+        ttk.Button(action_grid, text="🐑 Klonen", command=self.clone_filament).grid(row=2, column=0, sticky="nsew", padx=(0, 2), pady=2)
+        ttk.Button(action_grid, text="📦 Ins Lager", command=self.send_to_storage).grid(row=2, column=1, sticky="nsew", padx=(2, 0), pady=2)
         
         ttk.Separator(btn_frame, orient="horizontal").pack(fill="x", pady=4)
         
@@ -2092,6 +2446,24 @@ class FilamentApp:
                 latest, url = res
                 self.root.after(0, lambda: self.show_update_prompt(latest, url))
         threading.Thread(target=run_update_check, daemon=True).start()
+
+        # --- NEU: Bambu Auto-Sync Monitor starten ---
+        if self.settings.get("use_bambu", False):
+            try:
+                from core.bambu_sync import BambuBackgroundMonitor
+                ip = self.settings.get("bambu_ip", "")
+                code = self.settings.get("bambu_access", "")
+                serial = self.settings.get("bambu_serial", "")
+                
+                if ip and code and serial:
+                    self.bambu_monitor = BambuBackgroundMonitor(
+                        ip, code, serial, 
+                        on_finish_callback=self.on_bambu_print_finish
+                    )
+                    self.bambu_monitor.start()
+            except Exception as e:
+                print(f"Bambu Monitor konnte nicht gestartet werden: {e}")
+
         self.apply_theme()
         
         start_mobile_server(self)
@@ -2133,27 +2505,170 @@ class FilamentApp:
     def open_paypal(self):
         webbrowser.open("https://paypal.me/florianfranck")
 
+    def show_howto(self):
+        """Öffnet das vollständige VibeSpool Handbuch mit 5 detaillierten Kapiteln."""
+        win = tk.Toplevel(self.root)
+        win.title("📘 VibeSpool Handbuch & Hilfe")
+        win.geometry("900x700")
+        win.configure(bg=self.root.cget('bg'))
+        win.attributes('-topmost', True)
+        from core.utils import center_window
+        center_window(win, self.root)
+
+        header = ttk.Frame(win, padding=15)
+        header.pack(fill="x")
+        ttk.Label(header, text="VibeSpool Handbuch", font=("Segoe UI", 16, "bold")).pack(side="left")
+        ttk.Label(header, text=f"Version {APP_VERSION}", foreground="gray").pack(side="right", pady=5)
+        
+        tabs = ttk.Notebook(win)
+        tabs.pack(fill="both", expand=True, padx=10, pady=5)
+
+        def create_tab(title, content):
+            frame = ttk.Frame(tabs)
+            tabs.add(frame, text=title)
+            scrollbar = ttk.Scrollbar(frame)
+            scrollbar.pack(side="right", fill="y")
+            
+            text_box = tk.Text(frame, wrap="word", yscrollcommand=scrollbar.set, font=("Segoe UI", 10), 
+                              padx=15, pady=15, bg=self.root.cget('bg'), bd=0)
+            text_box.pack(side="left", fill="both", expand=True)
+            scrollbar.config(command=text_box.yview)
+            
+            text_box.tag_configure("h1", font=("Segoe UI", 12, "bold"), foreground="#0078D7", spacing1=15, spacing3=5)
+            text_box.tag_configure("bold", font=("Segoe UI", 10, "bold"))
+            text_box.tag_configure("bullet", lmargin1=20, lmargin2=35, spacing1=3)
+            
+            for line in content.split('\n'):
+                if line.startswith('## '):
+                    text_box.insert("end", line[3:] + "\n", "h1")
+                elif line.startswith('• '):
+                    if ":" in line:
+                        parts = line.split(":", 1)
+                        text_box.insert("end", "• " + parts[0].strip(":").replace("• ","") + ":", "bold")
+                        text_box.insert("end", parts[1] + "\n", "bullet")
+                    else:
+                        text_box.insert("end", line + "\n", "bullet")
+                else:
+                    text_box.insert("end", line + "\n")
+            
+            text_box.config(state="disabled")
+
+        # --- Inhalte definieren ---
+        
+        tab1_content = """## Grundlagen & Bedienung
+• ID-System: Nutze numerische oder alphanumerische IDs (z.B. A-101). Diese können in den Optionen umgeschaltet werden.
+• Neu Hinzufügen: Leert alle Felder für eine neue Eingabe.
+• Änderungen Speichern: Aktualisiert die markierte Spule in der Tabelle.
+• Klonen: Erstellt ein exaktes Duplikat der gewählten Spule mit einer neuen ID. Ideal für Vorratshaltung!
+• Logbuch: Jede Spule speichert ihre eigene Historie (Gewichtsänderungen, Cloud-Abzüge)."""
+
+        tab2_content = """## Lager & Organisation
+• Regale: Definiere dein Lagersystem in den Optionen (z.B. REGAL|4|8).
+• Quick-Swap: Tauscht blitzschnell eine Spule aus dem Regal gegen eine Spule im AMS/Drucker aus.
+• Ins Lager: Entfernt die Spule aus der aktiven Zuweisung und sucht automatisch den nächsten freien Platz in deinen Regalen.
+• Standort-Dropdowns: Erlauben die manuelle Zuweisung zu Fächern und Slots."""
+
+        tab3_content = """## Die Schlaue Waage
+• Ziel: Präzise Netto-Gewichtsermittlung ohne Kopfrechnen.
+• Leerspulen: Hinterlege im Reiter 'Leerspulen' die Gewichte deiner leeren Hersteller-Spulen.
+• Brutto-Messung: Trage das Gesamtgewicht (Spule + Filament) ein. VibeSpool erkennt Hersteller/Material und zieht den passenden Leerspulen-Wert automatisch ab.
+• Ergebnis: Das echte Filament-Gewicht wird sofort in der Haupttabelle angezeigt."""
+
+        tab4_content = """## Bambu Lab Cloud & Smart-Match
+• Cloud-Button: Öffnet deine letzten erfolgreichen Druckaufträge.
+• Smart-Match: Erkennt automatisch, welche Spule in welchem AMS-Slot lag und schlägt diese zum Abzug vor.
+• Multi-Color: AMS-Drucke werden grammgenau auf die beteiligten Spulen aufgeteilt.
+• Filter: Mit 'Erledigte ausblenden' behältst du den Fokus auf neuen Drucken. Ignorierte Drucke werden grau markiert."""
+
+        tab5_content = """## QR-Codes & Mobile Scanner
+• PDF-Druck: Generiere Etiketten mit QR-Codes für deine Spulen (A4 oder Label-Drucker).
+• Web-Interface: Startet einen lokalen Server. Scanne den QR-Code am PC mit deinem Handy, um die mobile Ansicht zu öffnen.
+• Handy-Scanner: Nutze dein Handy im WLAN, um QR-Codes auf Spulen zu scannen. VibeSpool am PC springt sofort zur richtigen Spule.
+• Hersteller-Barcodes: Scanne originale Barcodes auf Filament-Boxen. VibeSpool lernt diese Codes und erkennt die Marke beim nächsten Scan sofort wieder."""
+
+        # --- Tabs erstellen ---
+        create_tab("🏠 Grundlagen", tab1_content)
+        create_tab("📦 Lager & Swap", tab2_content)
+        create_tab("⚖️ Waage", tab3_content)
+        create_tab("☁️ Cloud", tab4_content)
+        create_tab("📱 Scanner", tab5_content)
+
+        ttk.Button(win, text="Alles klar!", command=win.destroy, style="Accent.TButton").pack(pady=15)
+    
     def show_update_prompt(self, latest, url):
         upd = tk.Toplevel(self.root); upd.title("VibeSpool Update"); upd.geometry("400x150"); upd.configure(bg=self.root.cget('bg')); upd.attributes('-topmost', True); center_window(upd, self.root)
         ttk.Label(upd, text=f"Version {latest} ist verfügbar!", font=("Segoe UI", 12, "bold")).pack(pady=15)
         btn_frm = ttk.Frame(upd); btn_frm.pack(pady=10)
         ttk.Button(btn_frm, text="Laden", command=lambda: [webbrowser.open(url), upd.destroy()]).pack(side="left", padx=5); ttk.Button(btn_frm, text="Später", command=upd.destroy).pack(side="left", padx=5)
 
-    def on_closing(self): 
+    def on_closing(self):
+        self.root.withdraw()
+        
+        # NEU: Wir haben einen "Test"-Knopf eingebaut!
+        menu = pystray.Menu(
+            pystray.MenuItem('Öffnen', self.show_window, default=True),
+            pystray.MenuItem('Beenden', self.quit_app)
+        )
+        
+        self.tray_icon = pystray.Icon("VibeSpool", create_tray_icon(), "VibeSpool", menu)
+        
+        def setup(icon):
+            icon.visible = True
+            # NEU: Windows-Benachrichtigung, damit du weißt, dass er lauscht!
+            icon.notify("VibeSpool läuft im Hintergrund weiter und lauscht auf den Drucker.", title="VibeSpool minimiert")
+            
+        threading.Thread(target=lambda: self.tray_icon.run(setup), daemon=True).start()
+
+    def show_window(self, icon, item):
+        # Wird aufgerufen, wenn man im Tray auf "Öffnen" klickt
+        self.tray_icon.stop()
+        self.root.after(0, self.root.deiconify) # Fenster wieder einblenden
+
+    def show_custom_toast(self, title, message):
+        """Erstellt eine elegante, dunkle Benachrichtigung unten rechts im Bildschirm."""
+        toast = tk.Toplevel(self.root)
+        toast.overrideredirect(True) # Keine Windows-Rahmen
+        toast.attributes('-topmost', True) # Immer im Vordergrund
+        toast.configure(bg="#2b2b2b", highlightbackground="#0078d7", highlightthickness=2)
+        
+        # Titel
+        lbl_title = tk.Label(toast, text=title, font=("Segoe UI", 12, "bold"), fg="#0078d7", bg="#2b2b2b")
+        lbl_title.pack(padx=20, pady=(15, 5), anchor="w")
+        
+        # Nachricht
+        lbl_msg = tk.Label(toast, text=message, font=("Segoe UI", 10), fg="white", bg="#2b2b2b")
+        lbl_msg.pack(padx=20, pady=(0, 15), anchor="w")
+        
+        # Größe und Position berechnen
+        toast.update_idletasks()
+        w = toast.winfo_width()
+        h = toast.winfo_height()
+        sw = toast.winfo_screenwidth()
+        sh = toast.winfo_screenheight()
+        
+        # Position: Rechts unten (knapp über der Windows-Taskleiste)
+        x = sw - w - 20
+        y = sh - h - 60
+        toast.geometry(f"{w}x{h}+{x}+{y}")
+        
+        # Der Toast zerstört sich nach 6 Sekunden von selbst
+        self.root.after(6000, toast.destroy)
+
+    def quit_app(self, icon, item):
+        # Das ECHTE Beenden der App
+        self.tray_icon.stop()
+        
+        # Hintergrund-Monitor stoppen
+        if hasattr(self, 'bambu_monitor'):
+            try: self.bambu_monitor.stop()
+            except: pass
+            
+        # Einstellungen speichern und App zerstören
         try:
-            self.settings["geometry"] = self.root.geometry()
-            
-            # --- NEU: Sortierung beim Beenden in die settings.json schreiben ---
-            self.settings["sort_col"] = getattr(self, 'current_sort_col', 'id')
-            self.settings["sort_reverse"] = getattr(self, 'current_sort_reverse', False)
-            
             self.data_manager.save_settings(self.settings)
-        except Exception: 
-            pass
-        self.root.quit()
-        self.root.destroy()
-        import sys
-        sys.exit(0)
+        except: pass
+        
+        self.root.after(0, self.root.destroy)
     
     def apply_theme(self):
         theme = self.settings.get("theme", "dark"); c = THEMES[theme]; self.root.configure(bg=c["bg"]); s = self.style
@@ -2327,6 +2842,7 @@ class FilamentApp:
     
     def update_slot_dropdown(self, event=None):
         loc = self.combo_type.get()
+        self.last_selected_type = loc
         new_values = ["-"] # Standard-Wert für endlose Orte wie LAGER oder VERBRAUCHT
         
         if loc.startswith("AMS"): 
@@ -2545,7 +3061,7 @@ class FilamentApp:
                 if gross_val < 0:
                     gross_val = 0.0
 
-            return {"id": int(self.entry_id.get().strip()) if self.entry_id.get().strip() else None, "rfid": self.entry_rfid.get().strip(), "brand": self.entry_brand.get().strip(), "material": self.combo_material.get().strip(), "color": self.combo_color.get().strip(), "subtype": self.combo_subtype.get().strip(), "type": self.combo_type.get(), "loc_id": self.combo_loc_id.get().strip(), "flow": self.entry_flow.get().strip(), "pa": self.entry_pa.get().strip(), "spool_id": spool_id, "weight_gross": gross_val, "capacity": cap, "is_refill": self.var_is_refill.get(), "is_empty": self.combo_type.get() == "VERBRAUCHT", "reorder": self.var_reorder.get(), "supplier": self.entry_supplier.get().strip(), "sku": self.entry_sku.get().strip(), "price": self.var_price.get().strip(), "link": self.entry_link.get().strip(), "temp_n": self.entry_temp_n.get().strip(), "temp_b": self.entry_temp_b.get().strip(), "note": self.entry_note.get().strip()}
+            return {"id": self.entry_id.get().strip() if self.entry_id.get().strip() else None, "rfid": self.entry_rfid.get().strip(), "brand": self.entry_brand.get().strip(), "material": self.combo_material.get().strip(), "color": self.combo_color.get().strip(), "subtype": self.combo_subtype.get().strip(), "type": self.combo_type.get(), "loc_id": self.combo_loc_id.get().strip(), "flow": self.entry_flow.get().strip(), "pa": self.entry_pa.get().strip(), "spool_id": spool_id, "weight_gross": gross_val, "capacity": cap, "is_refill": self.var_is_refill.get(), "is_empty": self.combo_type.get() == "VERBRAUCHT", "reorder": self.var_reorder.get(), "supplier": self.entry_supplier.get().strip(), "sku": self.entry_sku.get().strip(), "price": self.var_price.get().strip(), "link": self.entry_link.get().strip(), "temp_n": self.entry_temp_n.get().strip(), "temp_b": self.entry_temp_b.get().strip(), "note": self.entry_note.get().strip(), "barcode": self.entry_barcode.get().strip()}
         except Exception as e: 
             messagebox.showwarning(
                 "Eingabe-Fehler", 
@@ -2561,7 +3077,7 @@ class FilamentApp:
         
         for i in self.inventory:
             # Die eigene Spule beim Bearbeiten ignorieren (sonst blockiert sie sich selbst)
-            if i.get('id') == ignore_id: continue
+            if str(i.get('id')) == str(ignore_id): continue
             if i.get('type') == "VERBRAUCHT": continue
             
             # Treffer! Genau dieser Ort + Slot ist schon belegt.
@@ -2569,16 +3085,53 @@ class FilamentApp:
                 return i # Wir geben die störende Spule zurück
         return None
 
+    def learn_dropdown_values(self, d):
+        changed = False
+        
+        def add_if_new(key, val, default_list):
+            if not val or val == "-" or val.startswith("Alle "): return False
+            current_list = self.settings.get(key, default_list)
+            # Prüft, ob der Eintrag schon existiert (Groß-/Kleinschreibung ignorieren)
+            if not any(x.lower() == val.lower() for x in current_list):
+                current_list.append(val)
+                self.settings[key] = current_list
+                return True
+            return False
+
+        # 1. Prüfen, ob es neue Werte gibt
+        if add_if_new("brands", d.get('brand', ''), []): changed = True
+        if add_if_new("materials", d.get('material', ''), MATERIALS): changed = True
+        if add_if_new("subtypes", d.get('subtype', ''), SUBTYPES): changed = True
+        
+        # 2. Bei Farben extrahieren wir auch Kombinationen (z.B. "Rot / Blau")
+        for color_part in str(d.get('color', '')).split('/'):
+            if add_if_new("colors", color_part.strip(), COMMON_COLORS): changed = True
+
+        # 3. Wenn er was gelernt hat -> Einstellungen speichern & Dropdowns aktualisieren
+        if changed:
+            self.data_manager.save_settings(self.settings)
+            self.combo_material['values'] = self.settings.get("materials", MATERIALS)
+            self.combo_color['values'] = self.settings.get("colors", COMMON_COLORS)
+            self.combo_subtype['values'] = self.settings.get("subtypes", SUBTYPES)
+            self.entry_brand['values'] = sorted(self.settings.get("brands", []), key=str.lower)
+            self.update_filter_dropdowns()
+
     def add_filament(self):
         d = self.get_input_data()
         if not d: return
         
         if d['id'] is not None:
-            if any(i['id'] == d['id'] for i in self.inventory):
+            # Wir vergleichen jetzt als TEXT (str)
+            if any(str(i['id']) == str(d['id']) for i in self.inventory):
                 messagebox.showerror("Halt Stop!", f"Die ID {d['id']} existiert bereits in deinem Lager!\nBitte wähle eine andere ID oder lass das Feld leer.")
                 return
         else:
-            d['id'] = max([int(i['id']) for i in self.inventory], default=0) + 1
+            # NEU: Wir suchen die höchste ZAHL unter allen IDs, ignorieren aber Text-IDs (wie PLA-01)
+            max_num = 0
+            for item in self.inventory:
+                if str(item['id']).isdigit():
+                    max_num = max(max_num, int(item['id']))
+            d['id'] = str(max_num + 1)
             
         # NEU: Kollisionsprüfung
         col = self.check_location_collision(d['type'], d['loc_id'])
@@ -2587,7 +3140,10 @@ class FilamentApp:
             if not messagebox.askyesno("⚠️ Platz belegt", msg):
                 return
                 
+        # Zwingend als String (Text) speichern
+        d['id'] = str(d['id'])
         self.inventory.append(d)
+        self.learn_dropdown_values(d)
         self.data_manager.save_inventory(self.inventory); self.broadcast_mqtt()
         self.refresh_table()
         self.clear_inputs()
@@ -2598,51 +3154,83 @@ class FilamentApp:
         d = self.get_input_data()
         if not d: return
         
-        old_id = int(sel[0])
-        new_id = d['id'] or old_id
+        # NEU: Wir lesen die alte ID als Text aus!
+        old_id = str(sel[0])
+        new_id = str(d['id']) if d['id'] else old_id
         
         if new_id != old_id:
-            if any(i['id'] == new_id for i in self.inventory):
+            if any(str(i['id']) == new_id for i in self.inventory):
                 messagebox.showerror("Halt Stop!", f"Du kannst diese Spule nicht auf ID {new_id} ändern, da diese ID bereits einer anderen Spule gehört!")
                 return
                 
-        # NEU: Kollisionsprüfung (mit ignore_id, damit sie sich nicht selbst blockiert!)
         col = self.check_location_collision(d['type'], d['loc_id'], ignore_id=old_id)
         if col:
             msg = f"Der Ziel-Platz {d['type']} {d['loc_id']} ist bereits belegt durch:\n#{col['id']} {col.get('brand','')} {col.get('color','')}\n\nTrotzdem dorthin verschieben?"
             if not messagebox.askyesno("⚠️ Platz belegt", msg):
                 return
                 
-        d['id'] = new_id
+        d['id'] = str(new_id)
 
-        idx = next(i for i, item in enumerate(self.inventory) if item['id'] == old_id)
+        # NEU: Auch hier als Text vergleichen
+        idx = next(i for i, item in enumerate(self.inventory) if str(item['id']) == old_id)
+        
+        # --- FIX 2: Die Schlaue Waage ---
+        old_gross = float(self.inventory[idx].get('weight_gross', 0.0))
+        new_gross = float(d['weight_gross'])
+        
+        if new_gross < old_gross:
+            diff = round(old_gross - new_gross, 1)
+            # Wir fragen nur nach, wenn mehr als 1g fehlt (ignoriert kleine Waagen-Toleranzen)
+            if diff >= 1.0:
+                if messagebox.askyesno("⚖️ Waage: Verbrauch erkannt!", f"Das Gewicht auf der Waage ist um {diff}g leichter als vorher.\n\nMöchtest du diese {diff}g als verbrauchtes Filament in die Statistik (Logbuch) eintragen?"):
+                    self.log_consumption(diff)
+        # -------------------------------
+
         self.inventory[idx] = d
+        self.learn_dropdown_values(d)
         self.data_manager.save_inventory(self.inventory)
         self.refresh_table()
         self.tree.selection_set(str(d['id']))
+
     def delete_filament(self):
         sel = self.tree.selection()
         if not sel or not messagebox.askyesno("Löschen", "Wirklich löschen?"): return
-        self.inventory = [i for i in self.inventory if i['id'] != int(sel[0])]; self.data_manager.save_inventory(self.inventory); self.refresh_table(); self.clear_inputs()
+        # NEU: Text-Vergleich beim Löschen
+        self.inventory = [i for i in self.inventory if str(i['id']) != str(sel[0])]
+        self.data_manager.save_inventory(self.inventory); self.refresh_table(); self.clear_inputs()
+
     def on_select(self, event):
         sel = self.tree.selection()
         if not sel: return
-        i = next((x for x in self.inventory if x['id'] == int(sel[0])), None)
+        i = next((x for x in self.inventory if str(x['id']) == str(sel[0])), None)
         if not i: return
         self.last_selected_spool_id = i.get('spool_id', -1)
         self.clear_inputs(deselect=False);
         self.entry_id.config(state="normal") 
         self.entry_id.insert(0, str(i['id']));
         self.entry_rfid.insert(0, i.get('rfid', '')); 
-        self.entry_brand.insert(0, i['brand']); self.combo_material.set(i.get('material', 'PLA')); self.combo_color.set(i['color']); self.combo_subtype.set(i.get('subtype', 'Standard')); self.update_color_preview(); self.combo_type.set(i['type']); self.update_slot_dropdown(); self.combo_loc_id.set(i.get('loc_id', '')); self.entry_flow.insert(0, i.get('flow', '')); self.entry_pa.insert(0, i.get('pa', '')); self.var_reorder.set(i.get('reorder', False))
+        self.entry_brand.insert(0, i['brand']); 
+        self.combo_material.set(i.get('material', 'PLA')); 
+        self.combo_color.set(i['color']); 
+        self.combo_subtype.set(i.get('subtype', 'Standard')); 
+        self.update_color_preview(); 
+        self.combo_type.set(i['type']); 
+        self.update_slot_dropdown(); 
+        self.combo_loc_id.set(i.get('loc_id', '')); 
+        self.entry_flow.insert(0, i.get('flow', '')); 
+        self.entry_pa.insert(0, i.get('pa', '')); 
+        self.var_reorder.set(i.get('reorder', False))
         for val in self.combo_spool['values']:
             if val.startswith(f"{i.get('spool_id', -1)} -"): self.combo_spool.set(val); break
-        self.var_capacity.set(str(i.get('capacity', 1000))); gross = str(i.get('weight_gross', '0')).replace(',', '.'); float_g = float(gross) if gross else 0; self.var_gross.set(str(float_g).rstrip('0').rstrip('.') if float_g > 0 else "0"); self.var_price.set(str(i.get('price', ''))); self.update_net_weight_display(); self.entry_supplier.insert(0, i.get('supplier', '')); self.entry_sku.insert(0, i.get('sku', '')); self.entry_link.insert(0, i.get('link', '')); self.entry_temp_n.insert(0, i.get('temp_n', '')); self.entry_temp_b.insert(0, i.get('temp_b', '')); self.entry_note.insert(0, i.get('note', ''));
+        self.var_capacity.set(str(i.get('capacity', 1000))); gross = str(i.get('weight_gross', '0')).replace(',', '.'); float_g = float(gross) if gross else 0; self.var_gross.set(str(float_g).rstrip('0').rstrip('.') if float_g > 0 else "0"); self.var_price.set(str(i.get('price', ''))); self.update_net_weight_display(); 
+        self.entry_supplier.insert(0, i.get('supplier', '')); self.entry_sku.insert(0, i.get('sku', '')); self.entry_link.insert(0, i.get('link', '')); self.entry_temp_n.insert(0, i.get('temp_n', '')); self.entry_temp_b.insert(0, i.get('temp_b', '')); self.entry_note.insert(0, i.get('note', '')); self.entry_barcode.insert(0, i.get('barcode', ''));
+        self.entry_temp_n.insert(0, i.get('temp_n', '')); self.entry_temp_b.insert(0, i.get('temp_b', '')); self.entry_note.insert(0, i.get('note', ''));
         self.var_is_refill.set(i.get('is_refill', False))
+        self.last_selected_type = self.combo_type.get()
     
     def clear_inputs(self, deselect=True):
         self.last_selected_spool_id = -1
-        for e in [self.entry_id, self.entry_rfid, self.entry_brand, self.entry_flow, self.entry_pa, self.entry_supplier, self.entry_sku, self.entry_link, self.entry_temp_n, self.entry_temp_b, self.entry_note]: 
+        for e in [self.entry_id, self.entry_rfid, self.entry_brand, self.entry_flow, self.entry_pa, self.entry_supplier, self.entry_sku, self.entry_link, self.entry_temp_n, self.entry_temp_b, self.entry_note, self.entry_barcode]: 
             e.delete(0, tk.END)
         self.var_capacity.set("1000")
         self.var_gross.set("")
@@ -2651,7 +3239,7 @@ class FilamentApp:
         self.combo_loc_id.set("")
         self.combo_material.current(0)
         self.combo_subtype.current(0)
-        self.combo_type.current(0)
+        self.combo_type.set("LAGER")
         self.combo_spool.current(0)
         self.update_net_weight_display()
         self.update_slot_dropdown()
@@ -2766,7 +3354,7 @@ class FilamentApp:
         if not sel: 
             return messagebox.showinfo("Info", "Bitte zuerst eine Spule auswählen!", parent=self.root)
             
-        s_a = next((i for i in self.inventory if i['id'] == int(sel[0])), None)
+        s_a = next((i for i in self.inventory if str(i.get('id')) == str(sel[0])), None)
         if not s_a: return
 
         win = tk.Toplevel(self.root)
@@ -2824,18 +3412,35 @@ class FilamentApp:
         scan = self.entry_scan.get().strip()
         if not scan: return
         found_id = None
+
         if self.settings.get("rfid_mode", False):
             item = next((i for i in self.inventory if i.get('rfid') == scan), None)
             if item: found_id = str(item['id'])
         else:
-            match = re.search(r'(?:ID:\s*|FIL_)?(\d+)', scan, re.IGNORECASE)
-            if match: found_id = match.group(1)
-        
+            # 1. Prio: Suche nach Hersteller-Barcode (Groß-/Kleinschreibung ignorieren)
+            item = next((i for i in self.inventory if str(i.get('barcode', '')).lower() == scan.lower() and scan != ""), None)
+            if item:
+                found_id = str(item['id'])
+            else:
+                # 2. Prio: Suche nach VibeSpool ID (Jetzt auch Alphanumerisch!)
+                match = re.search(r'(?:ID|1D|lD|VibeSpool)[\s:=_\-\.]*([a-zA-Z0-9-]+)', scan, re.IGNORECASE)
+                extracted_id = match.group(1) if match else scan
+                
+                # Prüfen ob diese ID existiert (beide Seiten .lower()!)
+                item = next((i for i in self.inventory if str(i.get('id')).lower() == str(extracted_id).lower()), None)
+                if item:
+                    found_id = str(item['id'])
+
         if found_id and self.tree.exists(found_id):
-            self.tree.selection_set(found_id); self.tree.see(found_id); self.on_select(None); self.entry_scan.delete(0, tk.END)
-        else:
-            messagebox.showerror("Fehler", f"Keine Spule mit {'RFID' if self.settings.get('rfid_mode') else 'ID'} '{scan}' gefunden.")
+            self.tree.selection_set(found_id)
+            self.tree.see(found_id)
+            self.on_select(None)
             self.entry_scan.delete(0, tk.END)
+        else:
+            messagebox.showerror("Fehler", f"Keine Spule mit {'RFID' if self.settings.get('rfid_mode') else 'ID / Barcode'} '{scan}' gefunden.")
+            self.entry_scan.delete(0, tk.END)
+    
+
     def scan_qr_webcam(self):
         try:
             import cv2 # type: ignore
@@ -2931,6 +3536,16 @@ class FilamentApp:
         self.entry_scan.delete(0, tk.END)
         self.entry_scan.insert(0, code)
         self.on_quick_scan()
+    
+    def process_unknown_scan(self, code):
+        # 1. Trägt den Barcode in das entsprechende Feld ein
+        self.entry_barcode.delete(0, tk.END)
+        self.entry_barcode.insert(0, code)
+        
+        # 2. Wechselt elegant auf den "Kaufmännisch" Tab, damit du sofort siehst, dass es geklappt hat!
+        try:
+            self.notebook.select(1)
+        except: pass
 
     def process_mobile_action(self, spool_id, action, val):
         item = next((i for i in self.inventory if i.get('id') == spool_id), None)
@@ -2966,10 +3581,135 @@ class FilamentApp:
             sel = self.tree.selection()
             if sel and int(sel[0]) == spool_id:
                 self.on_select(None)
+    
+    def process_mobile_swap(self, spool_id_str, target_type, target_loc, col_item):
+        """Führt einen Quick-Swap vom Handy aus durch."""
+        s_a = next((i for i in self.inventory if str(i['id']) == spool_id_str), None)
+        if not s_a: return
+
+        o_t, o_l = s_a.get('type', 'LAGER'), s_a.get('loc_id', '-')
+
+        # Tausche die Spulen
+        s_a['type'] = target_type
+        s_a['loc_id'] = target_loc
+        col_item['type'] = o_t
+        col_item['loc_id'] = o_l
+
+        self.data_manager.save_inventory(self.inventory)
+        self.refresh_table()
+
+        # Zeige PC-Benachrichtigung an!
+        self.show_custom_toast("🔄 Mobile Quick-Swap", f"{s_a.get('brand','')} ist im {target_type} Slot {target_loc}.\nDie alte Spule liegt jetzt in {o_t} {o_l}.")
 
     def refresh_all_data(self): 
         self.inventory, self.settings, self.spools = self.data_manager.load_all(DEFAULT_SETTINGS) # type: ignore
         self.apply_theme(); self.update_locations_dropdown(); self.refresh_table()
+
+    
+    def on_bambu_print_finish(self, tray_ids, weight_g):
+        """Wird vom Hintergrund-Thread aufgerufen, wenn der Druck fertig ist."""
+        # Wir brechen nur noch ab, wenn gar kein AMS-Slot erkannt wurde (z.B. externe Spule)
+        if not tray_ids: return
+        
+        # Wir springen in den Haupt-Thread von Tkinter für das UI-Update
+        if len(tray_ids) == 1 and weight_g > 0:
+            # SZENARIO A: Single-Color UND der Drucker kennt das Gewicht -> Vollautomatisch!
+            ams_id = (tray_ids[0] // 4) + 1
+            slot = (tray_ids[0] % 4) + 1
+            self.root.after(0, lambda: self._apply_automatic_deduction(f"AMS {ams_id}", str(slot), weight_g))
+        else:
+            # SZENARIO B: Entweder Multi-Color ODER der Drucker weiß das Gewicht nicht (0g)
+            # In beiden Fällen fragen wir den User einfach per Dialog!
+            self.root.after(0, lambda: self._show_multicolor_dialog(tray_ids, weight_g))
+
+    def _apply_automatic_deduction(self, ams_name, slot_in_ams, weight_g, silent=False):
+        """Führt die tatsächliche Gewichtsänderung in der Datenbank aus."""
+        item = next((i for i in self.inventory if i.get('type') == ams_name and str(i.get('loc_id')) == str(slot_in_ams)), None)
+        
+        if item:
+            try:
+                old_gross = float(str(item.get('weight_gross', '0')).replace(',', '.'))
+                new_gross = max(0, old_gross - weight_g)
+                item['weight_gross'] = new_gross
+                
+                self.data_manager.save_inventory(self.inventory)
+                self.log_consumption(weight_g)
+                self.refresh_table()
+                self.broadcast_mqtt()
+                
+                sel = self.tree.selection()
+                if sel and str(sel[0]) == str(item['id']):
+                    self.on_select(None)
+                
+                if not silent:
+                    msg = f"Es wurden {weight_g:.1f}g von Spule #{item['id']} abgezogen.\n({item.get('brand')} {item.get('color')})"
+                    self.show_custom_toast("🎨 Druck beendet!", msg)
+
+            except Exception as e:
+                print(f"Fehler beim Abziehen: {e}")
+
+    def _show_multicolor_dialog(self, tray_ids, total_weight_g):
+        """Öffnet einen Dialog, wenn mehrere AMS-Slots benutzt wurden."""
+        win = tk.Toplevel(self.root)
+        win.title("🎨 Multi-Color Druck beendet")
+        win.geometry("500x400")
+        win.configure(bg=self.root.cget('bg'))
+        win.attributes('-topmost', True)
+        from core.utils import center_window
+        center_window(win, self.root)
+        
+        ttk.Label(win, text="Multi-Color Druck abgeschlossen!", font=("Segoe UI", 14, "bold"), foreground="#0078d7").pack(pady=(15, 5))
+        ttk.Label(win, text=f"Gesamtverbrauch (laut Slicer): {total_weight_g:.1f} g\nWelche Spule hat wie viel verbraucht?", justify="center").pack(pady=5)
+        
+        frm = ttk.Frame(win, padding=15)
+        frm.pack(fill="both", expand=True)
+        
+        entries = []
+        
+        # Für jeden benutzten Slot ein Feld generieren
+        for t_id in tray_ids:
+            ams_id = (t_id // 4) + 1
+            slot = (t_id % 4) + 1
+            ams_name = f"AMS {ams_id}"
+            
+            # Schauen wir, welche Spule in VibeSpool auf diesem Platz liegt
+            item = next((i for i in self.inventory if i.get('type') == ams_name and str(i.get('loc_id')) == str(slot)), None)
+            
+            row = ttk.Frame(frm)
+            row.pack(fill="x", pady=5)
+            
+            if item:
+                lbl_text = f"{ams_name} Slot {slot}: {item.get('brand')} {item.get('color')}"
+            else:
+                lbl_text = f"{ams_name} Slot {slot}: Unbekannte Spule"
+                
+            ttk.Label(row, text=lbl_text, width=30).pack(side="left")
+            
+            # Eingabefeld für die Grammzahl
+            ent = ttk.Entry(row, width=10, justify="right")
+            ent.pack(side="right")
+            ttk.Label(row, text=" g").pack(side="right")
+            
+            entries.append({"ams_name": ams_name, "slot": str(slot), "entry": ent, "item": item})
+            
+        def apply_split():
+            total_entered = 0
+            for e in entries:
+                val = e["entry"].get().strip().replace(',', '.')
+                if val:
+                    try:
+                        weight = float(val)
+                        if weight > 0:
+                            total_entered += weight
+                            self._apply_automatic_deduction(e["ams_name"], e["slot"], weight, silent=True)
+                    except: pass
+                    
+            if total_entered > 0:
+                messagebox.showinfo("Erfolg", f"Es wurden insgesamt {total_entered:.1f}g auf die Spulen aufgeteilt und abgezogen!", parent=self.root)
+            win.destroy()
+            
+        ttk.Separator(win, orient="horizontal").pack(fill="x", pady=10)
+        ttk.Button(win, text="💾 Gewichte abziehen & Speichern", command=apply_split, style="Accent.TButton").pack(pady=10)
 
     def run_ams_sync(self):
         ip = self.settings.get("bambu_ip", "")
@@ -3107,7 +3847,7 @@ class FilamentApp:
             cb_new.pack(side="left", padx=(0, 5))
             
             # --- SMART PRE-SELECTION (Auto-Mapping & Position Memory) ---
-            current_fil = next((i for i in active_filaments if i.get('type') == "ams_name" and str(i.get('loc_id')) == str(slot_num)), None)
+            current_fil = next((i for i in active_filaments if i.get('type') == ams_name and str(i.get('loc_id')) == str(slot_num)), None)
             
             if current_fil:
                 name = f"{current_fil.get('brand', '')} {current_fil.get('material', '')} {current_fil.get('color', '')}".strip()
@@ -3199,6 +3939,15 @@ class FilamentApp:
         moved_new = []
         moved_old = []
         
+        # --- FIX: Wir sammeln zuerst alle Spulen-IDs, die gerade ins AMS wandern ---
+        incoming_ids = []
+        for sv in self.sync_vars:
+            new_selection = sv['var_new'].get()
+            if new_selection != "- Leer / Ignorieren -":
+                try:
+                    incoming_ids.append(str(new_selection.split(" - ")[0]))
+                except: pass
+
         # --- PRE-CHECK: Kollisionsprüfung für das Regal ---
         collisions = []
         for sv in self.sync_vars:
@@ -3210,10 +3959,13 @@ class FilamentApp:
                 
                 # Prüft, ob auf diesem Regal-Platz schon eine andere, aktive Spule liegt
                 existing = next((i for i in self.inventory if i.get('type') == dest_type and i.get('loc_id') == dest_loc and i.get('type') != 'VERBRAUCHT'), None)
-                if existing:
+                
+                # FIX: Wenn die blockierende Spule auf der 'incoming_ids' Liste steht, 
+                # räumt sie den Platz in dieser Sekunde für uns! -> Keine Kollision! (Quick-Swap erlaubt)
+                if existing and str(existing.get('id')) not in incoming_ids:
                     collisions.append(f"• {old_destination} (ist belegt durch: #{existing['id']} {existing.get('brand','')} {existing.get('color','')})")
                     
-        # Wenn wir Kollisionen gefunden haben, schlagen wir Alarm!
+        # Wenn wir (echte) Kollisionen gefunden haben, schlagen wir Alarm!
         if collisions:
             msg = "Achtung! Du versuchst alte Spulen auf Plätze zu legen, die bereits belegt sind:\n\n" + "\n".join(collisions) + "\n\nMöchtest du trotzdem speichern und riskieren, dass zwei Spulen am selben Platz liegen?"
             if not messagebox.askyesno("⚠️ Lagerplatz bereits belegt", msg):
@@ -3369,63 +4121,6 @@ class FilamentApp:
         except Exception as e:
             messagebox.showerror("Fehler beim Import", f"Die Datei konnte nicht gelesen werden. Ist sie evtl. noch in Excel geöffnet?\n\nDetails: {e}")
     
-    def show_statistics_dialog(self):
-        import datetime
-        import json
-        import os
-        
-        stat_win = tk.Toplevel(self.root)
-        stat_win.title("📊 Verbrauchs-Statistik (Letzte 7 Tage)")
-        stat_win.geometry("500x350")
-        stat_win.configure(bg=self.root.cget('bg'))
-        
-        # Daten laden
-        data_dir = getattr(self.data_manager, 'base_dir', '')
-        history_file = os.path.join(data_dir, "history.json") if data_dir else "history.json"
-        history = {}
-        if os.path.exists(history_file):
-            with open(history_file, "r") as f:
-                history = json.load(f)
-                
-        # Die letzten 7 Tage generieren
-        today = datetime.date.today()
-        last_7_days = [(today - datetime.timedelta(days=i)).isoformat() for i in range(6, -1, -1)]
-        
-        # Werte extrahieren
-        values = [history.get(day, 0.0) for day in last_7_days]
-        max_val = max(values) if max(values) > 0 else 100 # Skalierungsschutz
-        
-        # Canvas (Leinwand) erstellen
-        c_width, c_height = 460, 250
-        canvas = tk.Canvas(stat_win, width=c_width, height=c_height, bg="#2b2b2b", highlightthickness=0)
-        canvas.pack(pady=20)
-        
-        bar_width = 40
-        spacing = 20
-        start_x = 30
-        
-        # Balken zeichnen
-        for i, val in enumerate(values):
-            x0 = start_x + i * (bar_width + spacing)
-            x1 = x0 + bar_width
-            # Höhe relativ zum Maximalwert berechnen
-            bar_height = (val / max_val) * (c_height - 50) 
-            y0 = c_height - 30 - bar_height
-            y1 = c_height - 30
-            
-            # Balken
-            color = "#00a8ff" if val > 0 else "#444444"
-            canvas.create_rectangle(x0, y0, x1, y1, fill=color, outline="")
-            
-            # Gramm-Text oben drüber
-            if val > 0:
-                canvas.create_text(x0 + bar_width/2, y0 - 10, text=f"{int(val)}g", fill="white", font=("Arial", 9))
-                
-            # Wochentag unten drunter (z.B. "Mo", "Di")
-            day_obj = datetime.datetime.strptime(last_7_days[i], "%Y-%m-%d")
-            day_name = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"][day_obj.weekday()]
-            canvas.create_text(x0 + bar_width/2, c_height - 10, text=day_name, fill="gray", font=("Arial", 10))
-    
     def setup_context_menus(self):
         # --- 1. DAS HEADER-MENÜ (Spalten-Konfigurator) ---
         self.menu_header = tk.Menu(self.root, tearoff=0)
@@ -3475,6 +4170,61 @@ class FilamentApp:
         self.menu_row.add_command(label="📝 Etikett-Vorschau öffnen", command=self.quick_open_label)
         self.menu_row.add_command(label="❌ Spule löschen", command=self.delete_filament)
 
+    def show_spool_history(self, event=None, spool_id=None):
+        """Öffnet das Logbuch (Historie) für eine ausgewählte Spule."""
+        if not spool_id:
+            sel = self.tree.selection()
+            if not sel: return
+            spool_id = sel[0]
+
+        # Spule in der Datenbank finden
+        item = next((i for i in self.inventory if str(i.get('id')) == str(spool_id)), None)
+        if not item: return
+
+        # Farbe bereinigen für den Titel
+        color_clean = re.sub(r'\s*\(\s*#[0-9a-fA-F]{6}\s*\)', '', item.get('color', '')).strip()
+
+        # Fenster aufbauen
+        win = tk.Toplevel(self.root)
+        win.title(f"📜 Logbuch: #{item.get('id')} - {item.get('brand')} {color_clean}")
+        win.geometry("550x400")
+        win.configure(bg=self.root.cget('bg'))
+        win.attributes('-topmost', True)
+        from core.utils import center_window
+        center_window(win, self.root)
+
+        ttk.Label(win, text=f"📜 Historie für Spule #{item.get('id')}", font=("Segoe UI", 14, "bold")).pack(pady=(15, 5))
+        ttk.Label(win, text=f"{item.get('brand')} {color_clean} | {item.get('material')}", foreground="gray").pack(pady=(0, 10))
+
+        history = item.get("history", [])
+
+        # Wenn die Spule noch brandneu ist und keine Einträge hat
+        if not history:
+            ttk.Label(win, text="Bisher keine Einträge vorhanden.\n\nVerbräuche durch Cloud-Sync oder die Waage\nwerden hier automatisch protokolliert.", justify="center", foreground="gray").pack(expand=True)
+            ttk.Button(win, text="Schließen", command=win.destroy).pack(pady=15)
+            return
+
+        # Tabelle für die Historie (NEU: 4 Spalten)
+        columns = ("date", "action", "change", "cost")
+        h_tree = ttk.Treeview(win, columns=columns, show="headings", height=10)
+        h_tree.heading("date", text="Datum & Zeit")
+        h_tree.heading("action", text="Aktion / Druck")
+        h_tree.heading("change", text="Verbrauch")
+        h_tree.heading("cost", text="Kosten (Material)")
+
+        h_tree.column("date", width=120)
+        h_tree.column("action", width=220)
+        h_tree.column("change", width=80, anchor="e")
+        h_tree.column("cost", width=100, anchor="e")
+
+        # Wir drehen die Liste um (reversed), damit der neuste Eintrag ganz OBEN steht!
+        for entry in reversed(history):
+            h_tree.insert("", "end", values=(entry.get("date", ""), entry.get("action", ""), entry.get("change", ""), entry.get("cost", "-")))
+
+        h_tree.pack(fill="both", expand=True, padx=15, pady=5)
+        ttk.Button(win, text="Schließen", command=win.destroy).pack(pady=15)
+    
+    
     def on_tree_right_click(self, event):
         # Wo genau wurde geklickt?
         region = self.tree.identify("region", event.x, event.y)
@@ -3488,14 +4238,31 @@ class FilamentApp:
             row_id = self.tree.identify_row(event.y)
             if row_id:
                 self.tree.selection_set(row_id)
-                self.on_select(None) # Lade die Daten ins Formular links
-                self.menu_row.tk_popup(event.x_root, event.y_root)
+                self.on_select(None)
+                
+                # --- FIX 1: Menü JEDES MAL neu aufbauen, damit es nie verschwindet! ---
+                menu_row = tk.Menu(self.root, tearoff=0)
+                menu_row.add_command(label="🛒 Im Shop öffnen", command=self.quick_open_shop)
+                # --- NEU: Logbuch Button ---
+                menu_row.add_command(label="📜 Spulen-Logbuch öffnen", command=self.show_spool_history)
+                menu_row.add_separator()
+                menu_row.add_command(label="🔄 Quick-Swap (ins AMS)", command=self.quick_swap_dialog)
+                menu_row.add_command(label="🐑 Spule klonen", command=self.clone_filament)
+                menu_row.add_separator()
+                menu_row.add_command(label="📦 Ins Lager verschieben", command=self.send_to_storage)
+                menu_row.add_command(label="🚮 Als LEER markieren", command=self.quick_mark_empty)
+                menu_row.add_command(label="🛒 Auf Einkaufsliste setzen/entfernen", command=self.quick_toggle_reorder)
+                menu_row.add_separator()
+                menu_row.add_command(label="📝 Etikett-Vorschau öffnen", command=self.quick_open_label)
+                menu_row.add_command(label="❌ Spule löschen", command=self.delete_filament)
+                
+                menu_row.tk_popup(event.x_root, event.y_root)
 
     # --- HILFSFUNKTIONEN FÜR DAS RECHTSKLICK-MENÜ ---
     def quick_mark_empty(self):
         sel = self.tree.selection()
         if not sel: return
-        item = next((i for i in self.inventory if i['id'] == int(sel[0])), None)
+        item = next((i for i in self.inventory if str(i.get('id')) == str(sel[0])), None)
         if item:
             # NEU: Verbrauch loggen, bevor er gelöscht wird!
             self.log_consumption(item.get('weight_gross', 0.0))
@@ -3510,7 +4277,7 @@ class FilamentApp:
     def quick_toggle_reorder(self):
         sel = self.tree.selection()
         if not sel: return
-        item = next((i for i in self.inventory if i['id'] == int(sel[0])), None)
+        item = next((i for i in self.inventory if str(i.get('id')) == str(sel[0])), None)
         if item:
             item['reorder'] = not item.get('reorder', False)
             self.data_manager.save_inventory(self.inventory)
@@ -3538,7 +4305,7 @@ class FilamentApp:
         if not url:
             sel = self.tree.selection()
             if not sel: return
-            item = next((i for i in self.inventory if i['id'] == int(sel[0])), None)
+            item = next((i for i in self.inventory if str(i.get('id')) == str(sel[0])), None)
             if item and item.get('link'):
                 url = item['link'].strip()
 
@@ -3590,6 +4357,368 @@ class FilamentApp:
         
         with open(history_file, "w") as f:
             json.dump(history, f, indent=4)
+
+    def open_bambu_cloud_sync(self):
+        """Versucht erst den direkten Token-Login, sonst Login-Maske."""
+        saved_access_token = self.settings.get("bambu_cloud_access_token")
+        
+        if saved_access_token:
+            def auto_login_thread():
+                from core.bambu_cloud import BambuCloudAPI
+                cloud = BambuCloudAPI()
+                # Wir überspringen den Login komplett und setzen direkt den Schlüssel!
+                cloud.set_auth_token(saved_access_token)
+                
+                # Testen, ob wir mit dem Token direkt an die Historie kommen
+                h_success, h_data = cloud.fetch_print_history(limit=15)
+                if h_success:
+                    self.root.after(0, lambda: self._process_cloud_history(h_data, None))
+                else:
+                    # Nur wenn der 90-Tage-Schlüssel wirklich abgelaufen ist -> Login zeigen
+                    self.root.after(0, self._show_cloud_login_dialog)
+
+            threading.Thread(target=auto_login_thread, daemon=True).start()
+        else:
+            self._show_cloud_login_dialog()
+
+    def _show_cloud_login_dialog(self):
+        """Öffnet den Login-Dialog für die Bambu Cloud mit Passwort-Speicher-Option."""
+        dialog = tk.Toplevel(self.root)
+        dialog.title("☁️ Bambu Cloud Login")
+        dialog.geometry("450x450")
+        dialog.configure(bg=self.root.cget('bg'))
+        center_window(dialog, self.root)
+        
+        ttk.Label(dialog, text="Bambu Cloud Login", font=("Segoe UI", 16, "bold"), foreground="#0078d7").pack(pady=(15, 5))
+        
+        frm = ttk.Frame(dialog, padding=20)
+        frm.pack(fill="both", expand=True)
+        
+        ttk.Label(frm, text="Bambu E-Mail:").pack(anchor="w")
+        ent_email = ttk.Entry(frm, width=40)
+        ent_email.pack(fill="x", pady=(0, 10))
+        ent_email.insert(0, self.settings.get("bambu_cloud_email", ""))
+        
+        ttk.Label(frm, text="Passwort:").pack(anchor="w")
+        ent_pass = ttk.Entry(frm, width=40, show="*")
+        ent_pass.pack(fill="x", pady=(0, 5))
+        # Passwort laden falls gespeichert
+        ent_pass.insert(0, self.settings.get("bambu_cloud_password", "")) 
+        
+        # NEU: Checkbox für Passwort speichern
+        self.var_save_pass = tk.BooleanVar(value=True if self.settings.get("bambu_cloud_password") else False)
+        chk_save = ttk.Checkbutton(frm, text="Passwort lokal speichern", variable=self.var_save_pass)
+        chk_save.pack(anchor="w", pady=(0, 15))
+        
+        lbl_status = ttk.Label(frm, text="", foreground="#bbb", wraplength=350)
+        lbl_status.pack(pady=5)
+
+        def perform_sync():
+            email = ent_email.get().strip()
+            password = ent_pass.get().strip()
+            
+            if not email or not password:
+                lbl_status.config(text="Bitte Daten eingeben!", foreground="red")
+                return
+            
+            # Daten merken
+            self.settings["bambu_cloud_email"] = email
+            self.settings["bambu_cloud_password"] = password if self.var_save_pass.get() else ""
+            self.data_manager.save_settings(self.settings)
+            
+            lbl_status.config(text="Verbindung wird aufgebaut...", foreground="#0078d7")
+            
+            def cloud_thread(auth_code=None):
+                cloud = BambuCloudAPI()
+                success, tokens = cloud.login(email, password, auth_code)
+                
+                if success and isinstance(tokens, dict):
+                    # WICHTIG: Wir speichern den 90-Tage Access-Token!
+                    self.settings["bambu_cloud_access_token"] = tokens.get("access", "")
+                    self.data_manager.save_settings(self.settings)
+                    
+                    self.root.after(0, lambda: lbl_status.config(text="Lade Historie...", foreground="#0078d7"))
+                    h_success, h_data = cloud.fetch_print_history(limit=15)
+                    if h_success:
+                        self.root.after(0, lambda: self._process_cloud_history(h_data, dialog))
+                else:
+                    msg_str = str(tokens).lower()
+                    if tokens == "2FA_REQUIRED" or "code" in msg_str:
+                        self.root.after(0, ask_for_2fa)
+                    else:
+                        self.root.after(0, lambda: lbl_status.config(text=f"Fehler: {tokens}", foreground="red"))
+
+            def ask_for_2fa():
+                code = simpledialog.askstring("🔒 Bambu 2FA", "Code aus der E-Mail eingeben:", parent=dialog)
+                if code:
+                    lbl_status.config(text="Prüfe Code...", foreground="#0078d7")
+                    threading.Thread(target=lambda: cloud_thread(code), daemon=True).start()
+
+            threading.Thread(target=lambda: cloud_thread(None), daemon=True).start()
+
+        ttk.Button(frm, text="🔄 Jetzt Synchronisieren", command=perform_sync, style="Accent.TButton").pack(fill="x", pady=10)
+
+    def _ask_for_smart_deduction(self, job, parent_win, tree_widget, refresh_tree=None):
+        """Intelligenter Abzugs-Dialog, der Multi-Color automatisch erkennt und aufteilt!"""
+        dialog = tk.Toplevel(self.root)
+        dialog.title("🧠 Smart-Match Zuweisung")
+        dialog.geometry("650x500")
+        dialog.attributes('-topmost', True)
+        from core.utils import center_window
+        center_window(dialog, self.root)
+
+        model = job['name']
+        total_weight = job['weight']
+        mappings = job.get('mapping', [])
+        job_id = str(job.get('id', ''))
+
+        ttk.Label(dialog, text=f"Druck: {model}", font=("Segoe UI", 12, "bold"), wraplength=550, justify="center").pack(pady=(15, 5))
+        
+        # --- NEU: Stromkosten berechnen ---
+        duration = job.get('duration_h', 0.0)
+        kwh_price = float(self.settings.get("kwh_price", 0.30))
+        watts = int(self.settings.get("printer_watts", 150))
+        strom_kosten = duration * (watts / 1000.0) * kwh_price
+        
+        info_str = f"Verbrauch: {total_weight}g"
+        if duration > 0: info_str += f"  |  Zeit: {duration:.1f}h  |  Strom: {strom_kosten:.2f} €"
+        ttk.Label(dialog, text=info_str, font=("Segoe UI", 10), foreground="#0078D7").pack(pady=5)
+
+        frm = ttk.LabelFrame(dialog, text="Verwendete Spulen zuweisen", padding=15)
+        frm.pack(fill="both", expand=True, padx=20, pady=10)
+
+        # 1. Spulen-Liste formatieren
+        from core.logic import calculate_net_weight
+        spool_list = []
+        for s in self.inventory:
+            if s.get('type') == 'VERBRAUCHT': continue
+            net = calculate_net_weight(s.get('weight_gross', '0'), s.get('spool_id', -1), self.spools)
+            color_clean = re.sub(r'\s*\(\s*#[0-9a-fA-F]{6}\s*\)', '', s.get('color', '')).strip()
+            spool_list.append(f"[{s['id']}] {s.get('brand')} {color_clean} ({net}g übrig)")
+
+        # 2. Multi-Color Fallback (Falls API keine Daten liefert)
+        if not mappings:
+            mappings = [{"ams": -1, "weight": total_weight}]
+            
+        valid_mappings = [m for m in mappings if m.get('weight', 0) > 0]
+        if not valid_mappings:
+            valid_mappings = [{"ams": -1, "weight": total_weight}]
+
+        entries = []
+        
+        # 3. Für JEDE vom Drucker gemeldete Farbe eine Zeile generieren!
+        for m in valid_mappings:
+            row = ttk.Frame(frm)
+            row.pack(fill="x", pady=5)
+            
+            raw_ams = m.get('ams', -1)
+            weight = round(m.get('weight', 0.0), 1)
+            
+            best_match = None
+            lbl_text = "Unbekannt:"
+            
+            if raw_ams >= 0:
+                # Bambu API: 0-3 = AMS 1, 4-7 = AMS 2 usw.
+                ams_num = (raw_ams // 4) + 1
+                slot_num = (raw_ams % 4) + 1
+                ams_name = f"AMS {ams_num}"
+                lbl_text = f"{ams_name} Slot {slot_num}:"
+                
+                # Wir suchen direkt, was aktuell in VibeSpool auf diesem Slot liegt!
+                best_match = next((s for s in self.inventory if s.get('type') == ams_name and str(s.get('loc_id')) == str(slot_num)), None)
+
+            ttk.Label(row, text=lbl_text, width=15, font=("Segoe UI", 9, "bold")).pack(side="left")
+            
+            combo = ttk.Combobox(row, values=spool_list, width=40, font=("Segoe UI", 10))
+            combo.pack(side="left", padx=5)
+            
+            # Die vorgeschlagene Spule automatisch eintragen
+            if best_match:
+                net_match = calculate_net_weight(best_match.get('weight_gross', '0'), best_match.get('spool_id', -1), self.spools)
+                color_match = re.sub(r'\s*\(\s*#[0-9a-fA-F]{6}\s*\)', '', best_match.get('color', '')).strip()
+                match_str = f"[{best_match['id']}] {best_match.get('brand')} {color_match} ({net_match}g übrig)"
+                if match_str in spool_list:
+                    combo.set(match_str)
+            elif spool_list:
+                combo.current(0)
+                
+            ent_w = ttk.Entry(row, width=8, justify="right", font=("Segoe UI", 10, "bold"))
+            ent_w.pack(side="left")
+            ent_w.insert(0, str(weight))
+            ttk.Label(row, text=" g").pack(side="left")
+            
+            entries.append({"combo": combo, "weight_entry": ent_w})
+
+        def confirm():
+            total_deducted = 0
+            for e in entries:
+                sel = e["combo"].get()
+                try:
+                    w_val = float(e["weight_entry"].get().replace(',', '.'))
+                except ValueError: continue
+                
+                if w_val <= 0: continue
+                
+                if sel and sel.startswith("["):
+                    spool_id = sel.split("]")[0][1:]
+                    item = next((i for i in self.inventory if str(i['id']) == spool_id), None)
+                    if item:
+                        old_gross = float(item.get('weight_gross', 0.0))
+                        new_gross = max(0.0, old_gross - w_val)
+                        item['weight_gross'] = round(new_gross, 1)
+
+                        # --- NEU: Materialkosten exakt berechnen! ---
+                        mat_cost = 0.0
+                        try:
+                            spool_price = float(str(item.get('price', '0')).replace(',', '.')) or 0.0
+                            spool_capacity = float(str(item.get('capacity', '1000'))) or 1000.0
+                            if spool_capacity > 0: mat_cost = w_val * (spool_price / spool_capacity)
+                        except: pass
+
+                        if "history" not in item: item["history"] = []
+                        item["history"].append({
+                            "date": datetime.now().strftime("%Y-%m-%d %H:%M"),
+                            "action": f"Cloud: {model}",
+                            "change": f"-{w_val}g",
+                            "cost": f"{mat_cost:.2f} €"
+                        })
+                        total_deducted += w_val
+
+            if total_deducted > 0:
+                self.data_manager.save_inventory(self.inventory)
+                self.refresh_table()
+                
+                # Den Druck in der "Erledigt"-Liste speichern
+                deducted = self.settings.get("deducted_cloud_jobs", [])
+                if job_id not in deducted:
+                    deducted.append(job_id)
+                    self.settings["deducted_cloud_jobs"] = deducted
+                    self.data_manager.save_settings(self.settings)
+                
+                # NEU: Wir rufen die übergebene Refresh-Funktion der Hauptliste auf!
+                if refresh_tree:
+                    try: 
+                        refresh_tree() 
+                    except Exception: 
+                        pass
+                
+                dialog.destroy()
+                anteil = total_deducted / total_weight if total_weight > 0 else 1.0
+                gesamt_kosten = mat_cost + (strom_kosten * anteil)
+                self.show_custom_toast("💰 Filament verrechnet", f"Verbrauch: {total_deducted:.1f}g\nGesamtkosten (Material + Strom): {gesamt_kosten:.2f} €")
+            else:
+                messagebox.showerror("Fehler", "Es wurden keine gültigen Gewichte eingetragen.", parent=dialog)
+
+        ttk.Button(dialog, text="✅ Jetzt Abziehen", style="Accent.TButton", command=confirm).pack(pady=(10, 15))
+    
+    def _process_cloud_history(self, history_data, dialog):
+        """Zeigt die Cloud-Historie mit Status-Tracking und Filter-Option an."""
+        if dialog: dialog.destroy()
+            
+        win = tk.Toplevel(self.root)
+        win.title("📋 Cloud Historie - Zuweisen oder Ignorieren")
+        win.geometry("850x600")
+        win.configure(bg=self.root.cget('bg'))
+        win.attributes('-topmost', True)
+        
+        # --- Kopfzeile mit Titel und Filter ---
+        header = ttk.Frame(win)
+        header.pack(fill="x", padx=10, pady=10)
+        
+        ttk.Label(header, text="Letzte erfolgreiche Druckaufträge aus der Cloud:", font=("Segoe UI", 12, "bold")).pack(side="left")
+        
+        # NEU: Der Filter-Haken (Zustand wird in Settings gespeichert)
+        self.var_hide_completed = tk.BooleanVar(value=self.settings.get("hide_completed_cloud_jobs", False))
+        
+        def toggle_filter():
+            self.settings["hide_completed_cloud_jobs"] = self.var_hide_completed.get()
+            self.data_manager.save_settings(self.settings)
+            refresh_tree()
+
+        chk_hide = ttk.Checkbutton(header, text="Erledigte/Ignorierte ausblenden", variable=self.var_hide_completed, command=toggle_filter)
+        chk_hide.pack(side="right", padx=10)
+        
+        # --- Die Tabelle ---
+        columns = ("status", "name", "weight", "date")
+        tree = ttk.Treeview(win, columns=columns, show="headings", height=15)
+        tree.heading("status", text="Status")
+        tree.heading("name", text="Modell")
+        tree.heading("weight", text="Verbrauch")
+        tree.heading("date", text="Datum/Zeit")
+        
+        tree.column("status", width=120, anchor="center")
+        tree.column("name", width=380)
+        tree.column("weight", width=80, anchor="e")
+        tree.column("date", width=140)
+        
+        tree.tag_configure("done", foreground="#28a745")
+        tree.tag_configure("ignored", foreground="#6c757d")
+        tree.pack(fill="both", expand=True, padx=10, pady=10)
+        
+        self.current_cloud_jobs = {str(job.get('id', '')): job for job in history_data if 'id' in job}
+
+        # NEU: Zentrale Refresh-Logik für die Tabelle
+        def refresh_tree():
+            for i in tree.get_children(): tree.delete(i)
+            
+            deducted = self.settings.get("deducted_cloud_jobs", [])
+            ignored = self.settings.get("ignored_cloud_jobs", [])
+            hide = self.var_hide_completed.get()
+            
+            for job in history_data:
+                job_id = str(job.get('id', ''))
+                if not job_id: continue
+                
+                is_done = job_id in deducted
+                is_ignored = job_id in ignored
+                
+                # Wenn Filter aktiv ist: erledigte Sachen überspringen
+                if hide and (is_done or is_ignored): continue
+                
+                if is_done:
+                    stat, tags = "✅ Abgezogen", ("done",)
+                elif is_ignored:
+                    stat, tags = "🚫 Ignoriert", ("ignored",)
+                else:
+                    stat, tags = "Offen", ()
+                
+                tree.insert("", "end", iid=job_id, values=(stat, job['name'], f"{job['weight']:.1f} g", job['date']), tags=tags)
+
+        # --- Button-Leiste ---
+        btn_frame = ttk.Frame(win)
+        btn_frame.pack(fill="x", padx=10, pady=(0, 10))
+
+        def on_deduct_click(event=None):
+            sel = tree.selection()
+            if not sel: return
+            job_id = sel[0]
+            job = self.current_cloud_jobs[job_id]
+            # Wir geben refresh_tree mit, damit der Dialog die Liste putzen kann!
+            self._ask_for_smart_deduction(job, win, tree, refresh_tree)
+
+        def on_ignore_toggle():
+            sel = tree.selection()
+            if not sel: return
+            job_id = sel[0]
+            ignored = self.settings.get("ignored_cloud_jobs", [])
+            
+            if job_id in ignored:
+                ignored.remove(job_id)
+            else:
+                ignored.append(job_id)
+                deducted = self.settings.get("deducted_cloud_jobs", [])
+                if job_id in deducted: deducted.remove(job_id)
+                
+            self.settings["ignored_cloud_jobs"] = ignored
+            self.data_manager.save_settings(self.settings)
+            refresh_tree() # Einfach neu laden
+
+        tree.bind("<Double-1>", on_deduct_click)
+        ttk.Button(btn_frame, text="✅ Abziehen", style="Accent.TButton", command=on_deduct_click).pack(side="left", padx=5)
+        ttk.Button(btn_frame, text="🚫 Ignorieren", command=on_ignore_toggle).pack(side="left", padx=5)
+        ttk.Button(btn_frame, text="Schließen", command=win.destroy).pack(side="right", padx=5)
+        
+        refresh_tree() # Initiales Laden
 
     def broadcast_mqtt(self):
         # 1. Ist MQTT überhaupt aktiviert?
@@ -3719,6 +4848,7 @@ class PdfExportDialog(tk.Toplevel):
         center_window(self, parent)
         self.transient(parent)
         self.grab_set()
+        self.last_selected_type = "Lager" # Standardmäßig mit Lager starten
 
         ttk.Label(self, text="Wie möchtest du die Etiketten drucken?", font=("Segoe UI", 12, "bold")).pack(pady=(15, 10))
 
@@ -3784,11 +4914,17 @@ class PdfExportDialog(tk.Toplevel):
                 draw.text((400, 150), f"{item.get('subtype', 'Standard')}", fill="#666666", font=font_sub)
                 draw.text((400, 240), f"Nozzle: {item.get('temp_n', '-')} °C", fill="black", font=font_small)
                 draw.text((400, 280), f"Bed: {item.get('temp_b', '-')} °C", fill="black", font=font_small)
-                draw.text((400, 330), f"VibeSpool ID: {item['id']}", fill="black", font=font_title)
+                
+                # --- NEU: Dynamische Text-Breite für die ID ---
+                id_str = str(item['id'])
+                id_text = f"VibeSpool ID: {id_str}" if len(id_str) <= 3 else f"ID: {id_str}"
+                use_font = font_title if len(id_text) < 14 else font_sub
+                
+                draw.text((400, 330), id_text, fill="black", font=use_font)
                 
                 cols = get_colors_from_text(item.get('color', ''))
                 hex_col = cols[0] if cols else "#FFFFFF"
-                draw.rectangle([400, 370, 760, 390], fill=hex_col, outline="black")
+                draw.rectangle([400, 385, 760, 405], fill=hex_col, outline="black")
                 return img
 
             # --- LOGIK FÜR ROLLEN-DRUCKER ---

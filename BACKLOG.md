@@ -1,24 +1,21 @@
 # 📋 VibeSpool Development Backlog
 
-## ✅ Kürzlich abgeschlossen (v1.9.9 - "The Search & Polish Update")
-- [x] **Omni-Suche:** Globale Deep-Search, die alle Spulendaten (inkl. SKUs, Links und Notizen) mit Multi-Word-Support durchsucht.
-- [x] **Kaufmännische Notizen:** Neues, speicherbares Textfeld für individuelle Kommentare zu jeder Spule.
-- [x] **Native Dark Mode:** Die Windows 11 Titelleiste passt sich nun nahtlos an das dunkle VibeSpool-Theme an.
-- [x] **Sortierungs-Memory:** VibeSpool merkt sich nun die letzte Tabellensortierung (z.B. nach Ort) über Neustarts hinweg.
-- [x] **Amazon Affiliate Support:** Automatische Integration des Affiliate-Tags in Amazon-Links (Unterstützung für alle gängigen EU/US Domains & amzn.to).
-- [x] **Bugfixes:** Null-Werte bei Leerspulen gefixt und Synchronisations-Logik der Datenbanken (VS Code vs. .exe) optimiert.
+## ✅ Abgeschlossen (v1.10.0 - "The Smart Pro Update")
+- [x] **☁️ Bambu Cloud API & Smart-Match:** Vollständige Cloud-Integration (90-Tage Auto-Login, 2FA-Support). VibeSpool rät automatisch, welche Spule in welchem AMS-Slot für den Cloud-Druck genutzt wurde.
+- [x] **💰 Druckkosten-Rechner & Finanzen:** Reale Druckkosten-Berechnung inklusive lokaler Stromkosten (Wattzahl + kWh-Preis) und exakten Materialkosten (basierend auf dem Kaufpreis der Spule).
+- [x] **📊 Unified Analytics Dashboard:** Neues, vereintes Finanz- und Statistik-Dashboard mit "Ø Preis/kg" Auswertung und 7-Tage-Verbrauchs-Balkendiagramm.
+- [x] **📖 Spulen-Logbuch:** Jede Spule hat nun ihren eigenen "Lebenslauf" mit einem detaillierten Kontoauszug (Druckauftrag, Datum, Gramm-Abzug, Materialkosten).
+- [x] **📥 System-Tray & Hintergrund-Modus:** App kann nun in den Windows-Tray (neben die Uhr) minimiert werden und lauscht unsichtbar im Hintergrund weiter auf den Drucker.
+- [x] **🔔 Windows Toast Notifications:** Elegante, dunkle Pop-up-Benachrichtigungen bei automatischen Abzügen und Sync-Events.
+- [x] **📘 In-App HowTo (Mini-Wiki):** Integriertes, scrollbares Handbuch direkt im Programm, das alle Features erklärt.
+- [x] **Alphanumerische IDs:** Support für Text-IDs (A134, PLA-01).
+- [x] **Hersteller-Barcode Scanner:** Handy-Scanner liest jetzt auch 1D-Strichcodes auf Originalverpackungen und lernt diese.
 
-## ✅ Historie (v1.9.8 - "The Data & Workflow Update")
-- [x] Spalten-Konfigurator per Rechtsklick.
-- [x] Schnell-Aktionen (Kontextmenü für Spulen).
-- [x] Erweiterte Statistiken (7-Tage Verbrauchs-Historie).
-- [x] Fehlertoleranz (MQTT Offline-Buffer).
-- [x] Branding & Auto-Verknüpfung für Profile.
-
-## 🚀 Priorität 1: Next Steps (v1.10.0)
-- [ ] **Internationalisierung (i18n):** Voller Support für Englisch und weitere Sprachen im UI.
-- [ ] **Erweiterte Rollen-Verwaltung:** Eigene Spulen-Bilder / Hersteller-Logos hochladen.
+## 🚀 Priorität 1: Next Steps (v1.11.0 - "The Creative Update")
+- [ ] **🎨 Custom Label Designer:** Baukasten zum freien Gestalten von Etiketten (Logos hinzufügen, Schriftarten ändern).
+- [ ] **🤖 Auto-Deduction ohne Dialog:** Option hinzufügen, damit Single-Color Cloud-Drucke komplett unsichtbar im Hintergrund abgezogen werden.
+- [ ] **📈 Maschinen-Verschleiß:** Den Druckkosten-Rechner um eine Pauschale für Maschinenabnutzung (Cent pro Stunde) erweitern.
 
 ## 🔮 Langzeit-Vision (v2.0)
-- [ ] **Multi-User / Server Mode:** Zentraler Datenbank-Server für Haushalte mit mehreren Usern.
-- [ ] **API-Anbindung:** Direkte Schnittstelle für Drittanbieter-Tools.
+- [ ] **🗄️ SQLite Migration:** Wechsel von JSON auf eine echte, relationale Datenbank für noch mehr Performance bei hunderten Spulen.
+- [ ] **📂 3MF Deep-Dive FTP Parsing:** Automatisches Auslesen der Gewichte pro Slot direkt vom Drucker-Speicher, noch bevor die Cloud es meldet.

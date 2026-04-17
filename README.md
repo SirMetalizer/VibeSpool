@@ -15,8 +15,20 @@ VibeSpool macht den Sprung zum professionellen ERP-System für Gewerbetreibende 
 * **Globales Cost Center & Gewerbe-Kalkulation:** VibeSpool rechnet nun Material, Strom, Maschinenabnutzung und Gewinnmarge zu einem perfekten Verkaufspreis zusammen. Alle Drucke sind im neuen Dashboard tabellarisch als Kassenbuch einsehbar.
 * **Auto-Heal & Retro-Fit:** Historien-Einträge können jetzt nachträglich bearbeitet werden. VibeSpool korrigiert das Diagramm und das Spulengewicht vollautomatisch. Alte Drucke können mit den neuen "Retro-Fit" Buttons sekundenschnell nachträglich kalkuliert werden.
 * **Individuelles Leergewicht:** Für exotische Spulen kann jetzt on-the-fly ein einmaliges Leergewicht berechnet und an die Spule gebunden werden.
-* **Omni-Live-Suche:** Das neue Suchfeld im Hauptfenster filtert in Echtzeit blitzschnell über alle Spulendaten (ID, Name, Farbe, Typ).
 * **Quick-Cost Rechner:** Ein Standalone-Kalkulator, um schnell Preise für Kunden zu berechnen, ohne das Lager anzufassen.
+
+
+Übersicht Finanzen:
+
+<img width="1096" height="888" alt="image" src="https://github.com/user-attachments/assets/d6087302-53c5-4680-8416-14f69bf809c8" />
+
+Druckhistorie aus der Bambu Cloud:
+
+<img width="853" height="641" alt="image" src="https://github.com/user-attachments/assets/882971f5-ac53-4c55-bd49-cd73ced4ca34" />
+
+Kostenrechner:
+
+<img width="964" height="697" alt="image" src="https://github.com/user-attachments/assets/d56dcd36-11d0-47f3-b1d6-358f7c92ffe7" />
 
 
 ## ✨ Features

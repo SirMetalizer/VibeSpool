@@ -26,7 +26,7 @@ from core.spool_presets import SPOOL_PRESETS
 from core.colors import get_color_name_from_hex
 
 # --- KONFIGURATION ---
-APP_VERSION = "1.10.0"
+APP_VERSION = "2.0.0"
 GITHUB_REPO = "SirMetalizer/VibeSpool" 
 
 # --- DEFAULTS ---
@@ -475,7 +475,7 @@ class MobileScannerHandler(http.server.SimpleHTTPRequestHandler):
                             for s in range(1, 5):
                                 locs.append({"label": f"AMS {a} Slot {s}", "val": f"AMS {a}|{s}"})
                                 
-                        net_w = calculate_net_weight(item.get('weight_gross', '0'), item.get('spool_id', -1), app_inst.spools)
+                        net_w = calculate_net_weight(item.get('weight_gross', '0'), item.get('spool_id', -1), item.get('empty_weight'), app_inst.spools)
                         
                         response_data = {
                             "status": "ok",
@@ -913,19 +913,36 @@ class SettingsDialog(tk.Toplevel):
         tab_fin = ttk.Frame(self.nb, padding=15)
         self.nb.add(tab_fin, text="💰 Druckkosten-Rechner")
 
-        ttk.Label(tab_fin, text="Druckkosten-Rechner", font=("Segoe UI", 12, "bold")).pack(anchor="w", pady=(0, 10))
-        ttk.Label(tab_fin, text="Diese Werte werden genutzt, um bei Cloud-Drucken die Stromkosten zu berechnen.", foreground="gray", wraplength=450).pack(anchor="w", pady=(0, 15))
+        ttk.Label(tab_fin, text="Druckkosten & Gewerbe-Kalkulation", font=("Segoe UI", 14, "bold")).pack(anchor="w", pady=(0, 10))
+        ttk.Label(tab_fin, text="VibeSpool nutzt diese Werte, um bei jedem Druck die exakten Gesamtkosten (Material + Strom + Verschleiß) zu berechnen.", foreground="gray", wraplength=450).pack(anchor="w", pady=(0, 15))
 
-        ttk.Label(tab_fin, text="Strompreis pro kWh (€):").pack(anchor="w")
-        self.ent_kwh = ttk.Entry(tab_fin)
+        frm_calc = ttk.Frame(tab_fin, padding=10)
+        frm_calc.pack(fill="x")
+
+        ttk.Label(frm_calc, text="Strompreis pro kWh (€):").grid(row=0, column=0, sticky="w", pady=5)
+        self.ent_kwh = ttk.Entry(frm_calc, width=15)
         self.ent_kwh.insert(0, str(self.settings.get("kwh_price", "0.30")))
-        self.ent_kwh.pack(fill="x", pady=2)
+        self.ent_kwh.grid(row=0, column=1, sticky="w", padx=10, pady=5)
 
-        ttk.Label(tab_fin, text="Drucker-Stromverbrauch (Watt):").pack(anchor="w", pady=(15, 0))
-        ttk.Label(tab_fin, text="Richtwerte: Bambu A1 Mini ~80W | A1 ~100W | P1S/X1C ~250W", font=("Segoe UI", 8), foreground="gray").pack(anchor="w")
-        self.ent_watts = ttk.Entry(tab_fin)
+        ttk.Label(frm_calc, text="Drucker-Stromverbrauch (Watt):").grid(row=1, column=0, sticky="w", pady=5)
+        self.ent_watts = ttk.Entry(frm_calc, width=15)
         self.ent_watts.insert(0, str(self.settings.get("printer_watts", "150")))
-        self.ent_watts.pack(fill="x", pady=(2, 20))
+        self.ent_watts.grid(row=1, column=1, sticky="w", padx=10, pady=5)
+        
+        ttk.Label(frm_calc, text="Richtwerte: Bambu A1 Mini ~80W | A1 ~100W | P1S/X1C ~250W", font=("Segoe UI", 8), foreground="gray").grid(row=2, column=0, columnspan=2, sticky="w", pady=(0, 10))
+        
+        ttk.Separator(frm_calc, orient="horizontal").grid(row=3, column=0, columnspan=2, sticky="ew", pady=10)
+
+        # --- NEU: Maschinenverschleiß & Marge ---
+        ttk.Label(frm_calc, text="Maschinenverschleiß pro Stunde (€):").grid(row=4, column=0, sticky="w", pady=5)
+        self.ent_wear = ttk.Entry(frm_calc, width=15)
+        self.ent_wear.insert(0, str(self.settings.get("wear_per_hour", "0.20")))
+        self.ent_wear.grid(row=4, column=1, sticky="w", padx=10, pady=5)
+        
+        ttk.Label(frm_calc, text="Gewinnmarge / Aufschlag (%):").grid(row=5, column=0, sticky="w", pady=5)
+        self.ent_margin = ttk.Entry(frm_calc, width=15)
+        self.ent_margin.insert(0, str(self.settings.get("profit_margin", "0")))
+        self.ent_margin.grid(row=5, column=1, sticky="w", padx=10, pady=5)
         
         # TAB 5: SYSTEM
         tab_sys = ttk.Frame(self.nb, padding=15); self.nb.add(tab_sys, text="⚙ System")
@@ -1186,12 +1203,17 @@ class SettingsDialog(tk.Toplevel):
             except: kwh_val = 0.30
             try: watts_val = int(self.ent_watts.get())
             except: watts_val = 150
+            try: wear_val = float(self.ent_wear.get().replace(',', '.'))
+            except: wear_val = 0.0
+            try: margin_val = int(self.ent_margin.get())
+            except: margin_val = 0
 
             # --- Normales Speichern der Einstellungen ---
             self.settings.update({
-                "kwh_price": kwh_val,         # NEU
-                "printer_watts": watts_val,   # NEU
-                "double_depth": self.var_double.get(),
+                "kwh_price": kwh_val,         
+                "printer_watts": watts_val,   
+                "wear_per_hour": wear_val,    # NEU
+                "profit_margin": margin_val,  # NEU
                 "double_depth": self.var_double.get(),
                 "shelves": self.var_shelves.get(),
                 "logistics_order": self.var_logistics.get(),
@@ -1403,7 +1425,7 @@ class ShelfVisualizer(tk.Toplevel):
             else: fg_col = "black"
             sub = item.get('subtype', '')
             mat = item.get('material', '')
-            net = calculate_net_weight(item.get('weight_gross', '0'), item.get('spool_id', -1), self.spools)
+            net = calculate_net_weight(item.get('weight_gross', '0'), item.get('spool_id', -1), self.spools, item.get('empty_weight'))
             abk = {"Standard": "Std.", "High Speed": "HS", "Dual Color": "Dual", "Tri Color": "Tri", "Glow in Dark": "Glow", "Transparent": "Transp.", "Translucent": "Transl.", "Glitzer/Sparkle": "Glitz."}
             sub_short = abk.get(sub, sub[:7])
             mat_short = mat[:5] 
@@ -1561,18 +1583,25 @@ class StatisticsDialog(tk.Toplevel):
         self.app = app_instance
         self.inventory = inventory
         self.title("📊 Analytics & Finanz-Dashboard")
-        self.geometry("950x600")
+        self.geometry("1100x850") 
         self.configure(bg=parent.cget('bg'))
         from core.utils import center_window
         center_window(self, parent)
+        
+        self.build_ui()
 
-        # --- 1. DATEN BERECHNEN ---
+    def build_ui(self):
+        # Alle alten Elemente löschen, falls das UI neu geladen wird
+        for widget in self.winfo_children():
+            widget.destroy()
+
+        # --- 1. DATEN BERECHNEN (KPIs) ---
         total_value, total_weight, total_spools, mat_stats = 0.0, 0, 0, {}
         for item in self.inventory:
             if item.get('type') == 'VERBRAUCHT': continue
             total_spools += 1
             from core.logic import calculate_net_weight
-            net = calculate_net_weight(item.get('weight_gross', '0'), item.get('spool_id', -1), self.app.spools)
+            net = calculate_net_weight(item.get('weight_gross', '0'), item.get('spool_id', -1), self.app.spools, item.get('empty_weight'))
             total_weight += net
             val = 0.0
             try:
@@ -1586,11 +1615,11 @@ class StatisticsDialog(tk.Toplevel):
             mat_stats[mat]['weight'] += net
             mat_stats[mat]['value'] += val
 
-        # --- 2. HAUPT-LAYOUT ---
-        ttk.Label(self, text="💰 Bestands-Statistik & Finanzen", font=("Segoe UI", 16, "bold")).pack(pady=(15, 10))
+        # --- 2. OBERER BEREICH (Dashboard) ---
+        ttk.Label(self, text="💰 Bestands-Statistik & Finanzen", font=("Segoe UI", 16, "bold")).pack(pady=(15, 5))
         
         main_frm = ttk.Frame(self)
-        main_frm.pack(fill="both", expand=True, padx=20, pady=5)
+        main_frm.pack(fill="x", padx=20, pady=5)
         
         left_panel = ttk.Frame(main_frm)
         left_panel.pack(side="left", fill="both", expand=True, padx=(0, 10))
@@ -1599,8 +1628,8 @@ class StatisticsDialog(tk.Toplevel):
         right_panel.pack(side="right", fill="both", expand=True, padx=(10, 0))
 
         # --- 3. LINKE SEITE (KPIs & Tabelle) ---
-        kpi_frame = tk.Frame(left_panel, bg="#1e1e1e" if "dark" in str(parent.cget('bg')) else "#ffffff", padx=15, pady=15, highlightthickness=1, highlightbackground="#0078d7")
-        kpi_frame.pack(fill="x", pady=(0, 15))
+        kpi_frame = tk.Frame(left_panel, bg="#1e1e1e" if "dark" in str(self.cget('bg')) else "#ffffff", padx=15, pady=10, highlightthickness=1, highlightbackground="#0078d7")
+        kpi_frame.pack(fill="x", pady=(0, 10))
         
         ttk.Label(kpi_frame, text="Gesamtwert:", font=("Segoe UI", 12), background=kpi_frame.cget("bg")).grid(row=0, column=0, sticky="w", pady=2)
         ttk.Label(kpi_frame, text=f"{total_value:.2f} €", font=("Segoe UI", 16, "bold"), foreground="#28a745", background=kpi_frame.cget("bg")).grid(row=0, column=1, sticky="w", padx=15, pady=2)
@@ -1611,24 +1640,23 @@ class StatisticsDialog(tk.Toplevel):
         ttk.Label(kpi_frame, text="Aktive Spulen:", font=("Segoe UI", 12), background=kpi_frame.cget("bg")).grid(row=2, column=0, sticky="w", pady=2)
         ttk.Label(kpi_frame, text=str(total_spools), font=("Segoe UI", 14, "bold"), background=kpi_frame.cget("bg")).grid(row=2, column=1, sticky="w", padx=15, pady=2)
 
-        ttk.Label(left_panel, text="Aufschlüsselung nach Material:", font=("Segoe UI", 12, "bold")).pack(anchor="w", pady=(5, 5))
+        ttk.Label(left_panel, text="Aufschlüsselung nach Material:", font=("Segoe UI", 12, "bold")).pack(anchor="w", pady=(0, 5))
         
-        # Tabelle (Jetzt mit Preis/kg Spalte!)
-        tree = ttk.Treeview(left_panel, columns=("mat", "count", "weight", "value", "avg"), show="headings", height=10)
+        tree_mat = ttk.Treeview(left_panel, columns=("mat", "count", "weight", "value", "avg"), show="headings", height=6)
         for col, head, w in zip(("mat", "count", "weight", "value", "avg"), ("Material", "Stk", "Gewicht", "Wert", "Ø Preis/kg"), (100, 40, 80, 80, 80)): 
-            tree.heading(col, text=head)
-            tree.column(col, width=w, anchor="center" if col != "mat" else "w")
-        tree.pack(fill="both", expand=True)
+            tree_mat.heading(col, text=head)
+            tree_mat.column(col, width=w, anchor="center" if col != "mat" else "w")
+        tree_mat.pack(fill="both", expand=True)
         
         for mat, stats in sorted(mat_stats.items(), key=lambda x: x[1]['value'], reverse=True): 
             kg = stats['weight'] / 1000
             avg_price = (stats['value'] / kg) if kg > 0 else 0
-            tree.insert("", "end", values=(mat, stats['count'], f"{kg:.2f} kg", f"{stats['value']:.2f} €", f"{avg_price:.2f} €"))
+            tree_mat.insert("", "end", values=(mat, stats['count'], f"{kg:.2f} kg", f"{stats['value']:.2f} €", f"{avg_price:.2f} €"))
 
         # --- 4. RECHTE SEITE (Schickes Verbrauchs-Chart) ---
         ttk.Label(right_panel, text="Verbrauch der letzten 7 Tage:", font=("Segoe UI", 12, "bold")).pack(anchor="w", pady=(0, 5))
         
-        import datetime, json, os
+        import datetime, json, os, re
         data_dir = getattr(self.app.data_manager, 'base_dir', '')
         history_file = os.path.join(data_dir, "history.json") if data_dir else "history.json"
         history = {}
@@ -1642,20 +1670,18 @@ class StatisticsDialog(tk.Toplevel):
         values = [history.get(day, 0.0) for day in last_7_days]
         max_val = max(values) if max(values) > 0 else 100 
         
-        c_width, c_height = 420, 320
-        canvas_bg = "#1e1e1e" if "dark" in str(parent.cget('bg')) else "#f9f9f9"
+        c_width, c_height = 420, 260
+        canvas_bg = "#1e1e1e" if "dark" in str(self.cget('bg')) else "#f9f9f9"
         canvas = tk.Canvas(right_panel, width=c_width, height=c_height, bg=canvas_bg, highlightthickness=1, highlightbackground="#333")
-        canvas.pack(fill="both", expand=True, pady=5)
+        canvas.pack(fill="both", expand=True, pady=0)
         
-        # Hintergrund-Gitterlinien (Hilfslinien)
-        text_col = "white" if "dark" in str(parent.cget('bg')) else "black"
+        text_col = "white" if "dark" in str(self.cget('bg')) else "black"
         for i in range(4):
             y_line = 40 + i * ((c_height - 80) / 3)
             val_line = max_val - (i * (max_val / 3))
             canvas.create_line(40, y_line, c_width - 20, y_line, fill="#444", dash=(4, 4))
             canvas.create_text(20, y_line, text=f"{int(val_line)}g", fill="gray", font=("Segoe UI", 8))
         
-        # Balken zeichnen
         bar_width = 35
         spacing = (c_width - 80 - (7 * bar_width)) / 6
         start_x = 50
@@ -1667,7 +1693,7 @@ class StatisticsDialog(tk.Toplevel):
             y0 = c_height - 40 - bar_height
             y1 = c_height - 40
             
-            color = "#0078d7" if val > 0 else ("#333333" if "dark" in str(parent.cget('bg')) else "#dddddd")
+            color = "#0078d7" if val > 0 else ("#333333" if "dark" in str(self.cget('bg')) else "#dddddd")
             canvas.create_rectangle(x0, y0, x1, y1, fill=color, outline="")
             
             if val > 0:
@@ -1675,19 +1701,305 @@ class StatisticsDialog(tk.Toplevel):
                 
             day_obj = datetime.datetime.strptime(last_7_days[i], "%Y-%m-%d")
             day_name = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"][day_obj.weekday()]
-            # Das aktuelle Datum fett markieren
             font_w = ("Segoe UI", 10, "bold") if i == 6 else ("Segoe UI", 9)
             col_w = "#0078d7" if i == 6 else "gray"
             canvas.create_text(x0 + bar_width/2, c_height - 20, text=day_name, fill=col_w, font=font_w)
 
-        # Zusammenfassung drunter
         total_7d = sum(values)
-        ttk.Label(right_panel, text=f"Gesamtverbrauch (7 Tage): {total_7d:.1f} g", font=("Segoe UI", 10, "italic"), foreground="gray").pack(anchor="e", pady=5)
+        ttk.Label(right_panel, text=f"Gesamtverbrauch (7 Tage): {total_7d:.1f} g", font=("Segoe UI", 10, "italic"), foreground="gray").pack(anchor="e", pady=2)
 
-        # --- 5. FOOTER BUTTONS ---
+        # --- 5. UNTERER BEREICH (Globale Historie integriert) ---
+        ttk.Separator(self, orient="horizontal").pack(fill="x", padx=20, pady=10)
+        
+        hist_lbl_frm = ttk.Frame(self)
+        hist_lbl_frm.pack(fill="x", padx=20, pady=(0, 5))
+        ttk.Label(hist_lbl_frm, text="📜 Globale Druck-Historie", font=("Segoe UI", 14, "bold")).pack(side="left")
+        ttk.Label(hist_lbl_frm, text="Alle protokollierten Verbräuche (Doppelklick zum Bearbeiten/Löschen)", foreground="gray").pack(side="left", padx=10)
+
+        history_frm = ttk.Frame(self)
+        history_frm.pack(fill="both", expand=True, padx=20, pady=(0, 5))
+
+        self.history_map = {} # Speichert zu jeder Zeile die exakte ID und den Index!
+        all_prints = []
+        for item in self.inventory:
+            hist = item.get("history", [])
+            color_clean = re.sub(r'\s*\(\s*#[0-9a-fA-F]{6}\s*\)', '', item.get('color', '')).strip()
+            spool_name = f"[{item.get('id', '?')}] {item.get('brand', '')} {color_clean}"
+            
+            for idx, h in enumerate(hist):
+                all_prints.append({
+                    "spool_id": item['id'],
+                    "hist_idx": idx,
+                    "date": h.get("date", ""),
+                    "action": h.get("action", ""),
+                    "spool": spool_name,
+                    "change": h.get("change", ""),
+                    "cost": h.get("cost", "-"),
+                    "sell": h.get("sell_price", "-") # Hier wird der Wert ausgelesen!
+                })
+        
+        all_prints.sort(key=lambda x: x["date"], reverse=True)
+
+        # NEU: Spalten-Definition inkl. "sell"
+        columns = ("date", "action", "spool", "change", "cost", "sell")
+        self.tree_hist = ttk.Treeview(history_frm, columns=columns, show="headings", height=10)
+        self.tree_hist.heading("date", text="Datum & Zeit")
+        self.tree_hist.heading("action", text="Druck / Aktion")
+        self.tree_hist.heading("spool", text="Verwendete Spule")
+        self.tree_hist.heading("change", text="Verbrauch")
+        self.tree_hist.heading("cost", text="Kosten")
+        self.tree_hist.heading("sell", text="VK-Preis") # Die neue Überschrift
+
+        self.tree_hist.column("date", width=130)
+        self.tree_hist.column("action", width=310)
+        self.tree_hist.column("spool", width=240)
+        self.tree_hist.column("change", width=80, anchor="e")
+        self.tree_hist.column("cost", width=80, anchor="e")
+        self.tree_hist.column("sell", width=80, anchor="e")
+        
+        scroll_hist = ttk.Scrollbar(history_frm, orient="vertical", command=self.tree_hist.yview)
+        self.tree_hist.configure(yscrollcommand=scroll_hist.set)
+        
+        self.tree_hist.pack(side="left", fill="both", expand=True)
+        scroll_hist.pack(side="right", fill="y")
+        
+        self.tree_hist.bind("<Double-1>", self.on_edit_entry)
+
+        total_costs = 0.0
+        for p in all_prints:
+            # NEU: p["sell"] wird am Ende eingefügt
+            iid = self.tree_hist.insert("", "end", values=(p["date"], p["action"], p["spool"], p["change"], p["cost"], p["sell"]))
+            self.history_map[iid] = {"spool_id": p["spool_id"], "hist_idx": p["hist_idx"]}
+            try:
+                c_str = p["cost"].replace(" €", "").replace(",", ".")
+                total_costs += float(c_str)
+            except:
+                pass
+
+        # --- 6. FOOTER BUTTONS ---
         btn_frm = ttk.Frame(self)
         btn_frm.pack(fill="x", pady=10, padx=20)
+        
+        ttk.Label(btn_frm, text=f"Gesamtkosten aller Einträge: {total_costs:.2f} €", font=("Segoe UI", 12, "bold"), foreground="#0078d7").pack(side="left")
         ttk.Button(btn_frm, text="Schließen", command=self.destroy, style="Accent.TButton").pack(side="right", padx=5)
+
+
+    
+    def on_edit_entry(self, event):
+        sel = self.tree_hist.selection()
+        if not sel: return
+        
+        data = self.history_map.get(sel[0])
+        if not data: return
+        
+        spool_id = data["spool_id"]
+        hist_idx = data["hist_idx"]
+        
+        spool = next((s for s in self.inventory if s['id'] == spool_id), None)
+        if not spool or "history" not in spool or hist_idx >= len(spool["history"]): return
+        
+        entry = spool["history"][hist_idx]
+        
+        win = tk.Toplevel(self)
+        win.title("✏️ Eintrag bearbeiten")
+        win.geometry("450x350")
+        win.configure(bg=self.cget('bg'))
+        win.attributes('-topmost', True)
+        from core.utils import center_window
+        center_window(win, self)
+        
+        ttk.Label(win, text="Historien-Eintrag bearbeiten", font=("Segoe UI", 12, "bold")).pack(pady=10)
+        
+        frm = ttk.Frame(win, padding=10)
+        frm.pack(fill="both", expand=True)
+        
+        ttk.Label(frm, text="Aktion / Druckname:").pack(anchor="w")
+        ent_action = ttk.Entry(frm)
+        ent_action.insert(0, entry.get("action", ""))
+        ent_action.pack(fill="x", pady=(0, 10))
+        
+        ttk.Label(frm, text="Verbrauch (inkl. Vorzeichen, z.B. -45.5):").pack(anchor="w")
+        ent_change = ttk.Entry(frm)
+        ent_change.insert(0, entry.get("change", "").replace("g", "")) 
+        ent_change.pack(fill="x", pady=(0, 10))
+        
+        ttk.Label(frm, text="Kosten (z.B. 1.65 €):").pack(anchor="w")
+        
+        frm_cost = ttk.Frame(frm)
+        frm_cost.pack(fill="x", pady=(0, 10))
+        
+        def calc_cost():
+            try:
+                # Berechnet rückwirkend die reinen Materialkosten basierend auf dem Gewicht
+                w_str = ent_change.get().replace('g', '').replace(',', '.').strip()
+                w_val = abs(float(w_str)) if w_str else 0.0
+                p = float(str(spool.get('price', '0')).replace(',', '.')) or 0.0
+                c = float(str(spool.get('capacity', '1000'))) or 1000.0
+                m_cost = w_val * (p / c) if c > 0 else 0.0
+                
+                ent_cost.delete(0, tk.END)
+                ent_cost.insert(0, f"{m_cost:.2f} €")
+            except: pass
+
+        btn_calc_cost = ttk.Button(frm_cost, text="🧮 Mat.", width=8, command=calc_cost)
+        btn_calc_cost.pack(side="left", padx=(0, 5))
+        btn_calc_cost.bind("<Enter>", lambda e: self.app.show_tip(e, "Materialkosten anhand des Gewichts berechnen"))
+        btn_calc_cost.bind("<Leave>", self.app.hide_tip)
+        
+        ent_cost = ttk.Entry(frm_cost)
+        ent_cost.insert(0, entry.get("cost", "-"))
+        ent_cost.pack(side="left", fill="x", expand=True)
+        
+        # --- NEU: VK-Preis bearbeiten mit Kalkulator ---
+        ttk.Label(frm, text="VK-Preis (z.B. 5.50 €):").pack(anchor="w")
+        
+        frm_sell = ttk.Frame(frm)
+        frm_sell.pack(fill="x", pady=(0, 10))
+        
+        def calc_vk():
+            try:
+                # 1. Kosten auslesen
+                cost_str = ent_cost.get().replace('€', '').replace(',', '.').strip()
+                cost_val = float(cost_str) if cost_str and cost_str != '-' else 0.0
+                
+                # 2. Marge aus Einstellungen holen
+                margin = int(self.app.settings.get("profit_margin", 0))
+                
+                # 3. Berechnen und eintragen
+                vk_val = cost_val * (1 + (margin / 100.0))
+                ent_sell.delete(0, tk.END)
+                ent_sell.insert(0, f"{vk_val:.2f} €")
+                
+                if margin == 0:
+                    from tkinter import messagebox
+                    messagebox.showinfo("Info", "Deine Gewinnmarge in den Einstellungen ist auf 0% gesetzt.\nDer VK-Preis entspricht daher exakt den Kosten.", parent=win)
+            except ValueError:
+                from tkinter import messagebox
+                messagebox.showerror("Fehler", "Bitte trage zuerst einen gültigen Zahlenwert bei 'Kosten' ein!", parent=win)
+                
+        btn_calc_vk = ttk.Button(frm_sell, text="🧮 Marge", width=8, command=calc_vk)
+        btn_calc_vk.pack(side="left", padx=(0, 5))
+        btn_calc_vk.bind("<Enter>", lambda e: self.app.show_tip(e, f"Marge ({self.app.settings.get('profit_margin', 0)}%) auf die Kosten aufschlagen"))
+        btn_calc_vk.bind("<Leave>", self.app.hide_tip)
+        
+        ent_sell = ttk.Entry(frm_sell)
+        ent_sell.insert(0, entry.get("sell_price", "-"))
+        ent_sell.pack(side="left", fill="x", expand=True)
+        
+        def save():
+            new_val_str = ent_change.get().replace("g", "").replace(" ", "").replace(",", ".")
+            try: 
+                new_val = float(new_val_str)
+                if new_val > 0: new_val = -new_val
+            except: 
+                new_val = 0.0
+                
+            old_val_str = entry.get("change", "0").replace("g", "").replace(" ", "").replace(",", ".")
+            try: old_val = float(old_val_str)
+            except: old_val = 0.0
+            
+            delta = new_val - old_val
+            
+            # 1. Gewicht der Spule korrigieren
+            if delta != 0.0:
+                curr_gross = float(spool.get('weight_gross', 0))
+                spool['weight_gross'] = round(max(0.0, curr_gross + delta), 1)
+                
+            # 2. Eintrag aktualisieren
+            entry["action"] = ent_action.get().strip()
+            entry["change"] = f"{new_val:g}g"
+            entry["cost"] = ent_cost.get().strip()
+            entry["sell_price"] = ent_sell.get().strip()
+            
+            # 3. AUTO-HEAL: Chart für diesen Tag komplett aus den Logbüchern neu berechnen!
+            import datetime, json, os
+            date_str = entry.get("date", "").split(" ")[0]
+            if not date_str: date_str = datetime.date.today().isoformat()
+            
+            day_total = 0.0
+            for s in self.inventory:
+                for h in s.get("history", []):
+                    if h.get("date", "").startswith(date_str):
+                        v_str = h.get("change", "0").replace("g", "").replace(" ", "").replace(",", ".")
+                        try:
+                            v = float(v_str)
+                            if v < 0: day_total += abs(v) # Nur Verbräuche aufaddieren
+                        except: pass
+                        
+            data_dir = getattr(self.app.data_manager, 'base_dir', '')
+            history_file = os.path.join(data_dir, "history.json") if data_dir else "history.json"
+            hist_data = {}
+            if os.path.exists(history_file):
+                try:
+                    with open(history_file, "r") as f: hist_data = json.load(f)
+                except: pass
+                
+            hist_data[date_str] = round(day_total, 1)
+            
+            try:
+                with open(history_file, "w") as f: json.dump(hist_data, f, indent=4)
+            except: pass
+            
+            self.app.data_manager.save_inventory(self.inventory)
+            self.app.refresh_table()
+            win.destroy()
+            self.build_ui()
+
+        def delete():
+            msg = "Eintrag wirklich löschen?\n\n(Das abgebuchte Gewicht wird der Spule automatisch wieder gutgeschrieben und aus dem Chart entfernt!)"
+            from tkinter import messagebox
+            if messagebox.askyesno("Löschen", msg, parent=win):
+                old_val_str = entry.get("change", "0").replace("g", "").replace(" ", "").replace(",", ".")
+                try: old_val = float(old_val_str)
+                except: old_val = 0.0
+                
+                # 1. Gewicht der Spule korrigieren
+                curr_gross = float(spool.get('weight_gross', 0))
+                spool['weight_gross'] = round(max(0.0, curr_gross - old_val), 1)
+                
+                date_str = entry.get("date", "").split(" ")[0]
+                
+                # 2. Eintrag aus dem Logbuch löschen
+                del spool["history"][hist_idx]
+                
+                # 3. AUTO-HEAL: Chart für diesen Tag neu berechnen
+                import datetime, json, os
+                if not date_str: date_str = datetime.date.today().isoformat()
+                
+                day_total = 0.0
+                for s in self.inventory:
+                    for h in s.get("history", []):
+                        if h.get("date", "").startswith(date_str):
+                            v_str = h.get("change", "0").replace("g", "").replace(" ", "").replace(",", ".")
+                            try:
+                                v = float(v_str)
+                                if v < 0: day_total += abs(v)
+                            except: pass
+                            
+                data_dir = getattr(self.app.data_manager, 'base_dir', '')
+                history_file = os.path.join(data_dir, "history.json") if data_dir else "history.json"
+                hist_data = {}
+                if os.path.exists(history_file):
+                    try:
+                        with open(history_file, "r") as f: hist_data = json.load(f)
+                    except: pass
+                    
+                hist_data[date_str] = round(day_total, 1)
+                
+                try:
+                    with open(history_file, "w") as f: json.dump(hist_data, f, indent=4)
+                except: pass
+                
+                self.app.data_manager.save_inventory(self.inventory)
+                self.app.refresh_table()
+                win.destroy()
+                self.build_ui()
+
+        btn_frm = ttk.Frame(win)
+        btn_frm.pack(fill="x", pady=10, padx=10)
+        ttk.Button(btn_frm, text="🗑️ Löschen", command=delete, style="Delete.TButton").pack(side="left", padx=5)
+        ttk.Button(btn_frm, text="💾 Speichern", command=save, style="Accent.TButton").pack(side="right", padx=5)
+        ttk.Button(btn_frm, text="Abbrechen", command=win.destroy).pack(side="right")
 
 class FlowCalculatorDialog(tk.Toplevel):
     def __init__(self, parent, current_flow_entry=None):
@@ -1945,6 +2257,228 @@ def create_tray_icon():
     draw.ellipse((8, 8, 56, 56), fill=(0, 120, 215))
     return image
 
+class CostCenterDialog(tk.Toplevel):
+    def __init__(self, parent, inventory, app_instance):
+        super().__init__(parent)
+        self.title("📜 Globale Druck-Historie & Kosten")
+        self.geometry("1000x600")
+        self.configure(bg=parent.cget('bg'))
+        self.attributes('-topmost', True)
+        from core.utils import center_window
+        center_window(self, parent)
+
+        ttk.Label(self, text="Globale Druck-Historie", font=("Segoe UI", 16, "bold")).pack(pady=(15, 5))
+        ttk.Label(self, text="Hier siehst du alle protokollierten Verbräuche und Kosten über alle Spulen hinweg.", foreground="gray").pack(pady=(0, 15))
+
+        # --- Daten aus ALLEN Spulen sammeln ---
+        all_prints = []
+        for item in inventory:
+            hist = item.get("history", [])
+            spool_name = f"{item.get('id', '?')} | {item.get('material', '')} {item.get('color_name', '')}"
+            for h in hist:
+                all_prints.append({
+                    "date": h.get("date", ""),
+                    "action": h.get("action", ""),
+                    "spool": spool_name,
+                    "change": h.get("change", ""),
+                    "cost": h.get("cost", "-")
+                })
+        
+        # Nach Datum sortieren (Neueste ganz oben)
+        all_prints.sort(key=lambda x: x["date"], reverse=True)
+
+        # --- Tabelle aufbauen ---
+        columns = ("date", "action", "spool", "change", "cost")
+        tree = ttk.Treeview(self, columns=columns, show="headings", height=20)
+        tree.heading("date", text="Datum")
+        tree.heading("action", text="Druck / Aktion")
+        tree.heading("spool", text="Verwendete Spule")
+        tree.heading("change", text="Verbrauch")
+        tree.heading("cost", text="Kosten")
+
+        tree.column("date", width=120)
+        tree.column("action", width=300)
+        tree.column("spool", width=250)
+        tree.column("change", width=80, anchor="e")
+        tree.column("cost", width=80, anchor="e")
+        tree.pack(fill="both", expand=True, padx=20, pady=10)
+
+        total_costs = 0.0
+        for p in all_prints:
+            tree.insert("", "end", values=(p["date"], p["action"], p["spool"], p["change"], p["cost"]))
+            # Summe der Kosten berechnen
+            try:
+                c_str = p["cost"].replace(" €", "").replace(",", ".")
+                total_costs += float(c_str)
+            except:
+                pass
+
+        # --- Footer mit Summe ---
+        footer = ttk.Frame(self)
+        footer.pack(fill="x", padx=20, pady=10)
+        
+        ttk.Label(footer, text=f"Gesamtkosten aller Einträge: {total_costs:.2f} €", font=("Segoe UI", 12, "bold"), foreground="#0078D7").pack(side="left")
+        ttk.Button(footer, text="Schließen", command=self.destroy, style="Accent.TButton").pack(side="right")
+
+class ManualPrintDialog(tk.Toplevel):
+    def __init__(self, parent, spool_item, settings, callback):
+        super().__init__(parent)
+        self.spool = spool_item
+        self.settings = settings
+        self.callback = callback
+        
+        self.title("✍️ Manuellen Druck protokollieren")
+        # FIX 1: Fenster etwas größer machen für Windows Skalierung (>100%)
+        self.geometry("450x550")
+        self.configure(bg=parent.cget('bg'))
+        self.attributes('-topmost', True)
+        from core.utils import center_window
+        center_window(self, parent)
+
+        ttk.Label(self, text="Druck-Details eingeben", font=("Segoe UI", 14, "bold")).pack(pady=15)
+
+        # FIX 2: Button Frame ZUERST packen und hart unten anheften (side="bottom"), 
+        # damit es niemals aus dem Fenster geschoben wird!
+        btn_frame = ttk.Frame(self, padding=20)
+        btn_frame.pack(fill="x", side="bottom")
+
+        # Eingabefelder (Packen wir NACH den Buttons)
+        lbl_frame = ttk.Frame(self, padding=20)
+        lbl_frame.pack(fill="both", expand=True)
+
+        ttk.Label(lbl_frame, text="Name des Drucks (z.B. Benchy):").pack(anchor="w")
+        self.ent_name = ttk.Entry(lbl_frame)
+        self.ent_name.insert(0, "Manueller Druck")
+        self.ent_name.pack(fill="x", pady=(0, 15))
+
+        ttk.Label(lbl_frame, text="Verbrauch in Gramm (g):").pack(anchor="w")
+        self.ent_weight = ttk.Entry(lbl_frame)
+        self.ent_weight.pack(fill="x", pady=(0, 15))
+
+        ttk.Label(lbl_frame, text="Druckdauer in Stunden (h) - Optional:").pack(anchor="w")
+        self.ent_time = ttk.Entry(lbl_frame)
+        self.ent_time.insert(0, "0")
+        self.ent_time.pack(fill="x", pady=(0, 15))
+
+        def on_confirm():
+            try:
+                name = self.ent_name.get()
+                
+                # Werte sicher auslesen und leere Felder abfangen
+                w_str = self.ent_weight.get().replace(",", ".").strip()
+                t_str = self.ent_time.get().replace(",", ".").strip()
+                if not w_str: w_str = "0"
+                if not t_str: t_str = "0"
+                
+                weight = float(w_str)
+                hours = float(t_str)
+                
+                # --- KOSTEN-RECHNUNG ---
+                # Materialkosten (Kugelsicher gegen leere Preise oder "€" Zeichen!)
+                price_str = str(self.spool.get('price', '0')).replace(',', '.').replace('€', '').strip()
+                price = float(price_str) if price_str else 0.0
+                
+                cap_str = str(self.spool.get('capacity', '1000')).strip()
+                cap = float(cap_str) if cap_str else 1000.0
+                
+                mat_cost = weight * (price / cap) if cap > 0 else 0.0
+                
+                # Stromkosten
+                kwh_price = float(self.settings.get("kwh_price", 0.30))
+                watts = int(self.settings.get("printer_watts", 150))
+                elec_cost = hours * (watts / 1000.0) * kwh_price
+                
+                # NEU: Maschinenverschleiß
+                wear_price = float(self.settings.get("wear_per_hour", 0.20))
+                wear_cost = hours * wear_price
+                
+                # ECHTE Gesamtkosten
+                total_cost = mat_cost + elec_cost + wear_cost
+                
+                # NEU: Optionale Gewinnmarge (Wird im Dialog angezeigt, aber die reinen Kosten gehen ins Logbuch!)
+                margin_percent = int(self.settings.get("profit_margin", 0))
+                sell_price = total_cost * (1 + (margin_percent / 100.0))
+                
+                # Wenn Marge aktiv ist, zeigen wir dem User an, was er verlangen sollte!
+                if margin_percent > 0:
+                    from tkinter import messagebox
+                    msg = f"Kalkulation für '{name}':\n\n"
+                    msg += f"Material: {mat_cost:.2f} €\n"
+                    msg += f"Strom: {elec_cost:.2f} €\n"
+                    msg += f"Verschleiß: {wear_cost:.2f} €\n"
+                    msg += f"------------------------\n"
+                    msg += f"Echte Kosten: {total_cost:.2f} €\n\n"
+                    msg += f"Empfohlener Verkaufspreis (+{margin_percent}%): {sell_price:.2f} €"
+                    messagebox.showinfo("💰 Kalkulation", msg, parent=self)
+                
+                # Wir geben jetzt Gewicht, Name, Kosten UND Verkaufspreis zurück
+                self.callback(weight, name, f"{total_cost:.2f} €", f"{sell_price:.2f} €")
+                self.destroy()
+            except ValueError:
+                from tkinter import messagebox
+                messagebox.showerror("Fehler", "Bitte gültige Zahlen für Gewicht und Zeit eingeben!", parent=self)
+
+        ttk.Button(btn_frame, text="Druck speichern", command=on_confirm, style="Accent.TButton").pack(side="right")
+        ttk.Button(btn_frame, text="Abbrechen", command=self.destroy).pack(side="left")
+
+class QuickCostCalculator(tk.Toplevel):
+    def __init__(self, parent, settings):
+        super().__init__(parent)
+        self.title("🧮 Quick-Cost Rechner")
+        self.geometry("400x500")
+        self.configure(bg=parent.cget('bg'))
+        from core.utils import center_window
+        center_window(self, parent)
+
+        ttk.Label(self, text="Schnell-Kalkulation", font=("Segoe UI", 14, "bold")).pack(pady=15)
+        
+        frm = ttk.Frame(self, padding=20)
+        frm.pack(fill="both", expand=True)
+
+        # Eingaben
+        fields = [
+            ("Materialpreis (€/kg):", "price", "25.00"),
+            ("Verbrauch (Gramm):", "weight", "100"),
+            ("Druckzeit (Stunden):", "time", "5")
+        ]
+        self.entries = {}
+        for label, key, default in fields:
+            ttk.Label(frm, text=label).pack(anchor="w")
+            ent = ttk.Entry(frm)
+            ent.insert(0, default)
+            ent.pack(fill="x", pady=(0, 10))
+            self.entries[key] = ent
+
+        self.lbl_res = ttk.Label(frm, text="", font=("Segoe UI", 11, "bold"), foreground="#0078d7", justify="center")
+        self.lbl_res.pack(pady=20)
+
+        def calc():
+            try:
+                p = float(self.entries["price"].get().replace(",", "."))
+                w = float(self.entries["weight"].get().replace(",", "."))
+                t = float(self.entries["time"].get().replace(",", "."))
+                
+                mat = w * (p / 1000.0)
+                kwh = float(settings.get("kwh_price", 0.30))
+                watt = int(settings.get("printer_watts", 150))
+                elec = t * (watt / 1000.0) * kwh
+                wear = t * float(settings.get("wear_per_hour", 0.20))
+                
+                total = mat + elec + wear
+                margin = int(settings.get("profit_margin", 0))
+                sell = total * (1 + (margin/100.0))
+                
+                res = f"Material: {mat:.2f} € | Strom: {elec:.2f} €\nVerschleiß: {wear:.2f} €\n"
+                res += f"--------------------------\nKOSTEN: {total:.2f} €\n"
+                if margin > 0: res += f"VK (+{margin}%): {sell:.2f} €"
+                self.lbl_res.config(text=res)
+            except:
+                self.lbl_res.config(text="⚠️ Bitte Zahlen eingeben!")
+
+        ttk.Button(frm, text="Berechnen", command=calc, style="Accent.TButton").pack(fill="x", pady=5)
+        ttk.Button(frm, text="Schließen", command=self.destroy).pack(fill="x")
+
+
 class FilamentApp:
     def __init__(self, root):
         self.root = root; 
@@ -1953,6 +2487,9 @@ class FilamentApp:
         self.inventory: list[dict] = []
         self.settings: dict = {}
         self.spools: list[dict] = []
+        # Pylance Definitionen für Hintergrund-Tasks
+        self.tray_icon = None
+        self.active_popups = set()
         
         # Suppress type checking for this assignment since load_all returns (list, dict, list)
         inventory_data, settings_data, spools_data = self.data_manager.load_all(DEFAULT_SETTINGS)
@@ -2050,6 +2587,7 @@ class FilamentApp:
         add_nav_btn("Finanzen", lambda: StatisticsDialog(self.root, self.inventory, self), "📊")
         add_nav_btn("Swap", self.quick_swap_dialog, "🔄")
         add_nav_btn("Flow", lambda: FlowCalculatorDialog(self.root, self.entry_flow), "🧪")
+        add_nav_btn("Kalkulator", lambda: QuickCostCalculator(self.root, self.settings), "🧮") # <-- NEU!
         if self.settings.get("use_bambu", False):
             add_nav_btn("AMS", self.run_ams_sync, "🤖")
         # --- NEU: Cloud Sync im linken Menü ---
@@ -2242,12 +2780,37 @@ class FilamentApp:
         self.var_is_refill = tk.BooleanVar(value=False)
         ttk.Checkbutton(frm_spool_header, text="🔄 Refill", variable=self.var_is_refill).pack(side="right")
 
-        self.combo_spool = ttk.Combobox(tab_basis, state="readonly", font=FONT_MAIN)
-        self.combo_spool.pack(fill="x", pady=2)
+        frm_spool = ttk.Frame(tab_basis)
+        frm_spool.pack(fill="x", pady=2)
         
-        # NEU: Smarter Event-Handler für die Spule
+        self.combo_spool = ttk.Combobox(frm_spool, state="readonly", font=FONT_MAIN)
+        self.combo_spool.pack(side="left", fill="x", expand=True)
+        
+        self.var_custom_empty = tk.StringVar(value="")
+        self.entry_custom_empty = ttk.Entry(frm_spool, textvariable=self.var_custom_empty, width=6, font=FONT_BOLD)
+        self.entry_custom_empty.pack(side="left", padx=(5, 2))
+        ttk.Label(frm_spool, text="g").pack(side="left")
+        
+        def calc_custom_empty():
+            try:
+                cap = float(self.var_capacity.get().replace(",", "."))
+                gross = float(self.var_gross.get().replace(",", "."))
+                if gross > cap:
+                    self.combo_spool.current(0)
+                    self.var_custom_empty.set(f"{(gross - cap):g}")
+                    self.update_net_weight_display()
+                else:
+                    messagebox.showinfo("Info", "Brutto muss größer als Netto-Inhalt sein!", parent=self.root)
+            except: pass
+
+        btn_auto_empty = ttk.Button(frm_spool, text="🧮", width=3, command=calc_custom_empty)
+        btn_auto_empty.pack(side="left", padx=(5, 0))
+        btn_auto_empty.bind("<Enter>", lambda e: self.show_tip(e, "Leergewicht (Brutto minus Netto) für einmalige Spulen berechnen"))
+        btn_auto_empty.bind("<Leave>", self.hide_tip)
+        
         self.last_selected_spool_id = -1
         self.combo_spool.bind("<<ComboboxSelected>>", self.on_spool_changed)
+        self.var_custom_empty.trace_add("write", lambda n, i, m: self.update_net_weight_display())
         
         ttk.Label(tab_basis, text="Original-Inhalt (Netto g):").pack(anchor="w", pady=(10,0))
         self.entry_capacity = ttk.Entry(tab_basis, font=FONT_MAIN, textvariable=self.var_capacity)
@@ -2279,7 +2842,7 @@ class FilamentApp:
         frm_slicer_btns = ttk.Frame(frm_slicer)
         frm_slicer_btns.pack(fill="x", pady=(2, 0))
         
-        ttk.Button(frm_slicer_btns, text="➖ Abziehen", command=self.deduct_slicer).pack(side="left", expand=True, fill="x", padx=(0, 2))
+        ttk.Button(frm_slicer_btns, text="➕ Druck protokollieren", command=self.deduct_slicer).pack(side="left", expand=True, fill="x", padx=(0, 2))
         ttk.Button(frm_slicer_btns, text="➕ Korrektur", command=self.add_slicer).pack(side="left", expand=True, fill="x", padx=(2, 0))
         
         # NEU: Der Sync-Button wird NUR gebaut, wenn er in den Settings aktiv ist!
@@ -2506,10 +3069,10 @@ class FilamentApp:
         webbrowser.open("https://paypal.me/florianfranck")
 
     def show_howto(self):
-        """Öffnet das vollständige VibeSpool Handbuch mit 5 detaillierten Kapiteln."""
+        """Öffnet das vollständige VibeSpool Handbuch mit detaillierten Kapiteln."""
         win = tk.Toplevel(self.root)
         win.title("📘 VibeSpool Handbuch & Hilfe")
-        win.geometry("900x700")
+        win.geometry("950x750")
         win.configure(bg=self.root.cget('bg'))
         win.attributes('-topmost', True)
         from core.utils import center_window
@@ -2555,45 +3118,82 @@ class FilamentApp:
 
         # --- Inhalte definieren ---
         
-        tab1_content = """## Grundlagen & Bedienung
-• ID-System: Nutze numerische oder alphanumerische IDs (z.B. A-101). Diese können in den Optionen umgeschaltet werden.
-• Neu Hinzufügen: Leert alle Felder für eine neue Eingabe.
-• Änderungen Speichern: Aktualisiert die markierte Spule in der Tabelle.
-• Klonen: Erstellt ein exaktes Duplikat der gewählten Spule mit einer neuen ID. Ideal für Vorratshaltung!
-• Logbuch: Jede Spule speichert ihre eigene Historie (Gewichtsänderungen, Cloud-Abzüge)."""
+        tab1_content = """## Grundlagen & Spulen anlegen
+• Spulen hinzufügen: Klicke links auf 'Neu', fülle die Felder aus und klicke auf 'Neu Hinzufügen'. Wenn du das ID-Feld leer lässt, vergibt VibeSpool automatisch die nächste freie Nummer.
+• Farb-Automatik: Du kannst Hex-Codes (z.B. #FF0000) eintippen. VibeSpool übersetzt diese beim Speichern automatisch in den passenden Namen und zeigt dir ein Farb-Icon. Bei Multi-Color-Filamenten trenne die Farben einfach mit einem Schrägstrich (Rot / Blau).
+• Listen anpassen: Fehlt dir ein Hersteller oder ein Material im Dropdown-Menü? Klicke oben rechts auf 'Optionen' -> 'Listen-Verwaltung' und füge deine eigenen Einträge hinzu. VibeSpool lernt aber auch automatisch mit, wenn du einfach ein neues Wort in das Feld eintippst!
+• Spule klonen: Du hast 5 gleiche Spulen gekauft? Wähle eine aus, klicke auf 'Klonen' und VibeSpool erstellt ein exaktes Duplikat mit einer neuen ID.
 
-        tab2_content = """## Lager & Organisation
-• Regale: Definiere dein Lagersystem in den Optionen (z.B. REGAL|4|8).
-• Quick-Swap: Tauscht blitzschnell eine Spule aus dem Regal gegen eine Spule im AMS/Drucker aus.
-• Ins Lager: Entfernt die Spule aus der aktiven Zuweisung und sucht automatisch den nächsten freien Platz in deinen Regalen.
-• Standort-Dropdowns: Erlauben die manuelle Zuweisung zu Fächern und Slots."""
+## Tabellen & Ansicht
+• Spalten konfigurieren: Mach einen Rechtsklick auf den Tabellenkopf (wo 'Marke', 'Material' etc. steht). Dort kannst du Spalten ein- und ausblenden.
+• Sortieren: Klicke auf eine Spaltenüberschrift, um danach zu sortieren. AMS-Spulen werden dabei immer priorisiert ganz oben angezeigt!
+• Rechtsklick-Menü: Ein Rechtsklick auf eine Spule in der Tabelle öffnet ein Schnellmenü für die wichtigsten Aktionen (Löschen, Logbuch, Quick-Swap, Shop-Link)."""
 
-        tab3_content = """## Die Schlaue Waage
-• Ziel: Präzise Netto-Gewichtsermittlung ohne Kopfrechnen.
-• Leerspulen: Hinterlege im Reiter 'Leerspulen' die Gewichte deiner leeren Hersteller-Spulen.
-• Brutto-Messung: Trage das Gesamtgewicht (Spule + Filament) ein. VibeSpool erkennt Hersteller/Material und zieht den passenden Leerspulen-Wert automatisch ab.
-• Ergebnis: Das echte Filament-Gewicht wird sofort in der Haupttabelle angezeigt."""
+        tab2_content = """## Lager & Regale
+• Regalplaner: Gehe in die Optionen -> 'Lager-Layout planen'. Dort legst du fest, wie viele Regale du hast und wie viele Spalten/Reihen sie besitzen.
+• Fächer benennen: Ebenfalls in den Optionen kannst du Regalfächern eigene Namen geben (z.B. 'Kiste A' statt 'Fach 1').
+• Doppeltiefe Regale: Aktivierst du diese Option, bekommt jeder Slot einen vorderen (V) und einen hinteren (H) Platz. Perfekt für tiefe Schränke!
+• Zusatz-Orte: Trag in den Optionen Orte wie 'Trockenbox' ein. Diese erscheinen dann endlos als normaler Lagerort im Dropdown.
 
-        tab4_content = """## Bambu Lab Cloud & Smart-Match
-• Cloud-Button: Öffnet deine letzten erfolgreichen Druckaufträge.
-• Smart-Match: Erkennt automatisch, welche Spule in welchem AMS-Slot lag und schlägt diese zum Abzug vor.
-• Multi-Color: AMS-Drucke werden grammgenau auf die beteiligten Spulen aufgeteilt.
-• Filter: Mit 'Erledigte ausblenden' behältst du den Fokus auf neuen Drucken. Ignorierte Drucke werden grau markiert."""
+## AMS & Drucker-Verwaltung
+• Quick-Swap (Tauschen): Du willst drucken? Klicke auf 'Swap'. Wähle den AMS-Slot aus. VibeSpool tauscht die Spule aus dem Regal magisch mit der Spule im AMS. Du weißt immer, wo die alte Spule gelandet ist!
+• Bambu AMS Live-Sync: Wenn du in den Optionen deine Bambu-IP und den Access-Code hinterlegst, kannst du links auf 'AMS' klicken. VibeSpool liest dein echtes Bambu-AMS aus und fragt dich, welche VibeSpool-Rollen du gerade eingelegt hast. Kollisionen werden dabei verhindert!
+• Ins Lager: Der Button 'Ins Lager' wirft eine Spule sofort aus dem AMS/Drucker und packt sie auf den großen, endlosen Haufen 'LAGER'."""
 
-        tab5_content = """## QR-Codes & Mobile Scanner
-• PDF-Druck: Generiere Etiketten mit QR-Codes für deine Spulen (A4 oder Label-Drucker).
-• Web-Interface: Startet einen lokalen Server. Scanne den QR-Code am PC mit deinem Handy, um die mobile Ansicht zu öffnen.
-• Handy-Scanner: Nutze dein Handy im WLAN, um QR-Codes auf Spulen zu scannen. VibeSpool am PC springt sofort zur richtigen Spule.
-• Hersteller-Barcodes: Scanne originale Barcodes auf Filament-Boxen. VibeSpool lernt diese Codes und erkennt die Marke beim nächsten Scan sofort wieder."""
+        tab3_content = """## Die Schlaue Waage (Netto-Gewicht)
+• Ziel: Präzise wissen, wie viel Filament noch auf der Rolle ist, ohne selbst rechnen zu müssen.
+• Leerspulen anlegen: Klicke links auf 'Spulen' (Das Faden-Symbol). Lege dort an, wie viel eine leere Plastik-/Papprolle der jeweiligen Hersteller wiegt (z.B. Bambu Lab Leer = 250g).
+• So funktioniert's: Wähle im Hauptfenster aus dem Dropdown die Leerspule deines Herstellers. Stell die Spule auf deine Küchenwaage. Trage das ermittelte Gewicht bei 'Gewicht auf Waage (Brutto)' ein. VibeSpool zieht das Leergewicht ab und zeigt dir sofort das exakte 'Netto (Rest)' an!
+• Voll-Button: Klickst du auf 'Voll', rechnet VibeSpool: Leerspule + Original-Kapazität (z.B. 1000g) und trägt das perfekte Bruttogewicht für eine brandneue Spule ein.
+
+## Verbrauch protokollieren
+• Manueller Druck: Trage einen Wert in das kleine Feld 'Slicer-Verbrauch' ein und klicke auf '➕ Druck protokollieren'. Es öffnet sich ein Dialog, in dem du Name und Druckzeit eingibst. VibeSpool berechnet die exakten Kosten.
+• Korrektur: Du hast Ausschuss produziert oder Filament weggeschnitten? Trag die Grammzahl ein und klicke auf '➕ Korrektur'. Dies zieht das Gewicht ab, ohne eine Finanz-Kalkulation auszulösen."""
+
+        tab4_content = """## Finanz-Dashboard & Kosten (Das Cost Center)
+• Echte Gewerbe-Kalkulation: Gehe in die Optionen zum 'Druckkosten-Rechner'. Trag deinen Strompreis, Drucker-Watt, Maschinenverschleiß (pro Stunde) und deine gewünschte Gewinnmarge ein. 
+• Das Dashboard: Klicke links auf 'Finanzen'. Hier siehst du deinen Lagerwert, ein 7-Tage-Verbrauchsdiagramm und unten die 'Globale Druck-Historie'.
+• Globale Historie: Dies ist dein Kassenbuch! Es zeigt alle Drucke über alle Spulen hinweg an, inklusive der ausgerechneten Kosten und deines Verkaufspreises.
+• Quick-Cost Kalkulator: Klicke links im Menü auf das Taschenrechner-Symbol (🧮). Damit kannst du schnell ein Preisangebot für einen Kunden berechnen, ohne dass du dafür eine echte Spule aus dem Lager belasten musst.
+
+## Logbuch & Retro-Fit (Nachträgliche Korrektur)
+• Spulen-Logbuch: Jede Spule führt ihr eigenes Logbuch. Klicke auf 'Logbuch', um zu sehen, wann was gedruckt wurde.
+• Einträge bearbeiten (Auto-Heal): Du hast dich vertippt? Doppelklicke im Finanz-Dashboard unten in der Historie auf einen Eintrag. Ändere die Grammzahl. VibeSpool korrigiert magisch das Gewicht der Spule UND repariert dein 7-Tage-Balkendiagramm automatisch (Auto-Heal)!
+• Retro-Fit Kalkulator: Bei sehr alten Drucken fehlen vielleicht Kosten. Doppelklicke den Eintrag und klicke auf die Buttons '🧮 Mat.' und '🧮 Marge'. VibeSpool rechnet die Materialkosten und den VK-Preis für die Vergangenheit auf die Sekunde genau nach!"""
+
+        tab5_content = """## Bambu Cloud & Smart-Match
+• Einrichtung: Trage in den Optionen ('Drucker') deine Bambu Lab E-Mail und dein Passwort ein.
+• Cloud-Sync: Klicke links auf 'Cloud'. VibeSpool holt sich deine letzten erfolgreichen Drucke direkt von den Bambu Servern.
+• Smart-Match Abzug: Klicke in der Liste doppelt auf einen Druck oder auf 'Abziehen'. VibeSpool erkennt durch 'Smart-Match', auf welchem AMS-Slot die Farbe lag und wählt die passende VibeSpool-Rolle automatisch aus! Bestätigen, fertig.
+• Multi-Color Drucke: Hat dein Druck 4 Farben benutzt? VibeSpool erkennt das und teilt die abgebuchten Gramm exakt auf die 4 beteiligten Spulen auf! Auch Strom und Verschleiß werden prozentual perfekt berechnet.
+• Filter & Ignorieren: Drucke, die du manuell abgezogen hast oder nicht tracken willst, kannst du 'Ignorieren'. Setze oben den Haken bei 'Erledigte ausblenden', um eine cleane ToDo-Liste zu haben."""
+
+        tab6_content = """## Handy-Scanner & QR-Codes
+• Der lokale Server: VibeSpool hat einen unsichtbaren Webserver eingebaut. Klicke oben auf '📱 Handy'. Scanne den dortigen QR-Code mit deinem Smartphone.
+• Mobile Bedienung: Du hast VibeSpool nun als Web-App auf dem Handy. Du kannst im WLAN durch den Raum laufen, QR-Codes auf Spulen scannen und direkt am Handy Gewichte abziehen oder Spulen umbuchen. Das Programm am PC reagiert live auf deine Handy-Eingaben!
+• Etiketten & PDF Druck: Klicke links auf 'Label'. Wähle eine Spule. Du kannst das fertige Etikett als Bild speichern, oder auf 'ALLE als PDF exportieren' klicken. Der PDF-Modus druckt hunderte Etiketten perfekt ausgerichtet auf DIN A4 Bögen oder schickt sie an deinen Endlos-Labeldrucker!
+
+## Hersteller-Barcodes anlernen
+• Das Prinzip: Viele Spulen haben vom Hersteller bereits Barcodes auf der Packung. Warum eigene drucken?
+• So geht's: Lege eine neue Spule am PC an (oder bearbeite eine). Nimm dein Handy (Mobile Scanner) und gehe auf den Tab 'Neu anlegen'. Scanne den Original-Barcode der Schachtel. VibeSpool schießt diesen Code live in das Feld am PC. 
+• Der Vorteil: Wenn du diese leere Spule in Zukunft scannst, erkennt VibeSpool sie sofort wieder!"""
+
+        tab7_content = """## System, Backup & Smart Home
+• Backup & Restore: Klicke oben rechts auf '💾 Backup'. VibeSpool packt deine gesamte Datenbank, alle Einstellungen und das Logbuch in eine einzige, sichere ZIP-Datei. Genau dort kannst du sie bei einem PC-Wechsel auch wieder importieren.
+• CSV Import: Du wechselst von Excel zu VibeSpool? Klicke auf 'CSV Import'. VibeSpool ist extrem schlau und sucht in deiner Excel-Tabelle selbstständig nach Spalten, die nach Marke, Farbe oder Material klingen.
+• Smart Home (MQTT / Home Assistant): Aktiviere MQTT in den Optionen. VibeSpool funkt bei jeder Änderung (oder spätestens wenn es online ist via Offline-Buffer) live an dein Smart Home: Wie viele Spulen hast du? Welche sind fast leer? Was steckt gerade im AMS?
+• Hintergrund-Modus: Wenn du auf das 'X' zum Schließen klickst, fragt dich VibeSpool, ob es sich in die Windows-Taskleiste minimieren soll. Von dort kann es blitzschnell wieder aufgerufen werden!"""
 
         # --- Tabs erstellen ---
-        create_tab("🏠 Grundlagen", tab1_content)
-        create_tab("📦 Lager & Swap", tab2_content)
-        create_tab("⚖️ Waage", tab3_content)
-        create_tab("☁️ Cloud", tab4_content)
-        create_tab("📱 Scanner", tab5_content)
+        create_tab("🏠 1. Grundlagen", tab1_content)
+        create_tab("📦 2. Lager & AMS", tab2_content)
+        create_tab("⚖️ 3. Verbrauch & Waage", tab3_content)
+        create_tab("💶 4. Finanzen & Cost Center", tab4_content)
+        create_tab("☁️ 5. Cloud & Smart-Match", tab5_content)
+        create_tab("📱 6. Scanner & Etiketten", tab6_content)
+        create_tab("⚙️ 7. System & Backup", tab7_content)
 
-        ttk.Button(win, text="Alles klar!", command=win.destroy, style="Accent.TButton").pack(pady=15)
+        ttk.Button(win, text="Alles klar, ich bin bereit!", command=win.destroy, style="Accent.TButton").pack(pady=15)
     
     def show_update_prompt(self, latest, url):
         upd = tk.Toplevel(self.root); upd.title("VibeSpool Update"); upd.geometry("400x150"); upd.configure(bg=self.root.cget('bg')); upd.attributes('-topmost', True); center_window(upd, self.root)
@@ -2602,26 +3202,48 @@ class FilamentApp:
         ttk.Button(btn_frm, text="Laden", command=lambda: [webbrowser.open(url), upd.destroy()]).pack(side="left", padx=5); ttk.Button(btn_frm, text="Später", command=upd.destroy).pack(side="left", padx=5)
 
     def on_closing(self):
-        self.root.withdraw()
-        
-        # NEU: Wir haben einen "Test"-Knopf eingebaut!
-        menu = pystray.Menu(
-            pystray.MenuItem('Öffnen', self.show_window, default=True),
-            pystray.MenuItem('Beenden', self.quit_app)
-        )
-        
-        self.tray_icon = pystray.Icon("VibeSpool", create_tray_icon(), "VibeSpool", menu)
-        
-        def setup(icon):
-            icon.visible = True
-            # NEU: Windows-Benachrichtigung, damit du weißt, dass er lauscht!
-            icon.notify("VibeSpool läuft im Hintergrund weiter und lauscht auf den Drucker.", title="VibeSpool minimiert")
+        """Fragt den Nutzer, ob das Programm ins Tray minimiert oder beendet werden soll."""
+        dialog = tk.Toplevel(self.root)
+        dialog.title("VibeSpool beenden?")
+        dialog.geometry("450x180")
+        dialog.attributes('-topmost', True)
+        dialog.resizable(False, False)
+        dialog.configure(bg=self.root.cget('bg'))
+        from core.utils import center_window
+        center_window(dialog, self.root)
+        dialog.protocol("WM_DELETE_WINDOW", dialog.destroy)
+
+        ttk.Label(dialog, text="Was möchtest du tun?", font=("Segoe UI", 12, "bold")).pack(pady=(20, 10))
+        ttk.Label(dialog, text="Soll VibeSpool im Hintergrund weiterlaufen?", font=("Segoe UI", 10)).pack(pady=(0, 15))
+
+        btn_frame = ttk.Frame(dialog)
+        btn_frame.pack(fill="x", padx=20)
+
+        def do_minimize():
+            dialog.destroy()
+            self.root.withdraw() # Versteckt das Hauptfenster
             
-        threading.Thread(target=lambda: self.tray_icon.run(setup), daemon=True).start()
+            # NEU: Das Tray-Icon tatsächlich erstellen und im Hintergrund starten!
+            import pystray
+            from pystray import MenuItem as item
+            import threading
+            
+            menu = (item('Öffnen', self.show_window), item('Beenden', self.quit_app))
+            self.tray_icon = pystray.Icon("VibeSpool", create_tray_icon(), "VibeSpool", menu)
+            threading.Thread(target=self.tray_icon.run, daemon=True).start()
+
+        def do_exit():
+            dialog.destroy()
+            self.root.destroy() # Beendet VibeSpool komplett
+            import sys; sys.exit(0)
+
+        # Buttons
+        ttk.Button(btn_frame, text="⏬ In die Taskleiste", command=do_minimize, style="Accent.TButton").pack(side="left", expand=True, fill="x", padx=5)
+        ttk.Button(btn_frame, text="❌ Komplett beenden", command=do_exit).pack(side="right", expand=True, fill="x", padx=5)
 
     def show_window(self, icon, item):
         # Wird aufgerufen, wenn man im Tray auf "Öffnen" klickt
-        self.tray_icon.stop()
+        if self.tray_icon: self.tray_icon.stop()
         self.root.after(0, self.root.deiconify) # Fenster wieder einblenden
 
     def show_custom_toast(self, title, message):
@@ -2656,7 +3278,7 @@ class FilamentApp:
 
     def quit_app(self, icon, item):
         # Das ECHTE Beenden der App
-        self.tray_icon.stop()
+        if self.tray_icon: self.tray_icon.stop()
         
         # Hintergrund-Monitor stoppen
         if hasattr(self, 'bambu_monitor'):
@@ -2758,6 +3380,7 @@ class FilamentApp:
         except: return -1
     def on_spool_changed(self, event=None):
         new_spool_id = self.get_selected_spool_id()
+        if new_spool_id != -1: self.var_custom_empty.set("")
         old_spool_id = getattr(self, 'last_selected_spool_id', -1)
         
         # Gesetz der Massenerhaltung: Brutto anpassen, Netto bleibt gleich!
@@ -2787,16 +3410,54 @@ class FilamentApp:
         except: pass
     
     def deduct_slicer(self):
-        try:
-            used = float(self.entry_slicer.get().strip().replace(',', '.'))
-            curr = float(self.var_gross.get().strip().replace(',', '.') or 0)
-            if used > 0 and curr > 0:
-                new_gross = max(0, curr - used)
-                self.var_gross.set(f"{new_gross:g}")
-                self.entry_slicer.delete(0, tk.END) # Leert das Eingabefeld nach Erfolg
-                self.log_consumption(used)
-        except ValueError:
-            pass # Ignoriert Klicks, wenn Buchstaben drinstehen
+        """Ersetzt das einfache Abziehen durch den smarten Manuellen Druck-Dialog."""
+        sel = self.tree.selection()
+        if not sel:
+            messagebox.showwarning("Warnung", "Bitte wähle zuerst eine Spule aus der Tabelle aus!")
+            return
+            
+        item_id = sel[0]
+        spool_data = next((s for s in self.inventory if str(s['id']) == str(item_id)), None)
+        
+        if not spool_data: return
+
+        # FIX: Hier steht jetzt das 'sell_str' mit in der Klammer!
+        def process_deduction(weight, print_name, cost_str, sell_str):
+            # Gewicht abziehen
+            old_gross = float(spool_data.get('weight_gross', 0))
+            new_gross = max(0, old_gross - weight)
+            spool_data['weight_gross'] = round(new_gross, 1)
+            
+            # Logbuch-Eintrag erstellen
+            if "history" not in spool_data: spool_data["history"] = []
+            spool_data["history"].append({
+                "date": datetime.now().strftime("%Y-%m-%d %H:%M"),
+                "action": f"Manuell: {print_name}",
+                "change": f"-{weight}g",
+                "cost": cost_str,
+                "sell_price": sell_str # Hier wird er jetzt fehlerfrei gespeichert!
+            })
+            
+            # Globales Logbuch aktualisieren
+            self.log_consumption(weight)
+            
+            # UI aktualisieren
+            self.var_gross.set(f"{new_gross:g}")
+            self.update_net_weight_display()
+            self.entry_slicer.delete(0, tk.END)
+            
+            # Speichern & Tabelle aktualisieren
+            self.data_manager.save_inventory(self.inventory)
+            self.refresh_table()
+            self.show_custom_toast("💰 Druck gespeichert", f"{weight}g abgezogen.\nGesamtkosten: {cost_str}")
+
+        # Den neuen Dialog öffnen
+        dialog = ManualPrintDialog(self.root, spool_data, self.settings, process_deduction)
+        
+        # UX Bonus: Wert aus dem kleinen Feld übernehmen
+        pre_filled = self.entry_slicer.get().strip()
+        if pre_filled:
+            dialog.ent_weight.insert(0, pre_filled)
     
     def add_slicer(self):
         try:
@@ -2815,7 +3476,13 @@ class FilamentApp:
         try:
             gross_str = self.var_gross.get().strip().replace(',', '.')
             if not gross_str: self.lbl_net_weight.config(text="Netto: 0 g | Wert: -"); return
-            net = calculate_net_weight(gross_str, self.get_selected_spool_id(), self.spools); price_str = self.var_price.get().strip().replace(',', '.'); cap_str, val_str = self.var_capacity.get().strip(), ""
+            
+            spool_id = self.get_selected_spool_id()
+            custom_empty = self.var_custom_empty.get().strip() if spool_id == -1 else None
+            
+            net = calculate_net_weight(gross_str, spool_id, self.spools, custom_empty)
+            
+            price_str = self.var_price.get().strip().replace(',', '.'); cap_str, val_str = self.var_capacity.get().strip(), ""
             if price_str and cap_str:
                 try:
                     p, c = float(price_str), float(cap_str)
@@ -2823,6 +3490,7 @@ class FilamentApp:
                 except: pass
             self.lbl_net_weight.config(text=f"Netto: {int(net)} g{val_str}")
         except: self.lbl_net_weight.config(text="Netto: 0 g | Wert: -")
+
     def open_settings(self, start_tab=0):
         def on_save(s): 
             self.settings = s
@@ -2935,7 +3603,7 @@ class FilamentApp:
             elif col == "weight":
                 # Gewicht mit Nullen auffüllen, damit z.B. 50g nicht vor 400g steht
                 try:
-                    w = calculate_net_weight(i.get('weight_gross', '0'), i.get('spool_id', -1), self.spools)
+                    w = calculate_net_weight(i.get('weight_gross', '0'), i.get('spool_id', -1), self.spools, i.get('empty_weight'))
                     return f"{float(w):08.2f}"
                 except:
                     return "00000000.00"
@@ -3027,7 +3695,7 @@ class FilamentApp:
             icon = create_color_icon(get_colors_from_text(i['color']))
             self.icon_cache.append(icon)
             
-            net = calculate_net_weight(i.get('weight_gross', '0'), i.get('spool_id', -1), self.spools)
+            net = calculate_net_weight(i.get('weight_gross', '0'), i.get('spool_id', -1), self.spools, i.get('empty_weight'))
             flow_val = i.get('flow', 'Auto' if 'bambu' in i['brand'].lower() else '-')
             
             # --- NEU: Optik-Filter für die Farbanzeige in der Liste ---
@@ -3067,7 +3735,12 @@ class FilamentApp:
                 "Eingabe-Fehler", 
                 f"Bitte prüfe deine Eingaben!\nHast du vielleicht Text in ein Zahlenfeld getippt?\n\nFehler-Details:\n{e}"
             )
-            return None
+            custom_empty = None
+            if spool_id == -1:
+                try: custom_empty = float(self.var_custom_empty.get().replace(',', '.'))
+                except: pass
+                
+            return {"id": self.entry_id.get().strip() if self.entry_id.get().strip() else None, "rfid": self.entry_rfid.get().strip(), "brand": self.entry_brand.get().strip(), "material": self.combo_material.get().strip(), "color": self.combo_color.get().strip(), "subtype": self.combo_subtype.get().strip(), "type": self.combo_type.get(), "loc_id": self.combo_loc_id.get().strip(), "flow": self.entry_flow.get().strip(), "pa": self.entry_pa.get().strip(), "spool_id": spool_id, "empty_weight": custom_empty, "weight_gross": gross_val, "capacity": cap, "is_refill": self.var_is_refill.get(), "is_empty": self.combo_type.get() == "VERBRAUCHT", "reorder": self.var_reorder.get(), "supplier": self.entry_supplier.get().strip(), "sku": self.entry_sku.get().strip(), "price": self.var_price.get().strip(), "link": self.entry_link.get().strip(), "temp_n": self.entry_temp_n.get().strip(), "temp_b": self.entry_temp_b.get().strip(), "note": self.entry_note.get().strip(), "barcode": self.entry_barcode.get().strip()}
 
     def check_location_collision(self, loc_type, loc_id, ignore_id=None):
         # Unendliche Lagerorte ignorieren wir (da passen beliebig viele Spulen rein)
@@ -3222,6 +3895,13 @@ class FilamentApp:
         self.var_reorder.set(i.get('reorder', False))
         for val in self.combo_spool['values']:
             if val.startswith(f"{i.get('spool_id', -1)} -"): self.combo_spool.set(val); break
+            
+        if i.get('empty_weight') is not None:
+            self.var_custom_empty.set(f"{i['empty_weight']:g}")
+        else:
+            self.var_custom_empty.set("")
+        for val in self.combo_spool['values']:
+            if val.startswith(f"{i.get('spool_id', -1)} -"): self.combo_spool.set(val); break
         self.var_capacity.set(str(i.get('capacity', 1000))); gross = str(i.get('weight_gross', '0')).replace(',', '.'); float_g = float(gross) if gross else 0; self.var_gross.set(str(float_g).rstrip('0').rstrip('.') if float_g > 0 else "0"); self.var_price.set(str(i.get('price', ''))); self.update_net_weight_display(); 
         self.entry_supplier.insert(0, i.get('supplier', '')); self.entry_sku.insert(0, i.get('sku', '')); self.entry_link.insert(0, i.get('link', '')); self.entry_temp_n.insert(0, i.get('temp_n', '')); self.entry_temp_b.insert(0, i.get('temp_b', '')); self.entry_note.insert(0, i.get('note', '')); self.entry_barcode.insert(0, i.get('barcode', ''));
         self.entry_temp_n.insert(0, i.get('temp_n', '')); self.entry_temp_b.insert(0, i.get('temp_b', '')); self.entry_note.insert(0, i.get('note', ''));
@@ -3230,6 +3910,7 @@ class FilamentApp:
     
     def clear_inputs(self, deselect=True):
         self.last_selected_spool_id = -1
+        self.var_custom_empty.set("")
         for e in [self.entry_id, self.entry_rfid, self.entry_brand, self.entry_flow, self.entry_pa, self.entry_supplier, self.entry_sku, self.entry_link, self.entry_temp_n, self.entry_temp_b, self.entry_note, self.entry_barcode]: 
             e.delete(0, tk.END)
         self.var_capacity.set("1000")
@@ -4459,6 +5140,16 @@ class FilamentApp:
         ttk.Button(frm, text="🔄 Jetzt Synchronisieren", command=perform_sync, style="Accent.TButton").pack(fill="x", pady=10)
 
     def _ask_for_smart_deduction(self, job, parent_win, tree_widget, refresh_tree=None):
+        # --- NEU: Verhindern, dass der Dialog für denselben Druck doppelt aufgeht ---
+        job_id = str(job.get('id', ''))
+        if not hasattr(self, 'active_popups'):
+            self.active_popups = set()
+            
+        if job_id in self.active_popups:
+            return # Dialog ist bereits offen, brich ab!
+            
+        self.active_popups.add(job_id)
+        # --------------------------------------------------------------------------
         """Intelligenter Abzugs-Dialog, der Multi-Color automatisch erkennt und aufteilt!"""
         dialog = tk.Toplevel(self.root)
         dialog.title("🧠 Smart-Match Zuweisung")
@@ -4466,6 +5157,9 @@ class FilamentApp:
         dialog.attributes('-topmost', True)
         from core.utils import center_window
         center_window(dialog, self.root)
+        
+        # Pylance-Safe: Wir binden die job_id explizit an das Event!
+        dialog.protocol("WM_DELETE_WINDOW", lambda j=job_id: [self.active_popups.discard(j), dialog.destroy()])
 
         model = job['name']
         total_weight = job['weight']
@@ -4492,7 +5186,7 @@ class FilamentApp:
         spool_list = []
         for s in self.inventory:
             if s.get('type') == 'VERBRAUCHT': continue
-            net = calculate_net_weight(s.get('weight_gross', '0'), s.get('spool_id', -1), self.spools)
+            net = calculate_net_weight(s.get('weight_gross', '0'), s.get('spool_id', -1), self.spools, s.get('empty_weight'))
             color_clean = re.sub(r'\s*\(\s*#[0-9a-fA-F]{6}\s*\)', '', s.get('color', '')).strip()
             spool_list.append(f"[{s['id']}] {s.get('brand')} {color_clean} ({net}g übrig)")
 
@@ -4534,7 +5228,7 @@ class FilamentApp:
             
             # Die vorgeschlagene Spule automatisch eintragen
             if best_match:
-                net_match = calculate_net_weight(best_match.get('weight_gross', '0'), best_match.get('spool_id', -1), self.spools)
+                net_match = calculate_net_weight(best_match.get('weight_gross', '0'), best_match.get('spool_id', -1), self.spools, best_match.get('empty_weight'))
                 color_match = re.sub(r'\s*\(\s*#[0-9a-fA-F]{6}\s*\)', '', best_match.get('color', '')).strip()
                 match_str = f"[{best_match['id']}] {best_match.get('brand')} {color_match} ({net_match}g übrig)"
                 if match_str in spool_list:
@@ -4567,7 +5261,7 @@ class FilamentApp:
                         new_gross = max(0.0, old_gross - w_val)
                         item['weight_gross'] = round(new_gross, 1)
 
-                        # --- NEU: Materialkosten exakt berechnen! ---
+                        # --- Kosten exakt berechnen! ---
                         mat_cost = 0.0
                         try:
                             spool_price = float(str(item.get('price', '0')).replace(',', '.')) or 0.0
@@ -4575,16 +5269,32 @@ class FilamentApp:
                             if spool_capacity > 0: mat_cost = w_val * (spool_price / spool_capacity)
                         except: pass
 
+                        # Strom, Verschleiß & Marge anteilig berechnen (wichtig bei Multi-Color!)
+                        anteil = w_val / total_weight if total_weight > 0 else 1.0
+                        strom_anteil = strom_kosten * anteil
+                        
+                        wear_price = float(self.settings.get("wear_per_hour", 0.20))
+                        wear_anteil = (duration * wear_price) * anteil
+                        
+                        echte_kosten = mat_cost + strom_anteil + wear_anteil
+                        
+                        margin_percent = int(self.settings.get("profit_margin", 0))
+                        vk_preis = echte_kosten * (1 + (margin_percent / 100.0))
+
                         if "history" not in item: item["history"] = []
                         item["history"].append({
                             "date": datetime.now().strftime("%Y-%m-%d %H:%M"),
                             "action": f"Cloud: {model}",
                             "change": f"-{w_val}g",
-                            "cost": f"{mat_cost:.2f} €"
+                            "cost": f"{echte_kosten:.2f} €",
+                            "sell_price": f"{vk_preis:.2f} €" if margin_percent > 0 else "-" # VK-Preis speichern!
                         })
                         total_deducted += w_val
 
             if total_deducted > 0:
+                # --- FIX: Den Cloud-Verbrauch auch an das Balkendiagramm senden! ---
+                self.log_consumption(total_deducted)
+                
                 self.data_manager.save_inventory(self.inventory)
                 self.refresh_table()
                 
@@ -4602,6 +5312,7 @@ class FilamentApp:
                     except Exception: 
                         pass
                 
+                self.active_popups.discard(job_id)
                 dialog.destroy()
                 anteil = total_deducted / total_weight if total_weight > 0 else 1.0
                 gesamt_kosten = mat_cost + (strom_kosten * anteil)
@@ -4742,7 +5453,7 @@ class FilamentApp:
         for item in self.inventory:
             if item.get('type') == 'VERBRAUCHT': continue
             total_spools += 1
-            net = calculate_net_weight(item.get('weight_gross', '0'), item.get('spool_id', -1), self.spools)
+            net = calculate_net_weight(item.get('weight_gross', '0'), item.get('spool_id', -1), self.spools, item.get('empty_weight'))
             total_net_weight += net
             
             # Alarm für fast leere Spulen (< 100g)
@@ -4977,6 +5688,23 @@ class PdfExportDialog(tk.Toplevel):
             messagebox.showerror("Fehler", f"Fehler beim Generieren:\n{e}", parent=self)
 
 if __name__ == "__main__":
+    import socket
+    import sys
+    from tkinter import messagebox
+    
+    # Verhindert den Mehrfach-Start (Single Instance Lock)
+    try:
+        lock_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        lock_socket.bind(('127.0.0.1', 47200))
+    except socket.error:
+        temp_root = tk.Tk()
+        temp_root.withdraw()
+        messagebox.showinfo("VibeSpool läuft bereits", "VibeSpool ist bereits im Hintergrund geöffnet!\n\nBitte schaue in deiner Taskleiste (unten rechts neben der Uhr) nach dem blauen VibeSpool-Icon.")
+        sys.exit()
+
     try: windll.shcore.SetProcessDpiAwareness(1)
     except: pass
-    root = tk.Tk(); app = FilamentApp(root); root.mainloop()
+    
+    root = tk.Tk()
+    app = FilamentApp(root)
+    root.mainloop()

@@ -10,6 +10,15 @@
 
 ---
 
+## 🆕 Was ist neu in Version 2.0.0? ("The Enterprise & Cost Center Update")
+VibeSpool macht den Sprung zum professionellen ERP-System für Gewerbetreibende und Power-User!
+* **Globales Cost Center & Gewerbe-Kalkulation:** VibeSpool rechnet nun Material, Strom, Maschinenabnutzung und Gewinnmarge zu einem perfekten Verkaufspreis zusammen. Alle Drucke sind im neuen Dashboard tabellarisch als Kassenbuch einsehbar.
+* **Auto-Heal & Retro-Fit:** Historien-Einträge können jetzt nachträglich bearbeitet werden. VibeSpool korrigiert das Diagramm und das Spulengewicht vollautomatisch. Alte Drucke können mit den neuen "Retro-Fit" Buttons sekundenschnell nachträglich kalkuliert werden.
+* **Individuelles Leergewicht:** Für exotische Spulen kann jetzt on-the-fly ein einmaliges Leergewicht berechnet und an die Spule gebunden werden.
+* **Omni-Live-Suche:** Das neue Suchfeld im Hauptfenster filtert in Echtzeit blitzschnell über alle Spulendaten (ID, Name, Farbe, Typ).
+* **Quick-Cost Rechner:** Ein Standalone-Kalkulator, um schnell Preise für Kunden zu berechnen, ohne das Lager anzufassen.
+
+
 ## ✨ Features
 
 ### ☁️ Bambu Cloud API & Smart-Match
@@ -17,14 +26,18 @@ Verbinde VibeSpool mit der Bambu Cloud. Das System lädt deine fertigen Druckauf
 
 <img width="1014" height="805" alt="image" src="https://github.com/user-attachments/assets/aa1822b7-382e-4503-b4f0-0906a73616a3" />
 
+
+### 💰 Das Cost Center (Gewerbe-Kalkulation)
+VibeSpool berechnet nicht nur Material- und Stromkosten, sondern berücksichtigt auch Maschinenverschleiß (pro Druckstunde) und schlägt automatisch deine Gewinnmarge (%) auf. Alle Drucke über alle Spulen hinweg laufen im globalen Kassenbuch zusammen. Ein Standalone Quick-Cost Rechner hilft dir bei schnellen Kundenangeboten.
+
 ### 💰 Druckkosten-Rechner & Logbuch
 VibeSpool kombiniert den Kaufpreis deiner Spulen mit deinem lokalen Strompreis und der Laufzeit des Drucks. Bei jedem Cloud-Sync siehst du auf den Cent genau, was dein Druck gekostet hat. Alles wird im **Spulen-Logbuch** dauerhaft als "Kontoauszug" gespeichert.
 
-### 📊 Unified Analytics Dashboard
-Ein interaktives Dashboard zeigt dir den genauen Bestandswert deines Lagers, den durchschnittlichen Preis pro Kilogramm für jedes Material und einen 7-Tage-Verbrauchsverlauf als Balkendiagramm.
+### 📊 Unified Analytics & Auto-Heal Historie
+Ein interaktives Dashboard zeigt dir den genauen Bestandswert, den Ø-Preis/kg und einen 7-Tage-Verbrauchsverlauf. Fehler beim Eintragen gemacht? Die Historie lässt sich nachträglich bearbeiten – VibeSpool repariert das Spulengewicht und das Chart automatisch (**Auto-Heal**).
 
 ### 📥 System-Tray & Hintergrund-Monitor
-Schließe das Fenster und VibeSpool läuft lautlos im Windows-Tray (neben der Uhr) weiter. Es lauscht im Hintergrund auf deinen Drucker und meldet sich über smarte **Toast-Benachrichtigungen**, sobald ein Druck verrechnet wurde.
+Schließe das Fenster und VibeSpool läuft lautlos im Windows-Tray (neben der Uhr) weiter. Es lauscht im Hintergrund auf deinen Drucker und meldet sich über smarte **Toast-Benachrichtigungen**.
 
 ### 📱 Mobile Companion & Handyscanner
 VibeSpool wird kabellos! Scanne einfach den QR-Code am Monitor und dein Handy wird zum **kabellosen Handyscanner**.

@@ -7,25 +7,40 @@ Hier findest du Antworten auf die häufigsten Fragen rund um die Einrichtung und
 Sobald du die Cloud in den Optionen aktiviert und dich eingeloggt hast, lädt VibeSpool deine letzten erfolgreichen Drucke herunter. Klicke im linken Menü einfach auf **☁️ Cloud** und danach doppelt auf einen erledigten Druck. VibeSpool schlägt dir dank "Smart-Match" sofort die richtige Spule vor und berechnet die Kosten. Kleine Testdrucke kannst du mit "Ignorieren" bequem aus der Liste ausblenden.
 
 ### 💰 Wie berechnet VibeSpool meine Druckkosten?
-VibeSpool schätzt nicht, sondern rechnet mit harten Fakten:
-1. **Material:** Das System kennt den Kaufpreis deiner Spule und das Nettogewicht. Wenn die Cloud meldet "44g verbraucht", rechnet VibeSpool dies auf den Zehntelcent genau auf diese spezifische Spule um.
-2. **Strom:** Gehe in die Optionen zum Reiter **💰 Druckkosten-Rechner** und trage deinen kWh-Preis sowie den Stromverbrauch deines Druckers (z.B. 150 Watt) ein. VibeSpool misst die exakte Druckzeit aus der Cloud und addiert die Stromkosten in Echtzeit zum Filamentpreis!
+VibeSpool schätzt nicht, sondern rechnet wie ein ERP-System mit harten Fakten:
+1. **Material:** Das System kennt den Kaufpreis deiner Spule und das Nettogewicht.
+2. **Strom:** Trage deinen kWh-Preis sowie den Stromverbrauch deines Druckers (z.B. 150 Watt) ein. 
+3. **Maschinenverschleiß & Marge (Neu ab v2.0):** Trage eine Pauschale für den Druckerverschleiß pro Stunde und deine gewünschte Gewinnmarge (%) ein.
+VibeSpool misst die exakte Druckzeit und addiert alle Werte zu einem finalen Verkaufspreis in Echtzeit zusammen!
+
+### 🧮 Wie berechne ich ein Angebot für einen Kunden (ohne Spule)?
+Wenn dich jemand fragt "Was würde Teil X kosten?", klicke einfach links im Menü auf das **🧮 Kalkulator** Symbol (Quick-Cost Rechner). Trage Materialpreis, Gramm und Druckzeit ein – VibeSpool spuckt dir in einer Sekunde den perfekten Verkaufspreis inklusive deiner Marge aus.
+
+### ⚖️ Ich habe eine exotische Spule, für die sich keine Vorlage lohnt. Was tun?
+Dafür gibt es das **individuelle Leergewicht** (Einweg-Spule):
+Trage das Netto-Gewicht (z.B. 1000g) und das Brutto-Gewicht von deiner Waage (z.B. 1202g) in die Felder ein. Klicke dann auf den kleinen **🧮 Button** direkt neben der Dropdown-Liste für Leerspulen. VibeSpool berechnet die 202g Differenz und speichert sie unsichtbar *nur* für dieses eine Filament ab!
+
+### ⏳ Kann ich die Kosten für sehr alte Drucke nachträglich berechnen?
+Ja! Das ist die "Retro-Fit" Funktion. 
+Gehe links auf **📊 Finanzen**. Unten in der globalen Historie machst du einen **Doppelklick** auf einen alten Druck. Es öffnet sich ein Bearbeitungs-Fenster. Klicke dort einfach auf **"🧮 Mat."** und danach auf **"🧮 Marge"**. VibeSpool zieht sich die Daten aus der Vergangenheit und rechnet das Angebot auf den Cent genau nach!
+
+### 🛠️ Ich habe mich beim Verbrauch vertippt. Wie korrigiere ich das?
+Ebenfalls über das Finanz-Dashboard (**📊 Finanzen**). Doppelklicke den falschen Eintrag in der Historie unten und ändere die Grammzahl. VibeSpool besitzt ein **"Auto-Heal"** Feature: Es korrigiert magisch das Gewicht deiner Spule im Regal und repariert automatisch den falschen Tag in deinem 7-Tage-Balkendiagramm!
 
 ### 📖 Wo sehe ich den Lebenslauf einer Spule?
-Mache einen **Rechtsklick** auf eine beliebige Spule in deiner Tabelle und wähle **📜 Spulen-Logbuch öffnen**. Dort siehst du einen detaillierten Kontoauszug: Wann hast du gedruckt? Wie viel Gramm wurden abgezogen? Was hat dieser exakte Abzug an Material gekostet?
+Mache einen **Rechtsklick** auf eine beliebige Spule in deiner Tabelle und wähle **📜 Spulen-Logbuch öffnen**. Dort siehst du einen detaillierten Kontoauszug.
 
 ### 📥 Wie importiere ich meine alte Excel-Liste?
 Du musst nicht alles neu abtippen! Nutze einfach unsere fertige CSV-Vorlage:
-1. Lade dir die `VibeSpool_Import_Vorlage.csv` aus den Dateien herunter oder nutze die [Google Sheets Vorlage](https://docs.google.com/spreadsheets/d/1ko-vQtDF6rNkR7Vq5q1HUZ2xhHl_6P_uVhrKrvehpLU/edit?gid=1380756208#gid=1380756208) (Dort auf "Datei" -> "Herunterladen" -> "CSV" klicken).
-2. Fülle die Tabelle in Excel/Calc mit deinen Filamenten aus (bitte die Spaltennamen in der ersten Zeile nicht verändern).
+1. Lade dir die `VibeSpool_Import_Vorlage.csv` aus den Dateien herunter oder nutze die [Google Sheets Vorlage](https://docs.google.com/spreadsheets/d/1ko-vQtDF6rNkR7Vq5q1HUZ2xhHl_6P_uVhrKrvehpLU/edit?gid=1380756208#gid=1380756208).
+2. Fülle die Tabelle in Excel/Calc aus.
 3. Speichere die Datei als `.csv` ab.
 4. Klicke in VibeSpool oben rechts auf **"📥 CSV Import"** und wähle die Datei aus!
 
 ### 🎨 Wie kann ich eigene Materialien (z.B. PAHT-CF) oder Farben hinzufügen?
 Du kannst die Dropdown-Listen in VibeSpool jederzeit um deine eigenen Spezial-Sorten erweitern:
-* Gehe oben rechts auf **⚙ Optionen**.
-* Wähle den Reiter **📋 Listen**.
-* Dort kannst du ganz flexibel neue Materialien, Farben, Hersteller oder Effekte hinzufügen und alte löschen. Per Drag & Drop kannst du die Reihenfolge anpassen.
+* Gehe oben rechts auf **⚙ Optionen** -> **📋 Listen**.
+* Dort kannst du flexibel neue Materialien, Farben oder Hersteller hinzufügen. **Tipp:** VibeSpool sortiert diese Listen im Hauptfenster ab sofort automatisch von A bis Z!
 
 ### 🏷️ Wie kann ich meine Regalfächer (z.B. "Fach 1") umbenennen?
 Wenn du deinen Fächern eigene Namen wie "Bambu PLA" geben möchtest:

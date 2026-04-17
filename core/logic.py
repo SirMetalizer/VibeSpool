@@ -6,10 +6,14 @@ def parse_ver(v):
     if not v: return []
     return [int(x) for x in v.lstrip("vV").replace('-', '.').split('.') if x.isdigit()]
 
-def calculate_net_weight(gross, spool_id, spools):
+def calculate_net_weight(gross, spool_id, spools, custom_empty=None):
     try:
         g = float(str(gross).replace(',', '.'))
-        s = next((s for s in spools if s['id'] == spool_id), None)
+        # 1. Prio: Individuelles Einweg-Leergewicht
+        if custom_empty is not None and str(custom_empty).strip() != "":
+            return max(0, int(g - float(str(custom_empty).replace(',', '.'))))
+        # 2. Prio: Datenbank der Leerspulen
+        s = next((s for s in spools if str(s['id']) == str(spool_id)), None)
         return max(0, int(g - (s['weight'] if s else 0)))
     except:
         return 0

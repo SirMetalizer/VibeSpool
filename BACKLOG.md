@@ -10,14 +10,23 @@
 - [x] **UX/UI Polish:** Fenster binden sich nun korrekt ans Hauptfenster (Transient), Skalierungsprobleme in Windows wurden behoben, und alle Dropdown-Listen sortieren sich automatisch alphabetisch.
 
 ## ✅ Abgeschlossen (v1.10.0 - "The Smart Pro Update")
-- [x] **☁️ Bambu Cloud API & Smart-Match:** Vollständige Cloud-Integration (90-Tage Auto-Login, 2FA-Support).
-- [x] **💰 Druckkosten-Rechner & Finanzen:** Lokale Stromkosten (Wattzahl + kWh-Preis) und Materialkosten.
-- [x] **📊 Unified Analytics Dashboard:** Finanz- und Statistik-Dashboard mit 7-Tage-Verbrauchs-Balkendiagramm.
-- [x] **📖 Spulen-Logbuch:** Detaillierter Kontoauszug für jede Spule.
-- [x] **📥 System-Tray & Hintergrund-Modus:** App minimiert in die Taskleiste.
+- [x] **☁️ Bambu Cloud API & Smart-Match:** Vollständige Cloud-Integration (90-Tage Auto-Login, 2FA-Support). VibeSpool rät automatisch, welche Spule in welchem AMS-Slot für den Cloud-Druck genutzt wurde.
+- [x] **💰 Druckkosten-Rechner & Finanzen:** Reale Druckkosten-Berechnung inklusive lokaler Stromkosten (Wattzahl + kWh-Preis) und exakten Materialkosten (basierend auf dem Kaufpreis der Spule).
+- [x] **📊 Unified Analytics Dashboard:** Neues, vereintes Finanz- und Statistik-Dashboard mit "Ø Preis/kg" Auswertung und 7-Tage-Verbrauchs-Balkendiagramm.
+- [x] **📖 Spulen-Logbuch:** Jede Spule hat nun ihren eigenen "Lebenslauf" mit einem detaillierten Kontoauszug (Druckauftrag, Datum, Gramm-Abzug, Materialkosten).
+- [x] **📥 System-Tray & Hintergrund-Modus:** App kann nun in den Windows-Tray (neben die Uhr) minimiert werden und lauscht unsichtbar im Hintergrund weiter auf den Drucker.
+- [x] **🔔 Windows Toast Notifications:** Elegante, dunkle Pop-up-Benachrichtigungen bei automatischen Abzügen und Sync-Events.
+- [x] **📘 In-App HowTo (Mini-Wiki):** Integriertes, scrollbares Handbuch direkt im Programm, das alle Features erklärt.
 - [x] **Alphanumerische IDs:** Support für Text-IDs (A134, PLA-01).
+- [x] **Hersteller-Barcode Scanner:** Handy-Scanner liest jetzt auch 1D-Strichcodes auf Originalverpackungen und lernt diese.
+
+## 🐛 Hotfixes & UX-Polish (v2.0.1)
+- [ ] **BUGFIX:** Nozzle- und Bed-Temp Felder verdoppeln ihre Werte beim Laden, da die Insert-Befehle im Code versehentlich doppelt ausgeführt werden.
+- [ ] **UX-FIX:** Systematische Prüfung aller Pop-up-Fenster: Buttons müssen hart an den unteren Rand gekoppelt werden (`side="bottom"`), damit sie bei hoher Windows-Skalierung nicht mehr abgeschnitten werden.
+- [ ] **UX-EVALUATION:** Prüfung, ob wir Dialoge/Untermenüs künftig als "Klappmenüs" (Accordions) direkt ins Hauptfenster integrieren können, um die "Pop-up-Flut" zu reduzieren.
 
 ## 🚀 Priorität 1: Next Steps (v2.1.0)
+- [ ] **📝 Auftrags-Planer (Print Queue & MES):** Neues Planungs-Tool für kommende Drucke. Zuweisung von Kunde/Titel, Modell-Links, Spulen (inkl. Multi-Color ID 1 + ID 2) und Notizen ("Marble für Body, Grün für Schrift"). Später direkt mit Cloud-Abzug verknüpfbar.
 - [ ] **🎨 Custom Label Designer:** Baukasten zum freien Gestalten von Etiketten (Logos hinzufügen, Schriftarten ändern).
 - [ ] **🤖 Auto-Deduction ohne Dialog:** Option hinzufügen, damit Single-Color Cloud-Drucke komplett unsichtbar im Hintergrund abgezogen werden.
 

@@ -24,6 +24,8 @@ from core.logic import calculate_net_weight, check_for_updates, parse_shelves_st
 from core.data_manager import DataManager
 from core.spool_presets import SPOOL_PRESETS
 from core.colors import get_color_name_from_hex
+from core.mobile_server import start_mobile_server, get_local_ip
+from core.label_creator import LabelCreatorDialog
 
 # --- KONFIGURATION ---
 APP_VERSION = "2.0.0"
@@ -94,477 +96,6 @@ def fetch_last_print_usage(url, key):
     return None
 def fetch_recent_jobs(url, key): 
     return []
-
-# --- MOBILE COMPANION (WEBSERVER) ---
-def get_local_ip():
-    try:
-        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        s.connect(('10.255.255.255', 1))
-        IP = s.getsockname()[0]
-        s.close()
-        return IP
-    except: return '127.0.0.1'
-
-
-MOBILE_HTML = """
-<!DOCTYPE html>
-<html lang="de">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>VibeSpool Scanner</title>
-    <script src="https://unpkg.com/html5-qrcode"></script>
-    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4/dist/tesseract.min.js"></script>
-    <style>
-        body { background-color: #2b2b2b; color: white; font-family: 'Segoe UI', sans-serif; text-align: center; margin: 0; padding: 0; }
-        .header { background: #1e1e1e; padding: 15px; box-shadow: 0 2px 5px rgba(0,0,0,0.5); }
-        h1 { font-size: 22px; margin: 0; color: #0078d7; }
-
-        .tabs { display: flex; background: #3c3f41; }
-        .tab-btn { flex: 1; padding: 15px; background: none; border: none; color: #bbb; font-size: 15px; font-weight: bold; cursor: pointer; border-bottom: 3px solid transparent; }
-        .tab-btn.active { color: white; border-bottom: 3px solid #0078d7; }
-
-        .content { padding: 20px; }
-        .tab-content { display: none; }
-        .tab-content.active { display: block; }
-
-        .btn-scan { display: inline-block; background-color: #0078d7; color: white; font-size: 18px; font-weight: bold; padding: 15px 30px; border-radius: 12px; cursor: pointer; box-shadow: 0 4px 6px rgba(0,0,0,0.3); width: 100%; box-sizing: border-box;}
-        .btn-scan:active { background-color: #005a9e; }
-        input[type="file"] { display: none; }
-        
-        #status { margin-bottom: 20px; padding: 15px; border-radius: 8px; background: #3c3f41; font-weight: bold; display:none;}
-        .success { background: #28a745 !important; color: white; } .error { background: #d9534f !important; color: white;}
-
-        #dashboard { display: none; margin-top: 10px; background: #3c3f41; padding: 15px; border-radius: 10px; text-align: left;}
-        #dash-title { color: #0078d7; font-size: 18px; margin-top: 0; margin-bottom: 5px; font-weight: bold;}
-        #dash-net { font-size: 14px; color: #bbb; margin-bottom: 15px; }
-        .control-group { margin-bottom: 15px; display: flex; gap: 10px; }
-        .control-group input, .control-group select { flex-grow: 1; padding: 12px; font-size: 16px; border-radius: 5px; border: 1px solid #555; background: #2b2b2b; color: white; }
-        .btn-action { padding: 12px 15px; font-size: 16px; font-weight: bold; border: none; border-radius: 5px; color: white; cursor: pointer; }
-        .btn-red { background: #d9534f; } .btn-green { background: #28a745; }
-        #btn-reset { width: 100%; padding: 15px; background: #555; color: white; font-size: 18px; font-weight: bold; border: none; border-radius: 8px; margin-top: 10px; cursor: pointer; }
-
-        .instruction-box { background: #3c3f41; padding: 20px; border-radius: 10px; text-align: left; line-height: 1.6; margin-bottom: 20px; border-left: 4px solid #0078d7;}
-        .instruction-box ol { padding-left: 20px; margin: 10px 0; }
-    </style>
-</head>
-<body>
-    <div class="header">
-        <h1 id="main-title">📱 VibeSpool Scanner</h1>
-    </div>
-
-    <div class="tabs" id="tab-container">
-        <button class="tab-btn active" id="btn-tab-scan" onclick="switchTab('scan')">🔍 Suchen & Umbuchen</button>
-        <button class="tab-btn" id="btn-tab-new" onclick="switchTab('new')">➕ Neu anlegen</button>
-    </div>
-
-    <div class="content">
-        <div id="status">Bereit. Mach ein Foto oder gib eine ID ein!</div>
-
-        <div id="tab-scan" class="tab-content active">
-            <label class="btn-scan" id="scan-trigger-1">
-                📷 Etikett scannen
-                <input type="file" class="qr-input-file" accept="image/*" capture="environment">
-            </label>
-
-            <div id="manual-search-box" style="margin-top: 20px; background: #3c3f41; padding: 15px; border-radius: 10px;">
-                <p style="margin-top: 0; color: #bbb; font-weight:bold;">Oder ID / Code manuell eingeben:</p>
-                <div class="control-group">
-                    <input type="text" id="manual-id" placeholder="z.B. A134 oder 401234...">
-                    <button class="btn-action btn-green" onclick="searchManual()">Suchen</button>
-                </div>
-            </div>
-        </div>
-
-        <div id="tab-new" class="tab-content">
-            <div class="instruction-box">
-                <strong style="color:white; font-size: 18px;">Hersteller-Barcode eintragen:</strong>
-                <ol style="color:#ddd;">
-                    <li>Klicke am PC in VibeSpool auf <strong style="color:white;">Neu Hinzufügen</strong> (oder auf eine Spule).</li>
-                    <li>Scanne oder tippe hier den Strichcode der Originalverpackung ein.</li>
-                </ol>
-                <p style="color:#28a745; font-weight:bold; margin-bottom:0;">👉 VibeSpool tippt den Code dann magisch am PC für dich ein!</p>
-            </div>
-
-            <label class="btn-scan" id="scan-trigger-2" style="background-color: #28a745;">
-                📷 Barcode scannen
-                <input type="file" class="qr-input-file" accept="image/*" capture="environment">
-            </label>
-
-            <div id="manual-barcode-box" style="margin-top: 20px; background: #3c3f41; padding: 15px; border-radius: 10px;">
-                <p style="margin-top: 0; color: #bbb; font-weight:bold;">Code manuell abtippen:</p>
-                <div class="control-group">
-                    <input type="text" id="manual-barcode" placeholder="z.B. 69532145...">
-                    <button class="btn-action btn-green" onclick="submitManualBarcode()">Senden</button>
-                </div>
-            </div>
-        </div>
-
-        <div id="dashboard">
-            <h3 id="dash-title">Spule</h3>
-            <div id="dash-net">Rest: 0g</div>
-            <input type="hidden" id="current-id">
-
-            <div class="control-group">
-                <input type="number" id="val-usage" placeholder="Verbrauch (z.B. 140)">
-                <button class="btn-action btn-red" onclick="sendAction('usage')">Abziehen</button>
-            </div>
-
-            <div class="control-group">
-                <select id="val-loc"></select>
-                <button class="btn-action btn-green" onclick="sendAction('move')">Umbuchen</button>
-            </div>
-
-            <button id="btn-reset" onclick="resetUI()">Fertig / Nächste Spule</button>
-        </div>
-        
-        <div id="reader-hidden" style="display:none;"></div>
-    </div>
-
-    <script>
-        const fileInputs = document.querySelectorAll('.qr-input-file');
-        const statusDiv = document.getElementById("status");
-        let currentTab = 'scan';
-
-        function switchTab(tabId) {
-            currentTab = tabId;
-            document.getElementById('tab-scan').classList.remove('active');
-            document.getElementById('tab-new').classList.remove('active');
-            document.getElementById('btn-tab-scan').classList.remove('active');
-            document.getElementById('btn-tab-new').classList.remove('active');
-
-            document.getElementById('tab-' + tabId).classList.add('active');
-            document.getElementById('btn-tab-' + tabId).classList.add('active');
-            
-            // NEU: Status ausblenden, wenn man den Tab wechselt (Bugfix)
-            statusDiv.style.display = 'none';
-            statusDiv.className = "";
-            statusDiv.innerText = "";
-
-            if(document.getElementById('dashboard').style.display === 'block') {
-                resetUI();
-            }
-        }
-
-        function resetUI() {
-            document.getElementById('dashboard').style.display = 'none';
-            document.getElementById('tab-' + currentTab).style.display = 'block';
-            document.getElementById('tab-container').style.display = 'flex';
-            statusDiv.style.display = 'none';
-            statusDiv.className = "";
-            document.getElementById('manual-id').value = "";
-            document.getElementById('manual-barcode').value = ""; // Feld leeren
-        }
-
-        function fetchDataFromServer(scanCode) {
-            statusDiv.style.display = 'block';
-            statusDiv.innerText = "Sende Anfrage an PC...";
-            statusDiv.className = "";
-
-            fetch('/scan?code=' + encodeURIComponent(scanCode))
-                .then(response => response.json())
-                .then(data => {
-                    if (data.status === 'ok') {
-                        document.getElementById('tab-scan').style.display = 'none';
-                        document.getElementById('tab-new').style.display = 'none';
-                        document.getElementById('tab-container').style.display = 'none';
-                        statusDiv.style.display = 'none';
-
-                        document.getElementById('dashboard').style.display = 'block';
-                        document.getElementById('dash-title').innerText = data.name;
-                        document.getElementById('dash-net').innerText = "Aktueller Rest: " + data.net + " g";
-                        document.getElementById('current-id').value = data.id;
-
-                        let select = document.getElementById('val-loc');
-                        select.innerHTML = '<option value="">-- Neuen Ort wählen --</option>';
-                        data.locs.forEach(l => {
-                            select.innerHTML += `<option value="${l.val}">${l.label}</option>`;
-                        });
-                    } else if (data.status === 'inserted') {
-                        statusDiv.innerText = data.msg;
-                        statusDiv.className = "success";
-                        setTimeout(resetUI, 3000);
-                    } else {
-                        statusDiv.innerText = "Fehler: " + data.msg;
-                        statusDiv.className = "error";
-                    }
-                }).catch(err => {
-                    statusDiv.innerText = "Netzwerkfehler zum PC.";
-                    statusDiv.className = "error";
-                });
-        }
-
-        function searchManual() {
-            const val = document.getElementById('manual-id').value.trim();
-            if(!val) return alert("Bitte eine ID eingeben!");
-            fetchDataFromServer(val);
-        }
-
-        // NEU: Funktion für das Absenden des manuellen Barcodes
-        function submitManualBarcode() {
-            const val = document.getElementById('manual-barcode').value.trim();
-            if(!val) return alert("Bitte einen Barcode eingeben!");
-            fetchDataFromServer(val);
-        }
-
-        function sendAction(actionType) {
-            let id = document.getElementById('current-id').value;
-            let val = "";
-
-            if (actionType === 'usage') {
-                val = document.getElementById('val-usage').value;
-                if (!val) return alert("Bitte Gewicht eingeben!");
-            } else if (actionType === 'move') {
-                val = document.getElementById('val-loc').value;
-                if (!val) return;
-            }
-
-            fetch(`/action?id=${id}&action=${actionType}&val=${encodeURIComponent(val)}`)
-                .then(res => res.json())
-                .then(data => {
-                    if (data.status === 'ok') {
-                        alert("✅ Erfolgreich gespeichert!");
-                        if (actionType === 'usage') document.getElementById('val-usage').value = '';
-                    } else {
-                        alert("⚠️ Aktion abgelehnt:\\n" + data.msg);
-                    }
-                });
-        }
-
-        async function performOCR(imageCanvas) {
-            statusDiv.style.display = 'block';
-            statusDiv.innerText = "Kein Barcode erkannt. Prüfe auf gedruckten Text (OCR)...";
-            try {
-                const result = await Tesseract.recognize(imageCanvas, 'deu+eng', {
-                    logger: m => { if(m.status === 'recognizing') statusDiv.innerText = `OCR Analyse: ${Math.round(m.progress * 100)}%`; }
-                });
-
-                const fullText = result.data.text;
-                const match = fullText.match(/(?:VibeSpool\\s*(?:ID|1D|lD|I0)?|\\b(?:ID|1D|lD|I0))\\s*[:=_\\-\\.]*\\s*([a-zA-Z0-9-]+)/i);
-
-                if (match && match[1]) {
-                    const foundId = match[1].trim();
-                    statusDiv.innerText = `Text erkannt: ID ${foundId} - Lade Daten...`;
-                    fetchDataFromServer(foundId);
-                } else {
-                    statusDiv.innerHTML = "Kein Strichcode/QR oder VibeSpool-Text gefunden.<br><br><b>Kamera las:</b><br><i style='font-size: 12px;'>" + fullText + "</i>";
-                    statusDiv.className = "error";
-                }
-            } catch (e) {
-                statusDiv.innerText = "Fehler bei der Texterkennung.";
-                statusDiv.className = "error";
-            }
-        }
-
-        const html5QrCode = new Html5Qrcode("reader-hidden");
-
-        fileInputs.forEach(input => {
-            input.addEventListener('change', e => {
-                if (e.target.files.length == 0) return;
-                const file = e.target.files[0];
-                statusDiv.style.display = 'block';
-                statusDiv.innerText = "Bild wird analysiert (Suche Strichcode / QR)..."; 
-                statusDiv.className = "";
-
-                html5QrCode.scanFile(file, true)
-                    .then(decodedText => {
-                        statusDiv.innerText = `Code erkannt! (${decodedText})`;
-                        statusDiv.className = "success";
-                        fetchDataFromServer(decodedText);
-                    })
-                    .catch(err => {
-                        const reader = new FileReader();
-                        reader.onload = function(event) {
-                            const img = new Image();
-                            img.onload = function() {
-                                const canvas = document.createElement('canvas');
-                                let w = img.width, h = img.height;
-                                if (w > h && w > 800) { h *= 800/w; w = 800; }
-                                else if (h > 800) { w *= 800/h; h = 800; }
-                                canvas.width = w; canvas.height = h;
-                                const ctx = canvas.getContext('2d');
-                                ctx.drawImage(img, 0, 0, w, h);
-                                performOCR(canvas);
-                            };
-                            img.src = event.target.result;
-                        };
-                        reader.readAsDataURL(file);
-                    });
-                    
-                e.target.value = ''; 
-            });
-        });
-    </script>
-</body>
-</html>
-"""
-
-class MobileScannerHandler(http.server.SimpleHTTPRequestHandler):
-    # Unterdrückt die nervigen Konsolen-Logs im Hintergrund
-    def log_message(self, format, *args):
-        pass 
-
-    def do_GET(self):
-        try:
-            from urllib.parse import urlparse, parse_qs
-            import json
-            parsed_path = urlparse(self.path)
-            
-            # 1. Ignoriere automatische Browser-Anfragen nach Icons sofort!
-            if parsed_path.path == '/favicon.ico':
-                self.send_response(204)
-                self.end_headers()
-                return
-            
-            if parsed_path.path == '/':
-                self.send_response(200)
-                self.send_header('Content-type', 'text/html; charset=utf-8')
-                self.end_headers()
-                self.wfile.write(MOBILE_HTML.encode('utf-8'))
-                
-            elif parsed_path.path == '/scan':
-                query = parse_qs(parsed_path.query)
-                code = query.get('code', [''])[0]
-                app_inst = getattr(self.server, 'app_instance', None)
-                
-                response_data = {"status": "error", "msg": "Spule nicht in der Datenbank."}
-                
-                if code and app_inst:
-                    import re
-                    clean_code = code.strip()
-                    item = None
-                    
-                    # 1. Prio: Exakter Treffer im neuen Hersteller-Barcode Feld!
-                    item = next((i for i in app_inst.inventory if str(i.get('barcode', '')).strip().lower() == clean_code.lower() and clean_code != ""), None)
-                    
-                    # 2. Prio: Reguläre VibeSpool ID Suche (als Text, nicht mehr als int!)
-                    if not item:
-                        match = re.search(r'(?:ID|1D|lD|VibeSpool)[\s:=_\-\.]*([a-zA-Z0-9-]+)', clean_code, re.IGNORECASE)
-                        extracted_id = match.group(1) if match else clean_code
-                        item = next((i for i in app_inst.inventory if str(i.get('id')) == str(extracted_id)), None)
-                    
-                    if item:
-                        spool_id = item['id']
-                        app_inst.root.after(0, lambda: app_inst.process_mobile_scan(code))
-                        
-                        locs = [
-                            {"label": "📦 Ins LAGER", "val": "LAGER|-"}, 
-                            {"label": "🚮 Als LEER markieren", "val": "VERBRAUCHT|-"}
-                        ]
-                        
-                        from core.logic import parse_shelves_string, calculate_net_weight
-                        parsed_shelves = parse_shelves_string(app_inst.settings.get("shelves", "REGAL|4|8"))
-                        lbl_r = app_inst.settings.get("label_row", "Fach")
-                        lbl_c = app_inst.settings.get("label_col", "Slot")
-                        all_names = app_inst.settings.get("shelf_names_v2", {})
-                        is_double = app_inst.settings.get("double_depth", False)
-                        
-                        for sh in parsed_shelves:
-                            name = sh['name']
-                            s_names = all_names.get(name, {})
-                            for r in range(1, sh['rows'] + 1):
-                                row_n = s_names.get(str(r), f"{lbl_r} {r}")
-                                for c in range(1, sh['cols'] + 1):
-                                    if is_double:
-                                        locs.append({"label": f"{name} {row_n} - {lbl_c} {c} (V)", "val": f"{name}|{row_n} - {lbl_c} {c} (V)"})
-                                        locs.append({"label": f"{name} {row_n} - {lbl_c} {c} (H)", "val": f"{name}|{row_n} - {lbl_c} {c} (H)"})
-                                    else:
-                                        locs.append({"label": f"{name} {row_n} - {lbl_c} {c}", "val": f"{name}|{row_n} - {lbl_c} {c}"})
-                                        
-                        for a in range(1, app_inst.settings.get("num_ams", 1) + 1):
-                            for s in range(1, 5):
-                                locs.append({"label": f"AMS {a} Slot {s}", "val": f"AMS {a}|{s}"})
-                                
-                        net_w = calculate_net_weight(item.get('weight_gross', '0'), item.get('spool_id', -1), item.get('empty_weight'), app_inst.spools)
-                        
-                        response_data = {
-                            "status": "ok",
-                            "id": spool_id,
-                            "name": f"{item.get('brand','')} {item.get('material','')} {item.get('color','')}",
-                            "net": int(net_w),
-                            "locs": locs
-                        }
-                    else:
-                        # NEU: Spule nicht gefunden? Dann schick den Code ins Barcode-Feld am PC!
-                        app_inst.root.after(0, lambda: app_inst.process_unknown_scan(clean_code))
-                        response_data = {
-                            "status": "inserted",
-                            "msg": f"✅ Barcode erfolgreich am PC eingetragen!\n\n[{clean_code}]"
-                        }
-
-                self.send_response(200)
-                self.send_header('Content-type', 'application/json; charset=utf-8')
-                self.send_header('Access-Control-Allow-Origin', '*')
-                self.end_headers()
-                self.wfile.write(json.dumps(response_data).encode('utf-8'))
-                
-            elif parsed_path.path == '/action':
-                query = parse_qs(parsed_path.query)
-                spool_id = query.get('id', [''])[0]
-                action = query.get('action', [''])[0]
-                val = query.get('val', [''])[0]
-                
-                app_inst = getattr(self.server, 'app_instance', None)
-                response_data = {"status": "error", "msg": "Unbekannter Fehler"}
-                
-                if app_inst and spool_id and action:
-                    spool_id_str = str(spool_id) 
-                    if action == "move" and "|" in val:
-                        target_type, target_loc = val.split("|", 1)
-                        col = app_inst.check_location_collision(target_type, target_loc, ignore_id=spool_id_str)
-                        
-                        if col and target_type.startswith("AMS"):
-                            # --- FIX 3: MOBILE QUICK SWAP ---
-                            app_inst.root.after(0, lambda: app_inst.process_mobile_swap(spool_id_str, target_type, target_loc, col))
-                            response_data = {"status": "ok"}
-                        elif col:
-                            response_data = {
-                                "status": "error", 
-                                "msg": f"Der Platz ist bereits belegt durch:\n#{col['id']} {col.get('brand','')} {col.get('color','')}"
-                            }
-                        else:
-                            app_inst.root.after(0, lambda: app_inst.process_mobile_action(spool_id_str, action, val))
-                            response_data = {"status": "ok"}
-                    else:
-                        app_inst.root.after(0, lambda: app_inst.process_mobile_action(spool_id_str, action, val))
-                        response_data = {"status": "ok"}
-                        
-                self.send_response(200)
-                self.send_header('Content-type', 'application/json; charset=utf-8')
-                self.send_header('Access-Control-Allow-Origin', '*')
-                self.end_headers()
-                self.wfile.write(json.dumps(response_data).encode('utf-8'))
-                
-        except Exception as e:
-            # --- DIE LEBENSRETTUNG ---
-            # Statt sang- und klanglos abzustürzen, fangen wir JEDEN Fehler ab!
-            print(f"Webserver Fehler abgefangen: {e}")
-            try:
-                self.send_response(500)
-                self.send_header('Content-type', 'text/plain; charset=utf-8')
-                self.send_header('Access-Control-Allow-Origin', '*')
-                self.end_headers()
-                self.wfile.write(f"VibeSpool Server Fehler: {e}".encode('utf-8'))
-            except:
-                pass
-
-def start_mobile_server(app_inst):
-    port = 8289  # Neuer, freier Port!
-    handler = MobileScannerHandler
-    try:
-        import http.server
-        # Erlaubt den sofortigen Neustart des Servers ohne Blockade
-        http.server.ThreadingHTTPServer.allow_reuse_address = True
-        
-        # Ein Threading-Server stürzt nicht ab, wenn das Handy etwas Falsches funkt
-        httpd = http.server.ThreadingHTTPServer(("", port), handler)
-        setattr(httpd, 'app_instance', app_inst) 
-        threading.Thread(target=httpd.serve_forever, daemon=True).start()
-    except Exception as e:
-        print(f"Webserver konnte nicht starten: {e}")
-
-
-
 # --- FENSTER KLASSEN ---
 class SpoolManager(tk.Toplevel):
     def __init__(self, parent, data_manager, on_close_callback):
@@ -1529,12 +1060,38 @@ class ShelfVisualizer(tk.Toplevel):
 
 class ShoppingListDialog(tk.Toplevel):
     def __init__(self, parent, inventory, app_instance):
-        super().__init__(parent); self.app = app_instance; self.inventory = inventory; self.title("Einkaufsliste / Dashboard"); self.geometry("800x600"); self.configure(bg=parent.cget('bg')); center_window(self, parent)
+        super().__init__(parent)
+        self.app = app_instance
+        self.inventory = inventory
+        self.title("Einkaufsliste / Dashboard")
+        self.geometry("800x600")
+        self.configure(bg=parent.cget('bg'))
+        from core.utils import center_window
+        center_window(self, parent)
+        
         ttk.Label(self, text="🛒 Nachzubestellende & Verbrauchte Filamente", font=("Segoe UI", 14, "bold")).pack(pady=15)
-        frm_list = ttk.Frame(self); frm_list.pack(fill="both", expand=True, padx=20, pady=(0, 20))
-        self.tree = ttk.Treeview(frm_list, columns=("brand", "color", "mat", "supplier", "sku", "price", "status"), show="headings"); self.tree.heading("brand", text="Marke"); self.tree.heading("color", text="Farbe"); self.tree.heading("mat", text="Mat."); self.tree.heading("supplier", text="Lieferant"); self.tree.heading("sku", text="SKU"); self.tree.heading("price", text="Preis"); self.tree.heading("status", text="Status")
-        self.tree.column("mat", width=50); self.tree.column("price", width=60); self.tree.column("status", width=100); scroll = ttk.Scrollbar(frm_list, orient="vertical", command=self.tree.yview); self.tree.configure(yscrollcommand=scroll.set); self.tree.pack(side="left", fill="both", expand=True); scroll.pack(side="right", fill="y"); self.tree.bind("<Double-1>", lambda e: self.open_shop_link())
-        self.populate(); btn_frm = ttk.Frame(self); btn_frm.pack(pady=10); ttk.Button(btn_frm, text="🔗 Im Shop öffnen", command=self.open_shop_link, style="Accent.TButton").pack(side="left", padx=10); ttk.Button(btn_frm, text="Als CSV exportieren (Excel)", command=self.export_csv).pack(side="left", padx=10); ttk.Button(btn_frm, text="Schließen", command=self.destroy).pack(side="left", padx=10)
+        
+        # FIX: Buttons zuerst unten anheften!
+        btn_frm = ttk.Frame(self)
+        btn_frm.pack(fill="x", side="bottom", pady=15, padx=20)
+        
+        ttk.Button(btn_frm, text="🔗 Im Shop öffnen", command=self.open_shop_link, style="Accent.TButton").pack(side="left", padx=5)
+        ttk.Button(btn_frm, text="Als CSV exportieren", command=self.export_csv).pack(side="left", padx=5)
+        ttk.Button(btn_frm, text="Schließen", command=self.destroy).pack(side="right", padx=5)
+
+        frm_list = ttk.Frame(self)
+        frm_list.pack(fill="both", expand=True, padx=20, pady=(0, 10))
+        self.tree = ttk.Treeview(frm_list, columns=("brand", "color", "mat", "supplier", "sku", "price", "status"), show="headings")
+        self.tree.heading("brand", text="Marke"); self.tree.heading("color", text="Farbe"); self.tree.heading("mat", text="Mat."); self.tree.heading("supplier", text="Lieferant"); self.tree.heading("sku", text="SKU"); self.tree.heading("price", text="Preis"); self.tree.heading("status", text="Status")
+        self.tree.column("mat", width=50); self.tree.column("price", width=60); self.tree.column("status", width=100)
+        
+        scroll = ttk.Scrollbar(frm_list, orient="vertical", command=self.tree.yview)
+        self.tree.configure(yscrollcommand=scroll.set)
+        self.tree.pack(side="left", fill="both", expand=True)
+        scroll.pack(side="right", fill="y")
+        self.tree.bind("<Double-1>", lambda e: self.open_shop_link())
+        
+        self.populate()
     def populate(self):
         for i in self.inventory:
             if i.get('reorder') or i.get('type') == 'VERBRAUCHT':
@@ -1708,7 +1265,15 @@ class StatisticsDialog(tk.Toplevel):
         total_7d = sum(values)
         ttk.Label(right_panel, text=f"Gesamtverbrauch (7 Tage): {total_7d:.1f} g", font=("Segoe UI", 10, "italic"), foreground="gray").pack(anchor="e", pady=2)
 
-        # --- 5. UNTERER BEREICH (Globale Historie integriert) ---
+        # --- 5. FOOTER BUTTONS (Zuerst packen & nach unten anheften!) ---
+        btn_frm = ttk.Frame(self)
+        btn_frm.pack(fill="x", side="bottom", pady=10, padx=20)
+        
+        ttk.Button(btn_frm, text="Schließen", command=self.destroy, style="Accent.TButton").pack(side="right", padx=5)
+        self.lbl_total = ttk.Label(btn_frm, text="", font=("Segoe UI", 12, "bold"), foreground="#0078d7")
+        self.lbl_total.pack(side="left")
+
+        # --- 6. UNTERER BEREICH (Tabelle) ---
         ttk.Separator(self, orient="horizontal").pack(fill="x", padx=20, pady=10)
         
         hist_lbl_frm = ttk.Frame(self)
@@ -1719,7 +1284,7 @@ class StatisticsDialog(tk.Toplevel):
         history_frm = ttk.Frame(self)
         history_frm.pack(fill="both", expand=True, padx=20, pady=(0, 5))
 
-        self.history_map = {} # Speichert zu jeder Zeile die exakte ID und den Index!
+        self.history_map = {}
         all_prints = []
         for item in self.inventory:
             hist = item.get("history", [])
@@ -1735,12 +1300,11 @@ class StatisticsDialog(tk.Toplevel):
                     "spool": spool_name,
                     "change": h.get("change", ""),
                     "cost": h.get("cost", "-"),
-                    "sell": h.get("sell_price", "-") # Hier wird der Wert ausgelesen!
+                    "sell": h.get("sell_price", "-")
                 })
         
         all_prints.sort(key=lambda x: x["date"], reverse=True)
 
-        # NEU: Spalten-Definition inkl. "sell"
         columns = ("date", "action", "spool", "change", "cost", "sell")
         self.tree_hist = ttk.Treeview(history_frm, columns=columns, show="headings", height=10)
         self.tree_hist.heading("date", text="Datum & Zeit")
@@ -1748,7 +1312,7 @@ class StatisticsDialog(tk.Toplevel):
         self.tree_hist.heading("spool", text="Verwendete Spule")
         self.tree_hist.heading("change", text="Verbrauch")
         self.tree_hist.heading("cost", text="Kosten")
-        self.tree_hist.heading("sell", text="VK-Preis") # Die neue Überschrift
+        self.tree_hist.heading("sell", text="VK-Preis")
 
         self.tree_hist.column("date", width=130)
         self.tree_hist.column("action", width=310)
@@ -1767,7 +1331,6 @@ class StatisticsDialog(tk.Toplevel):
 
         total_costs = 0.0
         for p in all_prints:
-            # NEU: p["sell"] wird am Ende eingefügt
             iid = self.tree_hist.insert("", "end", values=(p["date"], p["action"], p["spool"], p["change"], p["cost"], p["sell"]))
             self.history_map[iid] = {"spool_id": p["spool_id"], "hist_idx": p["hist_idx"]}
             try:
@@ -1776,12 +1339,7 @@ class StatisticsDialog(tk.Toplevel):
             except:
                 pass
 
-        # --- 6. FOOTER BUTTONS ---
-        btn_frm = ttk.Frame(self)
-        btn_frm.pack(fill="x", pady=10, padx=20)
-        
-        ttk.Label(btn_frm, text=f"Gesamtkosten aller Einträge: {total_costs:.2f} €", font=("Segoe UI", 12, "bold"), foreground="#0078d7").pack(side="left")
-        ttk.Button(btn_frm, text="Schließen", command=self.destroy, style="Accent.TButton").pack(side="right", padx=5)
+        self.lbl_total.config(text=f"Gesamtkosten aller Einträge: {total_costs:.2f} €")
 
 
     
@@ -2124,131 +1682,6 @@ class PrinterJobDialog(tk.Toplevel):
             self.on_select_job(job.get('filament_used', 0)); self.destroy()
             
         ttk.Button(self, text="Diesen Verbrauch abziehen", command=confirm, style="Accent.TButton").pack(pady=15, fill="x", padx=20)
-class LabelCreatorDialog(tk.Toplevel):
-    def __init__(self, parent, inventory):
-        super().__init__(parent)
-        self.inventory = [i for i in inventory if i.get('type') != 'VERBRAUCHT']
-        self.title("🏷️ Label Creator")
-        self.geometry("850x500")
-        self.configure(bg=parent.cget('bg'))
-        center_window(self, parent)
-
-        frm_left = ttk.Frame(self, padding=10)
-        frm_left.pack(side="left", fill="y")
-        
-        ttk.Label(frm_left, text="Spule auswählen:", font=("Segoe UI", 12, "bold")).pack(anchor="w", pady=(0, 10))
-        
-        self.listbox = tk.Listbox(frm_left, width=40, font=("Segoe UI", 10))
-        self.listbox.pack(fill="both", expand=True)
-        
-        for i in self.inventory:
-            self.listbox.insert(tk.END, f"[{i['id']}] {i.get('brand','')} {i.get('material','')} {i.get('color','')}")
-            
-        self.listbox.bind("<<ListboxSelect>>", self.on_select)
-
-        frm_right = ttk.Frame(self, padding=10)
-        frm_right.pack(side="right", fill="both", expand=True)
-        
-        ttk.Label(frm_right, text="Druck-Vorschau:", font=("Segoe UI", 12, "bold")).pack(anchor="w", pady=(0, 10))
-        
-        self.lbl_preview = tk.Label(frm_right, bg="gray", relief="solid", borderwidth=1)
-        self.lbl_preview.pack(pady=10, expand=True)
-        
-        btn_frm = ttk.Frame(frm_right)
-        btn_frm.pack(fill="x", side="bottom", pady=10)
-        
-        ttk.Button(btn_frm, text="💾 Aktuelles Label als PNG", command=self.save_label).pack(side="right", padx=(5, 0))
-        ttk.Button(btn_frm, text="📑 ALLE als PDF exportieren", command=self.trigger_pdf_export, style="Accent.TButton").pack(side="right")
-        
-        self.current_img = None
-        self.current_item = None
-        
-    def on_select(self, event):
-        sel = self.listbox.curselection()
-        if not sel: return
-        self.current_item = self.inventory[sel[0]]
-        self.generate_label(self.current_item)
-        
-    def generate_label(self, item):
-        try:
-            from PIL import ImageFont
-            try:
-                # Versucht Standard Windows-Fonts zu laden
-                font_title = ImageFont.truetype("arialbd.ttf", 45)
-                font_sub = ImageFont.truetype("arial.ttf", 35)
-                font_small = ImageFont.truetype("arial.ttf", 25)
-            except:
-                # Fallback
-                font_title = font_sub = font_small = ImageFont.load_default()
-                
-            # Wir erstellen ein hochauflösendes Label (2:1 Format, perfekt für Rollen-Etiketten)
-            img = Image.new('RGB', (800, 400), color='white')
-            draw = ImageDraw.Draw(img)
-            
-            # 1. QR Code generieren & einfügen
-            from qrcode.image.pil import PilImage
-            
-            qr = qrcode.QRCode(version=1, box_size=10, border=1)
-            qr.add_data(f"ID:{item['id']}") 
-            qr.make(fit=True)
-            
-            # FIX: Wir zwingen die Bibliothek, ein echtes PIL-Bild zu generieren
-            qr_wrapper = qr.make_image(image_factory=PilImage, fill_color="black", back_color="white")
-            
-            # get_image() holt das reine PIL-Objekt heraus, convert('RGB') macht es kompatibel
-            qr_img = qr_wrapper.get_image().convert('RGB')
-            qr_img = qr_img.resize((360, 360)) 
-            img.paste(qr_img, (20, 20))
-            
-            # 2. Texte auf die rechte Seite schreiben
-            brand = item.get('brand', 'Unbekannt')
-            mat = item.get('material', 'PLA')
-            color = item.get('color', 'Unbekannt')
-            sub = item.get('subtype', 'Standard')
-            temp_n = item.get('temp_n', '-')
-            temp_b = item.get('temp_b', '-')
-            
-            draw.text((400, 30), f"{brand} {mat}", fill="black", font=font_title)
-            draw.text((400, 100), f"{color}", fill="#333333", font=font_sub)
-            draw.text((400, 150), f"{sub}", fill="#666666", font=font_sub)
-            
-            draw.text((400, 240), f"Nozzle: {temp_n} °C", fill="black", font=font_small)
-            draw.text((400, 280), f"Bed: {temp_b} °C", fill="black", font=font_small)
-            
-            # --- NEU: Dynamische Text-Breite für die ID ---
-            id_str = str(item['id'])
-            # Bei langen IDs das "VibeSpool" weglassen, um Platz zu sparen
-            id_text = f"VibeSpool ID: {id_str}" if len(id_str) <= 3 else f"ID: {id_str}"
-            # Wenn die ID extrem lang ist, Schriftart verkleinern, damit sie nicht über den Rand ragt
-            use_font = font_title if len(id_text) < 14 else font_sub
-            
-            draw.text((400, 330), id_text, fill="black", font=use_font)
-            
-            # 3. Farb-Balken zur schnellen Erkennung
-            cols = get_colors_from_text(color)
-            hex_col = cols[0] if cols else "#FFFFFF"
-            draw.rectangle([400, 385, 760, 405], fill=hex_col, outline="black")
-            
-            self.current_img = img
-            
-            # 4. Preview für die Anzeige verkleinern
-            preview = img.resize((500, 250))
-            self.photo = ImageTk.PhotoImage(preview)
-            self.lbl_preview.config(image=self.photo)
-            
-        except Exception as e:
-            messagebox.showerror("Fehler", f"Label konnte nicht generiert werden:\n{e}")
-
-    def save_label(self):
-        if not self.current_img or not self.current_item: return
-        file_name = f"Label_{self.current_item['id']}_{self.current_item.get('brand', '')}_{self.current_item.get('material', '')}.png"
-        fp = filedialog.asksaveasfilename(defaultextension=".png", filetypes=[("PNG Bild", "*.png")], initialfile=file_name)
-        if fp:
-            self.current_img.save(fp)
-            messagebox.showinfo("Gespeichert", f"Das Etikett wurde erfolgreich gespeichert!\nDu kannst es nun ausdrucken.")
-    def trigger_pdf_export(self):
-        # Ruft den neuen Smart Export Dialog auf
-        PdfExportDialog(self, self.inventory, getattr(self, 'spools', []))
 
 def create_tray_icon():
     # Zeichnet einen simplen blauen Kreis als Platzhalter-Icon
@@ -2256,69 +1689,6 @@ def create_tray_icon():
     draw = ImageDraw.Draw(image)
     draw.ellipse((8, 8, 56, 56), fill=(0, 120, 215))
     return image
-
-class CostCenterDialog(tk.Toplevel):
-    def __init__(self, parent, inventory, app_instance):
-        super().__init__(parent)
-        self.title("📜 Globale Druck-Historie & Kosten")
-        self.geometry("1000x600")
-        self.configure(bg=parent.cget('bg'))
-        self.attributes('-topmost', True)
-        from core.utils import center_window
-        center_window(self, parent)
-
-        ttk.Label(self, text="Globale Druck-Historie", font=("Segoe UI", 16, "bold")).pack(pady=(15, 5))
-        ttk.Label(self, text="Hier siehst du alle protokollierten Verbräuche und Kosten über alle Spulen hinweg.", foreground="gray").pack(pady=(0, 15))
-
-        # --- Daten aus ALLEN Spulen sammeln ---
-        all_prints = []
-        for item in inventory:
-            hist = item.get("history", [])
-            spool_name = f"{item.get('id', '?')} | {item.get('material', '')} {item.get('color_name', '')}"
-            for h in hist:
-                all_prints.append({
-                    "date": h.get("date", ""),
-                    "action": h.get("action", ""),
-                    "spool": spool_name,
-                    "change": h.get("change", ""),
-                    "cost": h.get("cost", "-")
-                })
-        
-        # Nach Datum sortieren (Neueste ganz oben)
-        all_prints.sort(key=lambda x: x["date"], reverse=True)
-
-        # --- Tabelle aufbauen ---
-        columns = ("date", "action", "spool", "change", "cost")
-        tree = ttk.Treeview(self, columns=columns, show="headings", height=20)
-        tree.heading("date", text="Datum")
-        tree.heading("action", text="Druck / Aktion")
-        tree.heading("spool", text="Verwendete Spule")
-        tree.heading("change", text="Verbrauch")
-        tree.heading("cost", text="Kosten")
-
-        tree.column("date", width=120)
-        tree.column("action", width=300)
-        tree.column("spool", width=250)
-        tree.column("change", width=80, anchor="e")
-        tree.column("cost", width=80, anchor="e")
-        tree.pack(fill="both", expand=True, padx=20, pady=10)
-
-        total_costs = 0.0
-        for p in all_prints:
-            tree.insert("", "end", values=(p["date"], p["action"], p["spool"], p["change"], p["cost"]))
-            # Summe der Kosten berechnen
-            try:
-                c_str = p["cost"].replace(" €", "").replace(",", ".")
-                total_costs += float(c_str)
-            except:
-                pass
-
-        # --- Footer mit Summe ---
-        footer = ttk.Frame(self)
-        footer.pack(fill="x", padx=20, pady=10)
-        
-        ttk.Label(footer, text=f"Gesamtkosten aller Einträge: {total_costs:.2f} €", font=("Segoe UI", 12, "bold"), foreground="#0078D7").pack(side="left")
-        ttk.Button(footer, text="Schließen", command=self.destroy, style="Accent.TButton").pack(side="right")
 
 class ManualPrintDialog(tk.Toplevel):
     def __init__(self, parent, spool_item, settings, callback):
@@ -2425,17 +1795,20 @@ class QuickCostCalculator(tk.Toplevel):
     def __init__(self, parent, settings):
         super().__init__(parent)
         self.title("🧮 Quick-Cost Rechner")
-        self.geometry("400x500")
+        self.geometry("400x550") # Etwas höher
         self.configure(bg=parent.cget('bg'))
         from core.utils import center_window
         center_window(self, parent)
 
         ttk.Label(self, text="Schnell-Kalkulation", font=("Segoe UI", 14, "bold")).pack(pady=15)
         
+        # FIX: Button Frame ZUERST packen und hart nach unten
+        btn_frm = ttk.Frame(self, padding=10)
+        btn_frm.pack(fill="x", side="bottom", pady=10)
+        
         frm = ttk.Frame(self, padding=20)
         frm.pack(fill="both", expand=True)
 
-        # Eingaben
         fields = [
             ("Materialpreis (€/kg):", "price", "25.00"),
             ("Verbrauch (Gramm):", "weight", "100"),
@@ -2457,13 +1830,11 @@ class QuickCostCalculator(tk.Toplevel):
                 p = float(self.entries["price"].get().replace(",", "."))
                 w = float(self.entries["weight"].get().replace(",", "."))
                 t = float(self.entries["time"].get().replace(",", "."))
-                
                 mat = w * (p / 1000.0)
                 kwh = float(settings.get("kwh_price", 0.30))
                 watt = int(settings.get("printer_watts", 150))
                 elec = t * (watt / 1000.0) * kwh
                 wear = t * float(settings.get("wear_per_hour", 0.20))
-                
                 total = mat + elec + wear
                 margin = int(settings.get("profit_margin", 0))
                 sell = total * (1 + (margin/100.0))
@@ -2475,8 +1846,8 @@ class QuickCostCalculator(tk.Toplevel):
             except:
                 self.lbl_res.config(text="⚠️ Bitte Zahlen eingeben!")
 
-        ttk.Button(frm, text="Berechnen", command=calc, style="Accent.TButton").pack(fill="x", pady=5)
-        ttk.Button(frm, text="Schließen", command=self.destroy).pack(fill="x")
+        ttk.Button(btn_frm, text="Schließen", command=self.destroy).pack(side="right", padx=5)
+        ttk.Button(btn_frm, text="Berechnen", command=calc, style="Accent.TButton").pack(side="right", padx=5)
 
 
 class FilamentApp:
@@ -2558,13 +1929,35 @@ class FilamentApp:
         self.menu_opts.add_command(label="⚙ System-Optionen & Smart Home", command=lambda: self.open_settings(3))
         self.menu_opts.add_command(label="📋 Listen-Verwaltung", command=lambda: self.open_settings(4))
         self.menu_opts.add_separator()
+        self.menu_opts.add_command(label="📥 CSV Inventar Importieren", command=self.import_csv)
+        self.menu_opts.add_command(label="💾 Datenbank Backup / Restore", command=lambda: BackupDialog(self.root, self.data_manager, self))
+        self.menu_opts.add_separator()
         self.menu_opts.add_command(label="🔄 Update-Check", command=self.manual_update_check)
         self.btn_opts["menu"] = self.menu_opts
         self.btn_opts.pack(side="right", padx=5)
         
-        ttk.Button(top_bar, text="💾 Backup", command=lambda: BackupDialog(self.root, self.data_manager, self)).pack(side="right", padx=5); ttk.Button(top_bar, text="🛒 Einkaufsliste", command=lambda: ShoppingListDialog(self.root, self.inventory, self)).pack(side="right", padx=5); 
-        ttk.Button(top_bar, text="📥 CSV Import", command=self.import_csv).pack(side="right", padx=5)
-        ttk.Button(top_bar, text="☕ Spenden", command=self.open_paypal).pack(side="right", padx=5); self.btn_theme = ttk.Button(top_bar, text="...", command=self.toggle_theme); self.btn_theme.pack(side="right", padx=5); self.update_theme_button_text()
+        ttk.Button(top_bar, text="🛒 Einkaufsliste", command=lambda: ShoppingListDialog(self.root, self.inventory, self)).pack(side="right", padx=5)
+        
+        # --- NEU: Spenden-Button mit echtem goldenem Verlauf! ---
+        def make_gradient(w, h, c1, c2):
+            img = Image.new("RGB", (w, h))
+            draw = ImageDraw.Draw(img)
+            r1, g1, b1 = int(c1[1:3],16), int(c1[3:5],16), int(c1[5:7],16)
+            r2, g2, b2 = int(c2[1:3],16), int(c2[3:5],16), int(c2[5:7],16)
+            for x in range(w):
+                r = int(r1 + (r2 - r1) * x / w)
+                g = int(g1 + (g2 - g1) * x / w)
+                b = int(b1 + (b2 - b1) * x / w)
+                draw.line([(x, 0), (x, h)], fill=(r,g,b))
+            return ImageTk.PhotoImage(img)
+            
+        self.donate_img = make_gradient(110, 28, "#FFD700", "#FF8C00") # Gold zu Dunkelorange
+        self.btn_donate = tk.Button(top_bar, text="☕ Spenden", image=self.donate_img, compound="center", 
+                                    command=self.open_paypal, font=("Segoe UI", 9, "bold"), fg="#333333", 
+                                    bg="#FFD700", activebackground="#FF8C00", borderwidth=0, cursor="hand2")
+        self.btn_donate.pack(side="right", padx=5)
+
+        self.btn_theme = ttk.Button(top_bar, text="...", command=self.toggle_theme); self.btn_theme.pack(side="right", padx=5); self.update_theme_button_text()
 
         # --- SIDEBAR BUTTONS ---
         self.nav_btns = []
@@ -3541,14 +2934,6 @@ class FilamentApp:
         # 1. Die neue Liste im Hintergrund zuweisen
         self.combo_loc_id['values'] = new_values
         
-        # 2. FIX: Steht noch Blödsinn vom alten Lagerort im Feld? Dann automatisch korrigieren!
-        current_val = self.combo_loc_id.get()
-        if current_val not in new_values:
-            self.combo_loc_id.set(new_values[0])
-
-        # 1. Die neue Liste im Hintergrund zuweisen
-        self.combo_loc_id['values'] = new_values
-        
         # 2. Steht noch Blödsinn vom alten Lagerort im Feld? Dann automatisch korrigieren!
         current_val = self.combo_loc_id.get()
         if current_val not in new_values:
@@ -3709,6 +3094,7 @@ class FilamentApp:
             
         self.tree.tag_configure("alert", background="#ffe6e6", foreground="#d9534f")
         self.tree.tag_configure("grayed", foreground="#999999")
+    
     def get_input_data(self):
         try:
             cap = int(self.var_capacity.get().strip() or 1000)
@@ -3716,31 +3102,28 @@ class FilamentApp:
             
             gross_str = self.var_gross.get().strip().replace(',', '.')
             
-            # --- NEU: Kugelsichere Logik für leere Spulen ---
             if self.combo_type.get() == "VERBRAUCHT":
                 gross_val = 0.0
-                self.var_gross.set("0") # UI direkt mit nullen
+                self.var_gross.set("0")
             elif not gross_str:
                 sp = next((s for s in self.spools if s['id'] == spool_id), None)
                 gross_val = float(cap + (sp['weight'] if sp else 0))
-                self.var_gross.set(f"{gross_val:g}") # Update im UI sichtbar machen
+                self.var_gross.set(f"{gross_val:g}")
             else:
                 gross_val = float(gross_str)
                 if gross_val < 0:
                     gross_val = 0.0
 
-            return {"id": self.entry_id.get().strip() if self.entry_id.get().strip() else None, "rfid": self.entry_rfid.get().strip(), "brand": self.entry_brand.get().strip(), "material": self.combo_material.get().strip(), "color": self.combo_color.get().strip(), "subtype": self.combo_subtype.get().strip(), "type": self.combo_type.get(), "loc_id": self.combo_loc_id.get().strip(), "flow": self.entry_flow.get().strip(), "pa": self.entry_pa.get().strip(), "spool_id": spool_id, "weight_gross": gross_val, "capacity": cap, "is_refill": self.var_is_refill.get(), "is_empty": self.combo_type.get() == "VERBRAUCHT", "reorder": self.var_reorder.get(), "supplier": self.entry_supplier.get().strip(), "sku": self.entry_sku.get().strip(), "price": self.var_price.get().strip(), "link": self.entry_link.get().strip(), "temp_n": self.entry_temp_n.get().strip(), "temp_b": self.entry_temp_b.get().strip(), "note": self.entry_note.get().strip(), "barcode": self.entry_barcode.get().strip()}
-        except Exception as e: 
-            messagebox.showwarning(
-                "Eingabe-Fehler", 
-                f"Bitte prüfe deine Eingaben!\nHast du vielleicht Text in ein Zahlenfeld getippt?\n\nFehler-Details:\n{e}"
-            )
             custom_empty = None
             if spool_id == -1:
                 try: custom_empty = float(self.var_custom_empty.get().replace(',', '.'))
                 except: pass
                 
             return {"id": self.entry_id.get().strip() if self.entry_id.get().strip() else None, "rfid": self.entry_rfid.get().strip(), "brand": self.entry_brand.get().strip(), "material": self.combo_material.get().strip(), "color": self.combo_color.get().strip(), "subtype": self.combo_subtype.get().strip(), "type": self.combo_type.get(), "loc_id": self.combo_loc_id.get().strip(), "flow": self.entry_flow.get().strip(), "pa": self.entry_pa.get().strip(), "spool_id": spool_id, "empty_weight": custom_empty, "weight_gross": gross_val, "capacity": cap, "is_refill": self.var_is_refill.get(), "is_empty": self.combo_type.get() == "VERBRAUCHT", "reorder": self.var_reorder.get(), "supplier": self.entry_supplier.get().strip(), "sku": self.entry_sku.get().strip(), "price": self.var_price.get().strip(), "link": self.entry_link.get().strip(), "temp_n": self.entry_temp_n.get().strip(), "temp_b": self.entry_temp_b.get().strip(), "note": self.entry_note.get().strip(), "barcode": self.entry_barcode.get().strip()}
+            
+        except Exception as e: 
+            messagebox.showwarning("Eingabe-Fehler", f"Bitte prüfe deine Eingaben!\nHast du vielleicht Text in ein Zahlenfeld getippt?\n\nFehler-Details:\n{e}")
+            return None
 
     def check_location_collision(self, loc_type, loc_id, ignore_id=None):
         # Unendliche Lagerorte ignorieren wir (da passen beliebig viele Spulen rein)
@@ -3904,7 +3287,6 @@ class FilamentApp:
             if val.startswith(f"{i.get('spool_id', -1)} -"): self.combo_spool.set(val); break
         self.var_capacity.set(str(i.get('capacity', 1000))); gross = str(i.get('weight_gross', '0')).replace(',', '.'); float_g = float(gross) if gross else 0; self.var_gross.set(str(float_g).rstrip('0').rstrip('.') if float_g > 0 else "0"); self.var_price.set(str(i.get('price', ''))); self.update_net_weight_display(); 
         self.entry_supplier.insert(0, i.get('supplier', '')); self.entry_sku.insert(0, i.get('sku', '')); self.entry_link.insert(0, i.get('link', '')); self.entry_temp_n.insert(0, i.get('temp_n', '')); self.entry_temp_b.insert(0, i.get('temp_b', '')); self.entry_note.insert(0, i.get('note', '')); self.entry_barcode.insert(0, i.get('barcode', ''));
-        self.entry_temp_n.insert(0, i.get('temp_n', '')); self.entry_temp_b.insert(0, i.get('temp_b', '')); self.entry_note.insert(0, i.get('note', ''));
         self.var_is_refill.set(i.get('is_refill', False))
         self.last_selected_type = self.combo_type.get()
     
@@ -4390,6 +3772,8 @@ class FilamentApp:
             win.destroy()
             
         ttk.Separator(win, orient="horizontal").pack(fill="x", pady=10)
+        btn_frm_mc = ttk.Frame(win, padding=10)
+        btn_frm_mc.pack(fill="x", side="bottom")
         ttk.Button(win, text="💾 Gewichte abziehen & Speichern", command=apply_split, style="Accent.TButton").pack(pady=10)
 
     def run_ams_sync(self):
@@ -4562,8 +3946,10 @@ class FilamentApp:
 
         ttk.Separator(frm, orient="horizontal").grid(row=6, column=0, columnspan=3, sticky="ew", pady=15)
         
-        # Der Speichern-Button
-        ttk.Button(win, text="💾 Sync in Datenbank speichern", command=lambda: self.apply_ams_sync(win), style="Accent.TButton").pack(pady=15)
+        # FIX: Container für Button hart nach unten!
+        btn_frm = ttk.Frame(win, padding=10)
+        btn_frm.pack(fill="x", side="bottom")
+        ttk.Button(btn_frm, text="💾 Sync in Datenbank speichern", command=lambda: self.apply_ams_sync(win), style="Accent.TButton").pack(side="right")
 
     def auto_import_from_ams(self, r, target_cb):
         # 1. Neue ID generieren
@@ -5395,16 +4781,15 @@ class FilamentApp:
                 
                 tree.insert("", "end", iid=job_id, values=(stat, job['name'], f"{job['weight']:.1f} g", job['date']), tags=tags)
 
-        # --- Button-Leiste ---
+        # --- FIX: Button-Leiste ZUERST unten packen ---
         btn_frame = ttk.Frame(win)
-        btn_frame.pack(fill="x", padx=10, pady=(0, 10))
+        btn_frame.pack(fill="x", side="bottom", padx=10, pady=15)
 
         def on_deduct_click(event=None):
             sel = tree.selection()
             if not sel: return
             job_id = sel[0]
             job = self.current_cloud_jobs[job_id]
-            # Wir geben refresh_tree mit, damit der Dialog die Liste putzen kann!
             self._ask_for_smart_deduction(job, win, tree, refresh_tree)
 
         def on_ignore_toggle():
@@ -5412,23 +4797,22 @@ class FilamentApp:
             if not sel: return
             job_id = sel[0]
             ignored = self.settings.get("ignored_cloud_jobs", [])
-            
-            if job_id in ignored:
-                ignored.remove(job_id)
+            if job_id in ignored: ignored.remove(job_id)
             else:
                 ignored.append(job_id)
                 deducted = self.settings.get("deducted_cloud_jobs", [])
                 if job_id in deducted: deducted.remove(job_id)
-                
             self.settings["ignored_cloud_jobs"] = ignored
             self.data_manager.save_settings(self.settings)
-            refresh_tree() # Einfach neu laden
+            refresh_tree() 
 
         tree.bind("<Double-1>", on_deduct_click)
         ttk.Button(btn_frame, text="✅ Abziehen", style="Accent.TButton", command=on_deduct_click).pack(side="left", padx=5)
         ttk.Button(btn_frame, text="🚫 Ignorieren", command=on_ignore_toggle).pack(side="left", padx=5)
         ttk.Button(btn_frame, text="Schließen", command=win.destroy).pack(side="right", padx=5)
         
+        # --- Die Tabelle (Nimmt sich den Restspeicher) ---
+        tree.pack(fill="both", expand=True, padx=10, pady=(10, 0))
         refresh_tree() # Initiales Laden
 
     def broadcast_mqtt(self):
@@ -5546,147 +4930,6 @@ class FilamentApp:
             self.mqtt_retry_active = False
                 
         threading.Thread(target=send_task, daemon=True).start() 
-    
-class PdfExportDialog(tk.Toplevel):
-    def __init__(self, parent, inventory, spools):
-        super().__init__(parent)
-        self.inventory = inventory
-        self.spools = spools
-        self.title("📑 PDF Smart Export")
-        self.geometry("450x300")
-        self.configure(bg=parent.cget('bg'))
-        from core.utils import center_window
-        center_window(self, parent)
-        self.transient(parent)
-        self.grab_set()
-        self.last_selected_type = "Lager" # Standardmäßig mit Lager starten
-
-        ttk.Label(self, text="Wie möchtest du die Etiketten drucken?", font=("Segoe UI", 12, "bold")).pack(pady=(15, 10))
-
-        self.var_format = tk.StringVar(value="A4")
-        
-        frm_opts = ttk.Frame(self, padding=10)
-        frm_opts.pack(fill="x")
-        
-        ttk.Radiobutton(frm_opts, text="📄 DIN A4 Bogen (Mehrere pro Seite / Gitter)", variable=self.var_format, value="A4", command=self.toggle_opts).pack(anchor="w", pady=5)
-        
-        self.frm_grid = ttk.Frame(frm_opts)
-        self.frm_grid.pack(fill="x", padx=20)
-        ttk.Label(self.frm_grid, text="Spalten:").grid(row=0, column=0, sticky="w")
-        self.var_cols = tk.IntVar(value=2)
-        ttk.Spinbox(self.frm_grid, from_=1, to=5, textvariable=self.var_cols, width=5).grid(row=0, column=1, padx=5, pady=2)
-        
-        ttk.Label(self.frm_grid, text="Reihen:").grid(row=1, column=0, sticky="w")
-        self.var_rows = tk.IntVar(value=4)
-        ttk.Spinbox(self.frm_grid, from_=1, to=15, textvariable=self.var_rows, width=5).grid(row=1, column=1, padx=5, pady=2)
-
-        ttk.Radiobutton(frm_opts, text="🏷️ Rollen-Etikettendrucker (1 Label = 1 Seite)", variable=self.var_format, value="ROLL", command=self.toggle_opts).pack(anchor="w", pady=(15, 5))
-
-        ttk.Button(self, text="🚀 PDF Generieren", command=self.generate, style="Accent.TButton").pack(pady=15, fill="x", padx=40)
-
-    def toggle_opts(self):
-        if self.var_format.get() == "A4":
-            self.frm_grid.pack(fill="x", padx=20)
-        else:
-            self.frm_grid.pack_forget()
-
-    def generate(self):
-        fp = filedialog.asksaveasfilename(defaultextension=".pdf", filetypes=[("PDF", "*.pdf")], title="Labels speichern", initialfile="VibeSpool_Labels.pdf")
-        if not fp: return
-
-        try:
-            from PIL import Image, ImageDraw, ImageFont
-            import qrcode
-            from qrcode.image.pil import PilImage
-
-            try:
-                font_title = ImageFont.truetype("arialbd.ttf", 45)
-                font_sub = ImageFont.truetype("arial.ttf", 35)
-                font_small = ImageFont.truetype("arial.ttf", 25)
-            except:
-                font_title = font_sub = font_small = ImageFont.load_default()
-
-            pdf_pages = []
-            
-            # Helper zum Zeichnen eines einzelnen Labels
-            def draw_single_label(item):
-                from core.utils import get_colors_from_text
-                img = Image.new('RGB', (800, 400), color='white')
-                draw = ImageDraw.Draw(img)
-                
-                qr = qrcode.QRCode(version=1, box_size=10, border=1)
-                qr.add_data(f"ID:{item['id']}") 
-                qr.make(fit=True)
-                qr_img = qr.make_image(image_factory=PilImage, fill_color="black", back_color="white").get_image().convert('RGB').resize((360, 360)) 
-                img.paste(qr_img, (20, 20))
-                
-                draw.text((400, 30), f"{item.get('brand', '')} {item.get('material', '')}", fill="black", font=font_title)
-                draw.text((400, 100), f"{item.get('color', '')}", fill="#333333", font=font_sub)
-                draw.text((400, 150), f"{item.get('subtype', 'Standard')}", fill="#666666", font=font_sub)
-                draw.text((400, 240), f"Nozzle: {item.get('temp_n', '-')} °C", fill="black", font=font_small)
-                draw.text((400, 280), f"Bed: {item.get('temp_b', '-')} °C", fill="black", font=font_small)
-                
-                # --- NEU: Dynamische Text-Breite für die ID ---
-                id_str = str(item['id'])
-                id_text = f"VibeSpool ID: {id_str}" if len(id_str) <= 3 else f"ID: {id_str}"
-                use_font = font_title if len(id_text) < 14 else font_sub
-                
-                draw.text((400, 330), id_text, fill="black", font=use_font)
-                
-                cols = get_colors_from_text(item.get('color', ''))
-                hex_col = cols[0] if cols else "#FFFFFF"
-                draw.rectangle([400, 385, 760, 405], fill=hex_col, outline="black")
-                return img
-
-            # --- LOGIK FÜR ROLLEN-DRUCKER ---
-            if self.var_format.get() == "ROLL":
-                for item in self.inventory:
-                    pdf_pages.append(draw_single_label(item))
-
-            # --- LOGIK FÜR DIN A4 BÖGEN ---
-            else:
-                a4_w, a4_h = 2480, 3508 # DIN A4 bei 300 DPI
-                cols, rows = max(1, self.var_cols.get()), max(1, self.var_rows.get())
-                
-                # Wir berechnen die Ränder und Abstände automatisch!
-                label_w, label_h = 800, 400
-                margin_x = (a4_w - (cols * label_w)) // (cols + 1)
-                margin_y = (a4_h - (rows * label_h)) // (rows + 1)
-                
-                current_page = Image.new('RGB', (a4_w, a4_h), 'white')
-                x_idx, y_idx = 0, 0
-                
-                for item in self.inventory:
-                    lbl_img = draw_single_label(item)
-                    
-                    pos_x = margin_x + (x_idx * (label_w + margin_x))
-                    pos_y = margin_y + (y_idx * (label_h + margin_y))
-                    
-                    current_page.paste(lbl_img, (pos_x, pos_y))
-                    
-                    x_idx += 1
-                    if x_idx >= cols:
-                        x_idx = 0
-                        y_idx += 1
-                        
-                    # Wenn die Seite voll ist, speichern wir sie ab und nehmen ein neues A4 Blatt!
-                    if y_idx >= rows:
-                        pdf_pages.append(current_page)
-                        current_page = Image.new('RGB', (a4_w, a4_h), 'white')
-                        x_idx, y_idx = 0, 0
-                
-                # Die letzte (evtl. unfertige) Seite noch anhängen
-                if x_idx > 0 or y_idx > 0:
-                    pdf_pages.append(current_page)
-
-            if pdf_pages:
-                pdf_pages[0].save(fp, "PDF", resolution=300.0 if self.var_format.get() == "A4" else 100.0, save_all=True, append_images=pdf_pages[1:])
-                messagebox.showinfo("Exportiert", f"Erfolg!\n{len(self.inventory)} Etiketten wurden auf {len(pdf_pages)} Seite(n) verteilt.", parent=self)
-                self.destroy()
-
-        except Exception as e:
-            messagebox.showerror("Fehler", f"Fehler beim Generieren:\n{e}", parent=self)
-
 if __name__ == "__main__":
     import socket
     import sys

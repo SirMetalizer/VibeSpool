@@ -21,15 +21,13 @@
 - [x] **Hersteller-Barcode Scanner:** Handy-Scanner liest jetzt auch 1D-Strichcodes auf Originalverpackungen und lernt diese.
 
 ## 🐛 Hotfixes & UX-Polish (v2.0.1)
-- [ ] **BUGFIX:** Nozzle- und Bed-Temp Felder verdoppeln ihre Werte beim Laden, da die Insert-Befehle im Code versehentlich doppelt ausgeführt werden.
-- [ ] **UX-FIX:** Systematische Prüfung aller Pop-up-Fenster: Buttons müssen hart an den unteren Rand gekoppelt werden (`side="bottom"`), damit sie bei hoher Windows-Skalierung nicht mehr abgeschnitten werden.
+- [X] **BUGFIX:** Nozzle- und Bed-Temp Felder verdoppeln ihre Werte beim Laden, da die Insert-Befehle im Code versehentlich doppelt ausgeführt werden.
+- [x] **UX-FIX:** Systematische Prüfung aller Pop-up-Fenster: Buttons müssen hart an den unteren Rand gekoppelt werden (`side="bottom"`), damit sie bei hoher Windows-Skalierung nicht mehr abgeschnitten werden.
 - [ ] **UX-EVALUATION:** Prüfung, ob wir Dialoge/Untermenüs künftig als "Klappmenüs" (Accordions) direkt ins Hauptfenster integrieren können, um die "Pop-up-Flut" zu reduzieren.
 
 ## 🚀 Priorität 1: Next Steps (v2.1.0)
 - [ ] **📝 Auftrags-Planer (Print Queue & MES):** Neues Planungs-Tool für kommende Drucke. Zuweisung von Kunde/Titel, Modell-Links, Spulen (inkl. Multi-Color ID 1 + ID 2) und Notizen ("Marble für Body, Grün für Schrift"). Später direkt mit Cloud-Abzug verknüpfbar.
 - [ ] **🎨 Custom Label Designer:** Baukasten zum freien Gestalten von Etiketten (Logos hinzufügen, Schriftarten ändern).
-- [ ] **🤖 Auto-Deduction ohne Dialog:** Option hinzufügen, damit Single-Color Cloud-Drucke komplett unsichtbar im Hintergrund abgezogen werden.
 
 ## 🔮 Langzeit-Vision (v3.0)
-- [ ] **🗄️ SQLite Migration:** Wechsel von JSON auf eine echte, relationale Datenbank für noch mehr Performance bei hunderten Spulen.
 - [ ] **📂 3MF Deep-Dive FTP Parsing:** Automatisches Auslesen der Gewichte pro Slot direkt vom Drucker-Speicher, noch bevor die Cloud es meldet.

@@ -15,12 +15,6 @@ Dieses Update bringt massive Verbesserungen für den Workflow und die Verwaltung
 
 ### ✨ Die Highlights:
 
-* **📝 NEU: Auftrags-Planer (Print Queue & MES):**
-  VibeSpool wird zur Schaltzentrale deiner Druck-Aufträge! Mit dem neuen Planungs-Tool kannst du anstehende Drucke verwalten. Weise Kunden oder Projekt-Titel zu, speichere direkte Links zu den 3D-Modellen und hinterlege genaue Notizen (z.B. "Marble für Body, Grün für Schrift").  
-  **Das Highlight:** Du kannst die exakten Spulen aus deinem Inventar (inkl. Multi-Color ID 1 + ID 2) direkt dem Auftrag zuweisen!
-
-  <img width="1068" height="747" alt="image" src="https://github.com/user-attachments/assets/720140a3-a733-4e17-bfdd-0f3322211ff3" />
-
 * **Slide-In Panels statt Pop-up Chaos:** 
   Egal ob Kostenschnellrechner, Regal-Konfigurator oder Bambu-Cloud-Sync: Alle Werkzeuge öffnen sich jetzt elegant als verschiebbares Panel an der rechten Bildschirmseite! Ihr könnt die Fenster beliebig breit ziehen und habt eure Haupttabelle (oder die Lager-Vorschau) links weiterhin voll im Blick.
 

@@ -94,8 +94,6 @@ def get_colors_from_text(text):
         "lavender": "#E6E6FA", "lavendel": "#E6E6FA", "lilac": "#C8A2C8", "flieder": "#C8A2C8",
         "amethyst": "#9966CC", "aubergine": "#3D0C02",
         
-        # Spezial (Kräftige Farbschemas)
-        "rainbow": "#FF0000", "regenbogen": "#FF0000"
     }
     
     # 🌫️ STUFE 2: Fallback-Farben (z.B. "Clear", "Translucent"). 

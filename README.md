@@ -41,15 +41,15 @@ VibeSpool macht den Sprung zum professionellen ERP-System für Gewerbetreibende 
 * **Quick-Cost Rechner:** Ein Standalone-Kalkulator, um schnell Preise für Kunden zu berechnen, ohne das Lager anzufassen.
 
 
-Übersicht Finanzen:
+**Übersicht Finanzen:**
 
 <img width="1096" height="888" alt="image" src="https://github.com/user-attachments/assets/d6087302-53c5-4680-8416-14f69bf809c8" />
 
-Druckhistorie aus der Bambu Cloud:
+**Druckhistorie aus der Bambu Cloud:**
 
 <img width="853" height="641" alt="image" src="https://github.com/user-attachments/assets/882971f5-ac53-4c55-bd49-cd73ced4ca34" />
 
-Kostenrechner:
+**Kostenrechner:**
 
 <img width="964" height="697" alt="image" src="https://github.com/user-attachments/assets/d56dcd36-11d0-47f3-b1d6-358f7c92ffe7" />
 

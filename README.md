@@ -1,6 +1,6 @@
 # 🧵 VibeSpool - Das smarte Filament-Management-System
 
-![Version](https://img.shields.io/badge/version-1.10.0-blue.svg)
+![Version](https://img.shields.io/badge/version-2.0.1-blue.svg)
 ![Python](https://img.shields.io/badge/python-3.10%2B-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
@@ -10,9 +10,38 @@
 
 ---
 
+## 🆕 Was ist neu in Version 2.0.1? ("The Pop-up Killer & Print Queue Update")
+Dieses Update bringt massive Verbesserungen für den Workflow und die Verwaltung eures Filament-Lagers. Wir haben das Feedback ernst genommen und nervige Pop-up-Fenster in Rente geschickt!
+
+### ✨ Die Highlights:
+
+* **📝 NEU: Auftrags-Planer (Print Queue & MES):**
+  VibeSpool wird zur Schaltzentrale deiner Druck-Aufträge! Mit dem neuen Planungs-Tool kannst du anstehende Drucke verwalten. Weise Kunden oder Projekt-Titel zu, speichere direkte Links zu den 3D-Modellen und hinterlege genaue Notizen (z.B. "Marble für Body, Grün für Schrift").  
+  **Das Highlight:** Du kannst die exakten Spulen aus deinem Inventar (inkl. Multi-Color ID 1 + ID 2) direkt dem Auftrag zuweisen!
+
+  <img width="1068" height="747" alt="image" src="https://github.com/user-attachments/assets/720140a3-a733-4e17-bfdd-0f3322211ff3" />
+
+* **Slide-In Panels statt Pop-up Chaos:** 
+  Egal ob Kostenschnellrechner, Regal-Konfigurator oder Bambu-Cloud-Sync: Alle Werkzeuge öffnen sich jetzt elegant als verschiebbares Panel an der rechten Bildschirmseite! Ihr könnt die Fenster beliebig breit ziehen und habt eure Haupttabelle (oder die Lager-Vorschau) links weiterhin voll im Blick.
+
+  <img width="1263" height="893" alt="image" src="https://github.com/user-attachments/assets/dcf05c97-76ce-4c55-8f93-b606b6a28175" />
+
+* **Grid-Naming V2 (Die absolute Lager-Kontrolle):** 
+  Ihr wolltet es, ihr bekommt es! Ab sofort könnt ihr im Regal-Planer nicht mehr nur die Reihen (Fächer) umbenennen, sondern auch jede einzelne Spalte (Slot). Wenn Slot 3 ab sofort "PLA-Spalte" heißen soll – bitteschön!
+
+* **Magische Spulen-Umbuchung:**
+  Das Beste am neuen Naming-System: Ändert ihr den Namen eines Fachs oder Slots, sucht VibeSpool im Hintergrund automatisch alle Spulen, die dort liegen, und bucht sie live auf den neuen Namen um. Kein manuelles Anpassen mehr nötig!
+
+* **Live-Updates (Keine Neustarts mehr):**
+  Wenn ihr in den Einstellungen Dinge wie Doppeltiefe, Fach-Namen oder Regal-Größen ändert, müsst ihr die App danach nicht mehr neu starten. Die Haupt-Tabelle, alle Dropdown-Menüs und der Lager-Visualisierer updaten sich im selben Moment, in dem ihr auf Speichern klickt.
+
+* **Smarterer Bambu Cloud Sync:**
+  Der AMS-Sync versteht jetzt eure neuen Custom-Namen und die Doppeltiefen-Einstellung, wenn er euch Zielorte für neue Spulen vorschlägt.
+
+---
+
 ## 🆕 Was ist neu in Version 2.0.0? ("The Enterprise & Cost Center Update")
 VibeSpool macht den Sprung zum professionellen ERP-System für Gewerbetreibende und Power-User!
-* **Globales Cost Center & Gewerbe-Kalkulation:** VibeSpool rechnet nun Material, Strom, Maschinenabnutzung und Gewinnmarge zu einem perfekten Verkaufspreis zusammen. Alle Drucke sind im neuen Dashboard tabellarisch als Kassenbuch einsehbar.
 * **Auto-Heal & Retro-Fit:** Historien-Einträge können jetzt nachträglich bearbeitet werden. VibeSpool korrigiert das Diagramm und das Spulengewicht vollautomatisch. Alte Drucke können mit den neuen "Retro-Fit" Buttons sekundenschnell nachträglich kalkuliert werden.
 * **Individuelles Leergewicht:** Für exotische Spulen kann jetzt on-the-fly ein einmaliges Leergewicht berechnet und an die Spule gebunden werden.
 * **Quick-Cost Rechner:** Ein Standalone-Kalkulator, um schnell Preise für Kunden zu berechnen, ohne das Lager anzufassen.
@@ -38,6 +67,12 @@ Verbinde VibeSpool mit der Bambu Cloud. Das System lädt deine fertigen Druckauf
 
 <img width="1014" height="805" alt="image" src="https://github.com/user-attachments/assets/aa1822b7-382e-4503-b4f0-0906a73616a3" />
 
+### 📝 NEU: Auftrags-Planer (Print Queue & MES):
+VibeSpool wird zur Schaltzentrale deiner Druck-Aufträge! Mit dem neuen Planungs-Tool kannst du anstehende Drucke verwalten. Weise Kunden oder Projekt-Titel zu, speichere direkte Links zu den 3D-Modellen und hinterlege genaue Notizen (z.B. "Marble für Body, Grün für Schrift").
+
+**Das Highlight:** Du kannst die exakten Spulen aus deinem Inventar (inkl. Multi-Color ID 1 + ID 2) direkt dem Auftrag zuweisen!
+
+<img width="1068" height="747" alt="image" src="https://github.com/user-attachments/assets/720140a3-a733-4e17-bfdd-0f3322211ff3" />
 
 ### 💰 Das Cost Center (Gewerbe-Kalkulation)
 VibeSpool berechnet nicht nur Material- und Stromkosten, sondern berücksichtigt auch Maschinenverschleiß (pro Druckstunde) und schlägt automatisch deine Gewinnmarge (%) auf. Alle Drucke über alle Spulen hinweg laufen im globalen Kassenbuch zusammen. Ein Standalone Quick-Cost Rechner hilft dir bei schnellen Kundenangeboten.

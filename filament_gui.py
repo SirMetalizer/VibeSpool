@@ -26,9 +26,10 @@ from core.spool_presets import SPOOL_PRESETS
 from core.colors import get_color_name_from_hex
 from core.mobile_server import start_mobile_server, get_local_ip
 from core.label_creator import LabelCreatorDialog
+from core.print_queue import PrintQueueDialog
 
 # --- KONFIGURATION ---
-APP_VERSION = "2.0.0"
+APP_VERSION = "2.0.1"
 GITHUB_REPO = "SirMetalizer/VibeSpool" 
 
 # --- DEFAULTS ---
@@ -341,15 +342,37 @@ class SettingsDialog(tk.Toplevel):
         super().__init__(parent)
         self.data_manager = data_manager; self.on_save = on_save; self.app = app_instance
         _, self.settings, _ = self.data_manager.load_all(DEFAULT_SETTINGS)
-        self.title("VibeSpool Einstellungen"); self.geometry("950x650"); self.configure(bg=parent.cget('bg')); center_window(self, parent)
-        self.transient(parent); self.grab_set()
-        
-        # FOOTER
-        btn_frm = ttk.Frame(self, padding=10); btn_frm.pack(fill="x", side="bottom")
-        ttk.Button(btn_frm, text="Abbrechen", command=self.destroy).pack(side="right", padx=5)
-        ttk.Button(btn_frm, text="Änderungen Speichern", style="Accent.TButton", command=self.do_save).pack(side="right", padx=5)
+        self.title("VibeSpool Einstellungen"); 
+        self.geometry("950x650"); 
+        self.transient(parent)
+        self.grab_set()
+        center_window(self, parent)
 
-        self.nb = ttk.Notebook(self); self.nb.pack(fill="both", expand=True, padx=10, pady=10)
+        # --- NEU: PanedWindow für die Einstellungen ---
+        self.main_paned = ttk.PanedWindow(self, orient="horizontal")
+        self.main_paned.pack(fill="both", expand=True)
+
+        # Linke Seite: Das Notebook (Tabs)
+        self.notebook_frame = ttk.Frame(self.main_paned)
+        self.main_paned.add(self.notebook_frame, weight=1)
+
+        footer_frm = ttk.Frame(self.notebook_frame)
+        footer_frm.pack(side="bottom", fill="x", pady=(0, 10), padx=10)
+        ttk.Button(footer_frm, text="Abbrechen", command=self.destroy).pack(side="right", padx=5)
+        ttk.Button(footer_frm, text="💾 Änderungen Speichern", command=self.do_save, style="Accent.TButton").pack(side="right", padx=5)
+
+        self.nb = ttk.Notebook(self.notebook_frame)
+        self.nb.pack(fill="both", expand=True, padx=10, pady=10)
+        self.nb.bind("<<NotebookTabChanged>>", lambda e: self.toggle_side_panel(force_close=True))
+        
+        # NEU: Wenn der Tab gewechselt wird -> Side-Panel gnadenlos schließen!
+        self.nb.bind("<<NotebookTabChanged>>", lambda e: self.toggle_side_panel(force_close=True))
+
+        # Rechte Seite: Das Side-Panel (Initial versteckt)
+        self.side_panel = ttk.Frame(self.main_paned, width=350, relief="solid", borderwidth=1)
+        self.side_panel.pack_propagate(False)
+        self.side_panel_open = False
+        self.current_side_title = ""
         
         # TAB 1: LAGER
         tab_lager = ttk.Frame(self.nb, padding=15); self.nb.add(tab_lager, text="📦 Lager")
@@ -358,33 +381,48 @@ class SettingsDialog(tk.Toplevel):
         self.shelf_list = tk.Listbox(tab_lager, height=6, font=("Segoe UI", 9))
         self.shelf_list.pack(fill="x", pady=10)
         self.refresh_settings_shelf_list()
+        # NEU: Wenn ein neues Regal angeklickt wird und das Panel rechts offen ist -> Live aktualisieren!
+        def on_shelf_list_select(event):
+            if self.side_panel_open:
+                title = self.current_side_title
+                # Kleiner Trick: Wir leeren den Titel kurz, damit toggle_side_panel denkt, es sei ein neuer Aufruf
+                self.current_side_title = "" 
+                if title == "Regal-Konfigurator":
+                    self.toggle_side_panel(title, self.build_shelf_planner_ui)
+                elif title == "Fächer individuell benennen":
+                    self.toggle_side_panel(title, self.build_shelf_names_ui)
+                    
+        self.shelf_list.bind("<<ListboxSelect>>", on_shelf_list_select)
         
-        def run_planner():
-            def on_plan_done(val): self.var_shelves.set(val); self.refresh_settings_shelf_list()
-            ShelfPlannerDialog(self, self.var_shelves.get(), on_plan_done)
-            
+
         btn_frm_lager = ttk.Frame(tab_lager)
         btn_frm_lager.pack(fill="x", pady=(5, 0))
-        ttk.Button(btn_frm_lager, text="🔧 Regal-Konfigurator", command=run_planner).pack(side="left", fill="x", expand=True, padx=(0, 2))
         
-        if getattr(self, 'app', None):
-            def open_shelf_editor():
-                if self.app: 
-                    # NEU: Wir prüfen, WELCHES Regal in der Liste markiert ist!
-                    sel = self.shelf_list.curselection()
-                    if not sel:
-                        messagebox.showinfo("Info", "Bitte wähle zuerst ein Regal aus der Liste darüber aus!", parent=self)
-                        return
-                    
-                    selected_str = self.shelf_list.get(sel[0])
-                    # Extrahiert den Namen (z.B. "📦 REGAL (4x8)" -> "REGAL")
-                    shelf_name = selected_str.replace("📦 ", "").split(" (")[0]
-                    
-                    current_lbl_row = self.ent_row.get().strip() or "Fach"
-                    self.app.edit_shelf_names(self, self.var_shelves.get(), current_lbl_row, shelf_name)
-                    
-            ttk.Button(btn_frm_lager, text="🏷️ Fächer benennen", command=open_shelf_editor).pack(side="left", fill="x", expand=True, padx=(2, 0))
+        # Löschen Button (Direkt an der Liste)
+        def delete_selected_shelf():
+            sel = self.shelf_list.curselection()
+            if not sel:
+                messagebox.showinfo("Info", "Bitte wähle erst ein Regal aus der Liste aus!", parent=self)
+                return
+            if messagebox.askyesno("Löschen", "Soll dieses Regal wirklich gelöscht werden?", parent=self):
+                current_shelves = parse_shelves_string(self.var_shelves.get())
+                del current_shelves[sel[0]]
+                self.var_shelves.set(serialize_shelves(current_shelves))
+                self.refresh_settings_shelf_list()
 
+        ttk.Button(btn_frm_lager, text="🗑️ Löschen", command=delete_selected_shelf).pack(side="left", padx=(0, 5))
+        
+        ttk.Button(btn_frm_lager, text="➕ Neu / Ändern", 
+                   command=lambda: self.toggle_side_panel("Regal-Konfigurator", self.build_shelf_planner_ui)).pack(side="left", fill="x", expand=True, padx=2)
+        
+        ttk.Button(btn_frm_lager, text="🏷️ Fächer benennen", 
+                   command=lambda: self.toggle_side_panel("Fächer individuell benennen", self.build_shelf_names_ui)).pack(side="left", fill="x", expand=True, padx=(2, 0))
+
+        f_names = ttk.Frame(tab_lager); f_names.pack(fill="x", pady=5)
+        ttk.Label(f_names, text="Reihen-Name:").grid(row=0, column=0, sticky="w")
+        self.ent_row = ttk.Entry(f_names, width=15); self.ent_row.insert(0, self.settings.get("label_row", "Fach")); self.ent_row.grid(row=0, column=1, sticky="w", pady=2, padx=5)
+        ttk.Label(f_names, text="Spalten-Name:").grid(row=1, column=0, sticky="w")
+        self.ent_col = ttk.Entry(f_names, width=15); self.ent_col.insert(0, self.settings.get("label_col", "Slot")); self.ent_col.grid(row=1, column=1, sticky="w", pady=2, padx=5)
         # --- NEU: Zusatz-Orte sind jetzt hier, wo sie hingehören! ---
         ttk.Separator(tab_lager, orient="horizontal").pack(fill="x", pady=15)
         ttk.Label(tab_lager, text="Zusatz-Orte (kommagetrennt, z.B. Trockenbox, Verliehen):", font=FONT_BOLD).pack(anchor="w", pady=(0, 5))
@@ -392,19 +430,12 @@ class SettingsDialog(tk.Toplevel):
         self.ent_custom.insert(0, self.settings.get("custom_locs", "Filamenttrockner"))
         self.ent_custom.pack(fill="x", pady=2)
         self.var_double = tk.BooleanVar(value=self.settings.get("double_depth", False))
-        ttk.Checkbutton(tab_lager, text="Doppeltiefe Regale (2 Rollen pro Slot)", variable=self.var_double).pack(anchor="w", pady=(10, 5))
         
         ttk.Separator(tab_lager, orient="horizontal").pack(fill="x", pady=10)
         self.var_logistics = tk.BooleanVar(value=self.settings.get("logistics_order", False))
         ttk.Checkbutton(tab_lager, text="Logistik-Modus (unten = Reihe 1)", variable=self.var_logistics).pack(anchor="w", pady=5)
+        ttk.Checkbutton(tab_lager, text="Doppeltiefe Regale (2 Rollen pro Slot)", variable=self.var_double).pack(anchor="w", pady=(10, 5))
         
-        f_names = ttk.Frame(tab_lager); f_names.pack(fill="x", pady=5)
-        ttk.Label(f_names, text="Reihen-Name:").grid(row=0, column=0, sticky="w")
-        self.ent_row = ttk.Entry(f_names, width=15); self.ent_row.insert(0, self.settings.get("label_row", "Fach")); self.ent_row.grid(row=0, column=1, sticky="w", pady=2, padx=5)
-        ttk.Label(f_names, text="Spalten-Name:").grid(row=1, column=0, sticky="w")
-        self.ent_col = ttk.Entry(f_names, width=15); self.ent_col.insert(0, self.settings.get("label_col", "Slot")); self.ent_col.grid(row=1, column=1, sticky="w", pady=2, padx=5)
-        
-        ttk.Checkbutton(tab_lager, text="Doppeltiefe Regale (2 Rollen pro Slot)", variable=self.var_double).pack(anchor="w", pady=(10, 0))
 
         # TAB 3: DRUCKER
         tab_prn = ttk.Frame(self.nb, padding=15); self.nb.add(tab_prn, text="🤖 Drucker")
@@ -637,6 +668,188 @@ class SettingsDialog(tk.Toplevel):
         create_list_manager(list_container, "Hersteller", "brands", DEFAULT_SETTINGS["brands"])
         self.nb.select(start_tab)
 
+    def toggle_side_panel(self, title=None, build_func=None, force_close=False):
+        # Wenn wir schon offen sind und den GLEICHEN Titel klicken -> Schließen
+        if force_close or (self.side_panel_open and self.current_side_title == title):
+            try: self.main_paned.forget(self.side_panel)
+            except: pass
+            self.side_panel_open = False
+            self.current_side_title = ""
+            return
+
+        # Ansonsten: Panel leeren und neu aufbauen
+        for widget in self.side_panel.winfo_children():
+            widget.destroy()
+
+        # Sicherstellen, dass es im PanedWindow ist (verhindert den "already added" Crash)
+        try:
+            self.main_paned.add(self.side_panel, weight=0)
+        except tk.TclError:
+            pass
+        self.side_panel_open = True
+        self.current_side_title = title
+
+        # Header
+        header = ttk.Frame(self.side_panel)
+        header.pack(fill="x", pady=10, padx=10)
+        ttk.Label(header, text=title or "", font=("Segoe UI", 11, "bold")).pack(side="left")
+        ttk.Button(header, text="❌", width=3, command=lambda: self.toggle_side_panel(force_close=True)).pack(side="right")
+        ttk.Separator(self.side_panel, orient="horizontal").pack(fill="x")
+
+        content = ttk.Frame(self.side_panel, padding=10)
+        content.pack(fill="both", expand=True)
+        
+        if build_func:
+            build_func(content)
+
+    def build_shelf_planner_ui(self, parent):
+        sel = self.shelf_list.curselection()
+        current_shelves = parse_shelves_string(self.var_shelves.get())
+        edit_idx = sel[0] if sel else None
+        
+        existing_data = current_shelves[edit_idx] if edit_idx is not None else {"name": "NEU", "rows": 4, "cols": 8}
+
+        ttk.Label(parent, text="Regal hinzufügen oder bearbeiten:", font=("Segoe UI", 9, "bold")).pack(anchor="w", pady=(0, 10))
+        
+        ttk.Label(parent, text="Name:").pack(anchor="w")
+        ent_name = ttk.Entry(parent)
+        ent_name.insert(0, existing_data["name"])
+        ent_name.pack(fill="x", pady=(0, 10))
+
+        ttk.Label(parent, text="Reihen (Y):").pack(anchor="w")
+        ent_rows = ttk.Spinbox(parent, from_=1, to=50)
+        ent_rows.set(existing_data["rows"])
+        ent_rows.pack(fill="x", pady=(0, 10))
+
+        ttk.Label(parent, text="Spalten (X):").pack(anchor="w")
+        ent_cols = ttk.Spinbox(parent, from_=1, to=50)
+        ent_cols.set(existing_data["cols"])
+        ent_cols.pack(fill="x", pady=(0, 15))
+
+        def save_shelf():
+            new_shelf = {"name": ent_name.get().strip() or "Regal", "rows": int(ent_rows.get()), "cols": int(ent_cols.get())}
+            
+            if edit_idx is not None:
+                current_shelves[edit_idx] = new_shelf
+            else:
+                current_shelves.append(new_shelf)
+                
+            new_val = serialize_shelves(current_shelves)
+            self.var_shelves.set(new_val)
+            self.settings["shelves"] = new_val
+            
+            # WICHTIG: App Settings live injizieren!
+            app = getattr(self, 'app', None)
+            if app is not None:
+                app.settings["shelves"] = new_val
+                app.update_locations_dropdown()
+                app.update_slot_dropdown()
+                
+            self.refresh_settings_shelf_list()
+            messagebox.showinfo("Erfolg", "Regal gespeichert!", parent=self)
+            self.toggle_side_panel(force_close=True)
+
+        ttk.Button(parent, text="💾 Speichern / Übernehmen", style="Accent.TButton", command=save_shelf).pack(fill="x")
+
+    def build_shelf_names_ui(self, parent):
+        sel = self.shelf_list.curselection()
+        if not sel:
+            ttk.Label(parent, text="⚠️ Bitte wähle erst links ein Regal aus!", foreground="red", wraplength=250).pack(pady=20)
+            return
+            
+        current_shelves = parse_shelves_string(self.var_shelves.get())
+        target_shelf = current_shelves[sel[0]]
+        target_name = target_shelf["name"]
+        
+        ttk.Label(parent, text=f"Fächer & Slots für '{target_name}':", font=("Segoe UI", 10, "bold")).pack(anchor="w")
+        
+        from core.utils import ScrollableFrame
+        sf = ScrollableFrame(parent)
+        sf.pack(fill="both", expand=True, pady=10)
+        
+        all_custom_names = self.settings.get("shelf_names_v2", {})
+        my_names = all_custom_names.get(target_name, {})
+        
+        app = getattr(self, 'app', None)
+        
+        ui_lbl_r = self.ent_row.get().strip() or "Fach"
+        ui_lbl_c = self.ent_col.get().strip() or "Slot"
+        
+        db_lbl_r = app.settings.get('label_row', 'Fach') if app else "Fach"
+        db_lbl_c = app.settings.get('label_col', 'Slot') if app else "Slot"
+
+        # --- Reihen (Rows) ---
+        ttk.Label(sf.inner, text=f"--- {ui_lbl_r} (Reihen) ---", font=("Segoe UI", 9, "bold")).pack(anchor="w", pady=(5, 5))
+        entries_r = {}
+        for r in range(1, int(target_shelf["rows"]) + 1):
+            row_frm = ttk.Frame(sf.inner)
+            row_frm.pack(fill="x", pady=2)
+            ttk.Label(row_frm, text=f"{ui_lbl_r} {r}:", width=10).pack(side="left")
+            ent = ttk.Entry(row_frm)
+            ent.insert(0, my_names.get(str(r), f"{ui_lbl_r} {r}"))
+            ent.pack(side="left", fill="x", expand=True)
+            entries_r[str(r)] = ent
+
+        # --- Spalten (Cols) ---
+        ttk.Label(sf.inner, text=f"--- {ui_lbl_c} (Spalten) ---", font=("Segoe UI", 9, "bold")).pack(anchor="w", pady=(15, 5))
+        entries_c = {}
+        for c in range(1, int(target_shelf["cols"]) + 1):
+            row_frm = ttk.Frame(sf.inner)
+            row_frm.pack(fill="x", pady=2)
+            ttk.Label(row_frm, text=f"{ui_lbl_c} {c}:", width=10).pack(side="left")
+            ent = ttk.Entry(row_frm)
+            # Spalten speichern wir unter 'col_1', 'col_2' ab, um sie von Reihen zu trennen!
+            ent.insert(0, my_names.get(f"col_{c}", f"{ui_lbl_c} {c}"))
+            ent.pack(side="left", fill="x", expand=True)
+            entries_c[str(c)] = ent
+
+        def save():
+            new_map = {}
+            for k, v in entries_r.items(): new_map[str(k)] = v.get().strip()
+            for k, v in entries_c.items(): new_map[f"col_{k}"] = v.get().strip()
+            
+            changes_made = 0
+            
+            if app is not None:
+                # Da sich Reihe UND Spalte geändert haben können, prüfen wir alle Kreuzungen
+                for r in range(1, int(target_shelf["rows"]) + 1):
+                    for c in range(1, int(target_shelf["cols"]) + 1):
+                        old_r_val = my_names.get(str(r), f"{db_lbl_r} {r}")
+                        new_r_val = new_map.get(str(r), f"{ui_lbl_r} {r}")
+                        
+                        old_c_val = my_names.get(f"col_{c}", f"{db_lbl_c} {c}")
+                        new_c_val = new_map.get(f"col_{c}", f"{ui_lbl_c} {c}")
+                        
+                        # Prüfen, ob sich bei dieser Slot-Kombination etwas geändert hat
+                        if old_r_val != new_r_val or old_c_val != new_c_val:
+                            search_str = f"{old_r_val} - {old_c_val}"
+                            replace_str = f"{new_r_val} - {new_c_val}"
+                            
+                            for item in app.inventory:
+                                if item.get("type") == target_name:
+                                    loc = str(item.get("loc_id", ""))
+                                    # Berücksichtigt auch "(V)" oder "(H)" bei Doppeltiefe
+                                    if loc == search_str or loc.startswith(f"{search_str} "):
+                                        item["loc_id"] = loc.replace(search_str, replace_str, 1)
+                                        changes_made += 1
+
+            all_custom_names[target_name] = new_map
+            self.settings["shelf_names_v2"] = all_custom_names
+            self.data_manager.save_settings(self.settings)
+            
+            if app is not None:
+                app.settings["shelf_names_v2"] = all_custom_names
+                if changes_made > 0:
+                    app.data_manager.save_inventory(app.inventory)
+                    app.refresh_table()
+                if hasattr(app, 'update_slot_dropdown'):
+                    app.update_slot_dropdown()
+                
+            messagebox.showinfo("Erfolg", f"Raster-Namen für '{target_name}' gespeichert!\n\n{changes_made} Spulen wurden automatisch umgebucht.", parent=self)
+            self.toggle_side_panel(force_close=True)
+
+        ttk.Button(parent, text="💾 Namen übernehmen & Speichern", style="Accent.TButton", command=save).pack(fill="x")
+
     def refresh_settings_shelf_list(self):
         self.shelf_list.delete(0, tk.END)
         for s in parse_shelves_string(self.var_shelves.get()): self.shelf_list.insert(tk.END, f"📦 {s['name']} ({s['rows']}x{s['cols']})")
@@ -716,12 +929,16 @@ class SettingsDialog(tk.Toplevel):
                                     item["loc_id"] = new_loc
                                     inventory_changed = True
                                     
-                    # Auch im neuen V2-Benennungssystem die Namen patchen!
+                    # Auch im neuen V2-Benennungssystem die Namen patchen
                     all_shelf_names = self.settings.get("shelf_names_v2", {})
                     for shelf_key, names_dict in all_shelf_names.items():
                         for k, v in names_dict.items():
-                            if v.startswith(old_label_row + " "):
-                                all_shelf_names[shelf_key][k] = v.replace(old_label_row + " ", new_label_row + " ", 1)
+                            if str(k).startswith("col_"):
+                                if v.startswith(old_label_col + " "):
+                                    all_shelf_names[shelf_key][k] = v.replace(old_label_col + " ", new_label_col + " ", 1)
+                            else:
+                                if v.startswith(old_label_row + " "):
+                                    all_shelf_names[shelf_key][k] = v.replace(old_label_row + " ", new_label_row + " ", 1)
                     self.settings["shelf_names_v2"] = all_shelf_names
 
                 # Nur speichern, wenn auch wirklich Spulen angefasst wurden
@@ -775,9 +992,18 @@ class SettingsDialog(tk.Toplevel):
             
             self.on_save(self.settings)
             
-            # Tabelle sofort neu zeichnen
+            # --- NEU: LIVE-UPDATE DER OBERFLÄCHE ---
             if app_inst:
                 app_inst.refresh_table() 
+                
+                # Dropdowns live updaten (damit neue Namen / Tiefe sofort wählbar sind)
+                if hasattr(app_inst, 'update_slot_dropdown'):
+                    app_inst.update_slot_dropdown()
+                
+                # Lageransicht sofort neu zeichnen, falls sie offen ist
+                if hasattr(app_inst, 'shelf_visualizer') and app_inst.shelf_visualizer:
+                    app_inst.shelf_visualizer.redraw()
+                
                 # NEU: Cloud Button live zeigen/verstecken
                 if self.settings.get("use_bambu_cloud", True):
                     app_inst.btn_cloud.pack(fill="x")
@@ -876,27 +1102,29 @@ class ShelfVisualizer(tk.Toplevel):
                 row_frame.pack(anchor="w", pady=2)
                 is_double = self.settings.get("double_depth", False)
                 for c in range(1, shelf['cols'] + 1):
+                    # NEU: Spalten-Name auslesen
+                    col_label = shelf_names.get(f"col_{c}", f"{lbl_c} {c}")
+                    
+                    # Für das kleine Icon schneiden wir "Slot " vorne ab, damit es Platz hat
+                    short_label = col_label.replace(f"{lbl_c} ", "") if col_label.startswith(f"{lbl_c} ") else col_label
+                    
                     if is_double:
-                        # Haupt-Container für die Spalte
                         slot_container = tk.Frame(row_frame, bg="#8B4513")
                         slot_container.pack(side="left", padx=2)
                         
-                        # Zwei kleine "Stockwerke" erzwingen die Übereinander-Darstellung
                         frm_h = tk.Frame(slot_container, bg="#8B4513")
                         frm_h.pack(side="top", pady=(0, 1))
                         frm_v = tk.Frame(slot_container, bg="#8B4513")
                         frm_v.pack(side="top", pady=(1, 0))
                         
-                        # Hinten (H) - Oben
-                        slot_name_h = f"{row_label} - {lbl_c} {c} (H)"
-                        self.draw_slot(frm_h, f"{c}H", self.shelf_data.get(f"{shelf['name']}_{slot_name_h}"), False, 65, 35, shelf['name'], slot_name_h)
+                        slot_name_h = f"{row_label} - {col_label} (H)"
+                        self.draw_slot(frm_h, f"{short_label} (H)", self.shelf_data.get(f"{shelf['name']}_{slot_name_h}"), False, 65, 35, shelf['name'], slot_name_h)
                         
-                        # Vorne (V) - Unten
-                        slot_name_v = f"{row_label} - {lbl_c} {c} (V)"
-                        self.draw_slot(frm_v, f"{c}V", self.shelf_data.get(f"{shelf['name']}_{slot_name_v}"), False, 65, 35, shelf['name'], slot_name_v)
+                        slot_name_v = f"{row_label} - {col_label} (V)"
+                        self.draw_slot(frm_v, f"{short_label} (V)", self.shelf_data.get(f"{shelf['name']}_{slot_name_v}"), False, 65, 35, shelf['name'], slot_name_v)
                     else:
-                        slot_name = f"{row_label} - {lbl_c} {c}"
-                        self.draw_slot(row_frame, str(c), self.shelf_data.get(f"{shelf['name']}_{slot_name}"), False, 70, 70, shelf['name'], slot_name)
+                        slot_name = f"{row_label} - {col_label}"
+                        self.draw_slot(row_frame, short_label, self.shelf_data.get(f"{shelf['name']}_{slot_name}"), False, 70, 70, shelf['name'], slot_name)
                     
         ttk.Separator(pad, orient="horizontal").pack(fill="x", pady=20)
         for a in range(1, self.settings.get("num_ams", 1) + 1):
@@ -1140,7 +1368,7 @@ class StatisticsDialog(tk.Toplevel):
         self.app = app_instance
         self.inventory = inventory
         self.title("📊 Analytics & Finanz-Dashboard")
-        self.geometry("1100x850") 
+        self.geometry("1250x850") 
         self.configure(bg=parent.cget('bg'))
         from core.utils import center_window
         center_window(self, parent)
@@ -1151,6 +1379,16 @@ class StatisticsDialog(tk.Toplevel):
         # Alle alten Elemente löschen, falls das UI neu geladen wird
         for widget in self.winfo_children():
             widget.destroy()
+
+        # --- NEU: Master Layout ---
+        self.master_frame = ttk.Frame(self)
+        self.master_frame.pack(fill="both", expand=True)
+        
+        self.side_panel = ttk.Frame(self.master_frame, width=350, relief="solid", borderwidth=1)
+        self.side_panel.pack_propagate(False)
+        
+        self.main_content = ttk.Frame(self.master_frame)
+        self.main_content.pack(side="left", fill="both", expand=True)
 
         # --- 1. DATEN BERECHNEN (KPIs) ---
         total_value, total_weight, total_spools, mat_stats = 0.0, 0, 0, {}
@@ -1173,9 +1411,9 @@ class StatisticsDialog(tk.Toplevel):
             mat_stats[mat]['value'] += val
 
         # --- 2. OBERER BEREICH (Dashboard) ---
-        ttk.Label(self, text="💰 Bestands-Statistik & Finanzen", font=("Segoe UI", 16, "bold")).pack(pady=(15, 5))
+        ttk.Label(self.main_content, text="💰 Bestands-Statistik & Finanzen", font=("Segoe UI", 16, "bold")).pack(pady=(15, 5))
         
-        main_frm = ttk.Frame(self)
+        main_frm = ttk.Frame(self.main_content)
         main_frm.pack(fill="x", padx=20, pady=5)
         
         left_panel = ttk.Frame(main_frm)
@@ -1266,7 +1504,7 @@ class StatisticsDialog(tk.Toplevel):
         ttk.Label(right_panel, text=f"Gesamtverbrauch (7 Tage): {total_7d:.1f} g", font=("Segoe UI", 10, "italic"), foreground="gray").pack(anchor="e", pady=2)
 
         # --- 5. FOOTER BUTTONS (Zuerst packen & nach unten anheften!) ---
-        btn_frm = ttk.Frame(self)
+        btn_frm = ttk.Frame(self.main_content)
         btn_frm.pack(fill="x", side="bottom", pady=10, padx=20)
         
         ttk.Button(btn_frm, text="Schließen", command=self.destroy, style="Accent.TButton").pack(side="right", padx=5)
@@ -1274,14 +1512,14 @@ class StatisticsDialog(tk.Toplevel):
         self.lbl_total.pack(side="left")
 
         # --- 6. UNTERER BEREICH (Tabelle) ---
-        ttk.Separator(self, orient="horizontal").pack(fill="x", padx=20, pady=10)
+        ttk.Separator(self.main_content, orient="horizontal").pack(fill="x", padx=20, pady=10)
         
-        hist_lbl_frm = ttk.Frame(self)
+        hist_lbl_frm = ttk.Frame(self.main_content)
         hist_lbl_frm.pack(fill="x", padx=20, pady=(0, 5))
         ttk.Label(hist_lbl_frm, text="📜 Globale Druck-Historie", font=("Segoe UI", 14, "bold")).pack(side="left")
         ttk.Label(hist_lbl_frm, text="Alle protokollierten Verbräuche (Doppelklick zum Bearbeiten/Löschen)", foreground="gray").pack(side="left", padx=10)
 
-        history_frm = ttk.Frame(self)
+        history_frm = ttk.Frame(self.main_content)
         history_frm.pack(fill="both", expand=True, padx=20, pady=(0, 5))
 
         self.history_map = {}
@@ -1358,17 +1596,19 @@ class StatisticsDialog(tk.Toplevel):
         
         entry = spool["history"][hist_idx]
         
-        win = tk.Toplevel(self)
-        win.title("✏️ Eintrag bearbeiten")
-        win.geometry("450x350")
-        win.configure(bg=self.cget('bg'))
-        win.attributes('-topmost', True)
-        from core.utils import center_window
-        center_window(win, self)
+        # --- NEU: Side-Panel aktivieren ---
+        for widget in self.side_panel.winfo_children():
+            widget.destroy()
+            
+        self.side_panel.pack(side="right", fill="y", before=self.main_content)
         
-        ttk.Label(win, text="Historien-Eintrag bearbeiten", font=("Segoe UI", 12, "bold")).pack(pady=10)
+        header = ttk.Frame(self.side_panel)
+        header.pack(fill="x", pady=10, padx=10)
+        ttk.Label(header, text="✏️ Eintrag bearbeiten", font=("Segoe UI", 12, "bold")).pack(side="left")
+        ttk.Button(header, text="❌", width=3, command=self.side_panel.pack_forget).pack(side="right")
+        ttk.Separator(self.side_panel, orient="horizontal").pack(fill="x")
         
-        frm = ttk.Frame(win, padding=10)
+        frm = ttk.Frame(self.side_panel, padding=10)
         frm.pack(fill="both", expand=True)
         
         ttk.Label(frm, text="Aktion / Druckname:").pack(anchor="w")
@@ -1376,69 +1616,54 @@ class StatisticsDialog(tk.Toplevel):
         ent_action.insert(0, entry.get("action", ""))
         ent_action.pack(fill="x", pady=(0, 10))
         
-        ttk.Label(frm, text="Verbrauch (inkl. Vorzeichen, z.B. -45.5):").pack(anchor="w")
+        ttk.Label(frm, text="Verbrauch (inkl. Vorzeichen):").pack(anchor="w")
         ent_change = ttk.Entry(frm)
         ent_change.insert(0, entry.get("change", "").replace("g", "")) 
         ent_change.pack(fill="x", pady=(0, 10))
         
-        ttk.Label(frm, text="Kosten (z.B. 1.65 €):").pack(anchor="w")
-        
+        ttk.Label(frm, text="Kosten:").pack(anchor="w")
         frm_cost = ttk.Frame(frm)
         frm_cost.pack(fill="x", pady=(0, 10))
         
         def calc_cost():
             try:
-                # Berechnet rückwirkend die reinen Materialkosten basierend auf dem Gewicht
                 w_str = ent_change.get().replace('g', '').replace(',', '.').strip()
                 w_val = abs(float(w_str)) if w_str else 0.0
                 p = float(str(spool.get('price', '0')).replace(',', '.')) or 0.0
                 c = float(str(spool.get('capacity', '1000'))) or 1000.0
                 m_cost = w_val * (p / c) if c > 0 else 0.0
-                
                 ent_cost.delete(0, tk.END)
                 ent_cost.insert(0, f"{m_cost:.2f} €")
             except: pass
 
         btn_calc_cost = ttk.Button(frm_cost, text="🧮 Mat.", width=8, command=calc_cost)
         btn_calc_cost.pack(side="left", padx=(0, 5))
-        btn_calc_cost.bind("<Enter>", lambda e: self.app.show_tip(e, "Materialkosten anhand des Gewichts berechnen"))
-        btn_calc_cost.bind("<Leave>", self.app.hide_tip)
         
         ent_cost = ttk.Entry(frm_cost)
         ent_cost.insert(0, entry.get("cost", "-"))
         ent_cost.pack(side="left", fill="x", expand=True)
         
-        # --- NEU: VK-Preis bearbeiten mit Kalkulator ---
-        ttk.Label(frm, text="VK-Preis (z.B. 5.50 €):").pack(anchor="w")
-        
+        ttk.Label(frm, text="VK-Preis:").pack(anchor="w")
         frm_sell = ttk.Frame(frm)
         frm_sell.pack(fill="x", pady=(0, 10))
         
         def calc_vk():
             try:
-                # 1. Kosten auslesen
                 cost_str = ent_cost.get().replace('€', '').replace(',', '.').strip()
                 cost_val = float(cost_str) if cost_str and cost_str != '-' else 0.0
-                
-                # 2. Marge aus Einstellungen holen
                 margin = int(self.app.settings.get("profit_margin", 0))
-                
-                # 3. Berechnen und eintragen
                 vk_val = cost_val * (1 + (margin / 100.0))
                 ent_sell.delete(0, tk.END)
                 ent_sell.insert(0, f"{vk_val:.2f} €")
-                
                 if margin == 0:
                     from tkinter import messagebox
-                    messagebox.showinfo("Info", "Deine Gewinnmarge in den Einstellungen ist auf 0% gesetzt.\nDer VK-Preis entspricht daher exakt den Kosten.", parent=win)
+                    messagebox.showinfo("Info", "Gewinnmarge ist 0%. VK = Kosten.", parent=self)
             except ValueError:
                 from tkinter import messagebox
-                messagebox.showerror("Fehler", "Bitte trage zuerst einen gültigen Zahlenwert bei 'Kosten' ein!", parent=win)
+                messagebox.showerror("Fehler", "Bitte Kosten eintragen!", parent=self)
                 
         btn_calc_vk = ttk.Button(frm_sell, text="🧮 Marge", width=8, command=calc_vk)
         btn_calc_vk.pack(side="left", padx=(0, 5))
-        btn_calc_vk.bind("<Enter>", lambda e: self.app.show_tip(e, f"Marge ({self.app.settings.get('profit_margin', 0)}%) auf die Kosten aufschlagen"))
-        btn_calc_vk.bind("<Leave>", self.app.hide_tip)
         
         ent_sell = ttk.Entry(frm_sell)
         ent_sell.insert(0, entry.get("sell_price", "-"))
@@ -1446,43 +1671,28 @@ class StatisticsDialog(tk.Toplevel):
         
         def save():
             new_val_str = ent_change.get().replace("g", "").replace(" ", "").replace(",", ".")
-            try: 
-                new_val = float(new_val_str)
-                if new_val > 0: new_val = -new_val
-            except: 
-                new_val = 0.0
+            try: new_val = -abs(float(new_val_str)) if float(new_val_str) != 0 else 0.0
+            except: new_val = 0.0
                 
             old_val_str = entry.get("change", "0").replace("g", "").replace(" ", "").replace(",", ".")
             try: old_val = float(old_val_str)
             except: old_val = 0.0
             
             delta = new_val - old_val
-            
-            # 1. Gewicht der Spule korrigieren
             if delta != 0.0:
                 curr_gross = float(spool.get('weight_gross', 0))
                 spool['weight_gross'] = round(max(0.0, curr_gross + delta), 1)
                 
-            # 2. Eintrag aktualisieren
             entry["action"] = ent_action.get().strip()
             entry["change"] = f"{new_val:g}g"
             entry["cost"] = ent_cost.get().strip()
             entry["sell_price"] = ent_sell.get().strip()
             
-            # 3. AUTO-HEAL: Chart für diesen Tag komplett aus den Logbüchern neu berechnen!
             import datetime, json, os
             date_str = entry.get("date", "").split(" ")[0]
             if not date_str: date_str = datetime.date.today().isoformat()
             
-            day_total = 0.0
-            for s in self.inventory:
-                for h in s.get("history", []):
-                    if h.get("date", "").startswith(date_str):
-                        v_str = h.get("change", "0").replace("g", "").replace(" ", "").replace(",", ".")
-                        try:
-                            v = float(v_str)
-                            if v < 0: day_total += abs(v) # Nur Verbräuche aufaddieren
-                        except: pass
+            day_total = sum(abs(float(h.get("change", "0").replace("g", "").replace(" ", "").replace(",", "."))) for s in self.inventory for h in s.get("history", []) if h.get("date", "").startswith(date_str) and float(h.get("change", "0").replace("g", "").replace(" ", "").replace(",", ".")) < 0)
                         
             data_dir = getattr(self.app.data_manager, 'base_dir', '')
             history_file = os.path.join(data_dir, "history.json") if data_dir else "history.json"
@@ -1500,64 +1710,27 @@ class StatisticsDialog(tk.Toplevel):
             
             self.app.data_manager.save_inventory(self.inventory)
             self.app.refresh_table()
-            win.destroy()
             self.build_ui()
 
         def delete():
-            msg = "Eintrag wirklich löschen?\n\n(Das abgebuchte Gewicht wird der Spule automatisch wieder gutgeschrieben und aus dem Chart entfernt!)"
             from tkinter import messagebox
-            if messagebox.askyesno("Löschen", msg, parent=win):
+            if messagebox.askyesno("Löschen", "Wirklich löschen?", parent=self):
                 old_val_str = entry.get("change", "0").replace("g", "").replace(" ", "").replace(",", ".")
                 try: old_val = float(old_val_str)
                 except: old_val = 0.0
                 
-                # 1. Gewicht der Spule korrigieren
                 curr_gross = float(spool.get('weight_gross', 0))
                 spool['weight_gross'] = round(max(0.0, curr_gross - old_val), 1)
-                
-                date_str = entry.get("date", "").split(" ")[0]
-                
-                # 2. Eintrag aus dem Logbuch löschen
                 del spool["history"][hist_idx]
-                
-                # 3. AUTO-HEAL: Chart für diesen Tag neu berechnen
-                import datetime, json, os
-                if not date_str: date_str = datetime.date.today().isoformat()
-                
-                day_total = 0.0
-                for s in self.inventory:
-                    for h in s.get("history", []):
-                        if h.get("date", "").startswith(date_str):
-                            v_str = h.get("change", "0").replace("g", "").replace(" ", "").replace(",", ".")
-                            try:
-                                v = float(v_str)
-                                if v < 0: day_total += abs(v)
-                            except: pass
-                            
-                data_dir = getattr(self.app.data_manager, 'base_dir', '')
-                history_file = os.path.join(data_dir, "history.json") if data_dir else "history.json"
-                hist_data = {}
-                if os.path.exists(history_file):
-                    try:
-                        with open(history_file, "r") as f: hist_data = json.load(f)
-                    except: pass
-                    
-                hist_data[date_str] = round(day_total, 1)
-                
-                try:
-                    with open(history_file, "w") as f: json.dump(hist_data, f, indent=4)
-                except: pass
                 
                 self.app.data_manager.save_inventory(self.inventory)
                 self.app.refresh_table()
-                win.destroy()
                 self.build_ui()
 
-        btn_frm = ttk.Frame(win)
-        btn_frm.pack(fill="x", pady=10, padx=10)
-        ttk.Button(btn_frm, text="🗑️ Löschen", command=delete, style="Delete.TButton").pack(side="left", padx=5)
-        ttk.Button(btn_frm, text="💾 Speichern", command=save, style="Accent.TButton").pack(side="right", padx=5)
-        ttk.Button(btn_frm, text="Abbrechen", command=win.destroy).pack(side="right")
+        btn_frm_action = ttk.Frame(self.side_panel)
+        btn_frm_action.pack(fill="x", pady=10, padx=10, side="bottom")
+        ttk.Button(btn_frm_action, text="🗑️", command=delete, style="Delete.TButton", width=3).pack(side="left", padx=5)
+        ttk.Button(btn_frm_action, text="💾 Speichern", command=save, style="Accent.TButton").pack(side="right", padx=5)
 
 class FlowCalculatorDialog(tk.Toplevel):
     def __init__(self, parent, current_flow_entry=None):
@@ -1791,64 +1964,6 @@ class ManualPrintDialog(tk.Toplevel):
         ttk.Button(btn_frame, text="Druck speichern", command=on_confirm, style="Accent.TButton").pack(side="right")
         ttk.Button(btn_frame, text="Abbrechen", command=self.destroy).pack(side="left")
 
-class QuickCostCalculator(tk.Toplevel):
-    def __init__(self, parent, settings):
-        super().__init__(parent)
-        self.title("🧮 Quick-Cost Rechner")
-        self.geometry("400x550") # Etwas höher
-        self.configure(bg=parent.cget('bg'))
-        from core.utils import center_window
-        center_window(self, parent)
-
-        ttk.Label(self, text="Schnell-Kalkulation", font=("Segoe UI", 14, "bold")).pack(pady=15)
-        
-        # FIX: Button Frame ZUERST packen und hart nach unten
-        btn_frm = ttk.Frame(self, padding=10)
-        btn_frm.pack(fill="x", side="bottom", pady=10)
-        
-        frm = ttk.Frame(self, padding=20)
-        frm.pack(fill="both", expand=True)
-
-        fields = [
-            ("Materialpreis (€/kg):", "price", "25.00"),
-            ("Verbrauch (Gramm):", "weight", "100"),
-            ("Druckzeit (Stunden):", "time", "5")
-        ]
-        self.entries = {}
-        for label, key, default in fields:
-            ttk.Label(frm, text=label).pack(anchor="w")
-            ent = ttk.Entry(frm)
-            ent.insert(0, default)
-            ent.pack(fill="x", pady=(0, 10))
-            self.entries[key] = ent
-
-        self.lbl_res = ttk.Label(frm, text="", font=("Segoe UI", 11, "bold"), foreground="#0078d7", justify="center")
-        self.lbl_res.pack(pady=20)
-
-        def calc():
-            try:
-                p = float(self.entries["price"].get().replace(",", "."))
-                w = float(self.entries["weight"].get().replace(",", "."))
-                t = float(self.entries["time"].get().replace(",", "."))
-                mat = w * (p / 1000.0)
-                kwh = float(settings.get("kwh_price", 0.30))
-                watt = int(settings.get("printer_watts", 150))
-                elec = t * (watt / 1000.0) * kwh
-                wear = t * float(settings.get("wear_per_hour", 0.20))
-                total = mat + elec + wear
-                margin = int(settings.get("profit_margin", 0))
-                sell = total * (1 + (margin/100.0))
-                
-                res = f"Material: {mat:.2f} € | Strom: {elec:.2f} €\nVerschleiß: {wear:.2f} €\n"
-                res += f"--------------------------\nKOSTEN: {total:.2f} €\n"
-                if margin > 0: res += f"VK (+{margin}%): {sell:.2f} €"
-                self.lbl_res.config(text=res)
-            except:
-                self.lbl_res.config(text="⚠️ Bitte Zahlen eingeben!")
-
-        ttk.Button(btn_frm, text="Schließen", command=self.destroy).pack(side="right", padx=5)
-        ttk.Button(btn_frm, text="Berechnen", command=calc, style="Accent.TButton").pack(side="right", padx=5)
-
 
 class FilamentApp:
     def __init__(self, root):
@@ -1980,13 +2095,14 @@ class FilamentApp:
         add_nav_btn("Finanzen", lambda: StatisticsDialog(self.root, self.inventory, self), "📊")
         add_nav_btn("Swap", self.quick_swap_dialog, "🔄")
         add_nav_btn("Flow", lambda: FlowCalculatorDialog(self.root, self.entry_flow), "🧪")
-        add_nav_btn("Kalkulator", lambda: QuickCostCalculator(self.root, self.settings), "🧮") # <-- NEU!
+        add_nav_btn("Kalkulator", lambda: self.toggle_side_panel("🧮 Quick-Cost Rechner", self.build_quick_cost_calculator), "🧮") # <-- NEU!
         if self.settings.get("use_bambu", False):
             add_nav_btn("AMS", self.run_ams_sync, "🤖")
         # --- NEU: Cloud Sync im linken Menü ---
         self.btn_cloud = add_nav_btn("Cloud", self.open_bambu_cloud_sync, "☁️")
         if not self.settings.get("use_bambu_cloud", True):
             self.btn_cloud.pack_forget()
+        add_nav_btn("Aufträge", lambda: PrintQueueDialog(self.root, self), "📝")
             
         self.nav_sep = tk.Label(self.nav_sidebar, height=1)
         self.nav_sep.pack(fill="x", pady=10)
@@ -2379,7 +2495,19 @@ class FilamentApp:
         _bind_recursively(tab_basis, "<MouseWheel>", _on_canvas_mousewheel)
         _bind_recursively(tab_erp, "<MouseWheel>", _on_canvas_mousewheel)
 
-        table_frame = ttk.Frame(main_frame); table_frame.pack(side="right", fill="both", expand=True)
+        # --- NEU: Flexibles PanedWindow für Tabelle und Side-Panel ---
+        self.main_paned = ttk.PanedWindow(main_frame, orient="horizontal")
+        self.main_paned.pack(side="left", fill="both", expand=True)
+        
+        table_frame = ttk.Frame(self.main_paned)
+        self.main_paned.add(table_frame, weight=1) # Die Tabelle darf sich ausdehnen
+        
+        # --- NEU: DAS SIDE-PANEL ---
+        self.side_panel = ttk.Frame(self.main_paned, width=380, relief="solid", borderwidth=1)
+        self.side_panel.pack_propagate(False) 
+        self.side_panel_open = False
+        self.current_panel_title = ""
+        
         self.tree = ttk.Treeview(table_frame, columns=("id", "brand", "material", "color", "subtype", "weight", "flow", "location", "status"), show="tree headings")
         scrollbar = ttk.Scrollbar(table_frame, orient=tk.VERTICAL, command=self.tree.yview); self.tree.configure(yscrollcommand=scrollbar.set); scrollbar.pack(side="right", fill="y"); self.tree.pack(fill="both", expand=True)
         self.tree.column("#0", width=40, anchor="center", stretch=False)
@@ -2424,6 +2552,80 @@ class FilamentApp:
         
         start_mobile_server(self)
         self.broadcast_mqtt()
+
+    def toggle_side_panel(self, title=None, build_func=None, force_close=False):
+        # 1. Wenn explizit geschlossen wird (X-Button) ODER derselbe Tab geklickt wird -> Schließen!
+        if force_close or (self.side_panel_open and self.current_panel_title == title):
+            self.main_paned.forget(self.side_panel) # Aus dem PanedWindow entfernen
+            self.side_panel_open = False
+            return
+
+        # 2. Panel öffnen und GANZ RECHTS anheften (verschiebbar!)
+        self.main_paned.add(self.side_panel, weight=0)
+        self.side_panel_open = True
+        
+        # Pylance Fix: Fallback auf leeren String, falls title 'None' ist
+        self.current_panel_title = title or "" 
+        
+        # Altes Zeug im Panel löschen
+        for widget in self.side_panel.winfo_children():
+            widget.destroy()
+            
+        # Header mit Schließen-Button
+        header = ttk.Frame(self.side_panel)
+        header.pack(fill="x", pady=10, padx=10)
+        ttk.Label(header, text=self.current_panel_title, font=("Segoe UI", 12, "bold")).pack(side="left")
+        
+        # FIX: Der Schließen-Button zwingt das Panel jetzt zum Schließen!
+        ttk.Button(header, text="❌", width=3, command=lambda: self.toggle_side_panel(force_close=True)).pack(side="right")
+        ttk.Separator(self.side_panel, orient="horizontal").pack(fill="x")
+        
+        # Content Bereich
+        content = ttk.Frame(self.side_panel, padding=10)
+        content.pack(fill="both", expand=True)
+        
+        if build_func:
+            build_func(content)
+
+    def build_quick_cost_calculator(self, parent):
+        fields = [
+            ("Materialpreis (€/kg):", "price", "25.00"),
+            ("Verbrauch (Gramm):", "weight", "100"),
+            ("Druckzeit (Stunden):", "time", "5")
+        ]
+        entries = {}
+        for label, key, default in fields:
+            ttk.Label(parent, text=label).pack(anchor="w")
+            ent = ttk.Entry(parent)
+            ent.insert(0, default)
+            ent.pack(fill="x", pady=(0, 10))
+            entries[key] = ent
+
+        lbl_res = ttk.Label(parent, text="", font=("Segoe UI", 11, "bold"), foreground="#0078d7", justify="center")
+        lbl_res.pack(pady=20)
+
+        def calc():
+            try:
+                p = float(entries["price"].get().replace(",", "."))
+                w = float(entries["weight"].get().replace(",", "."))
+                t = float(entries["time"].get().replace(",", "."))
+                mat = w * (p / 1000.0)
+                kwh = float(self.settings.get("kwh_price", 0.30))
+                watt = int(self.settings.get("printer_watts", 150))
+                elec = t * (watt / 1000.0) * kwh
+                wear = t * float(self.settings.get("wear_per_hour", 0.20))
+                total = mat + elec + wear
+                margin = int(self.settings.get("profit_margin", 0))
+                sell = total * (1 + (margin/100.0))
+                
+                res = f"Material: {mat:.2f} € | Strom: {elec:.2f} €\nVerschleiß: {wear:.2f} €\n"
+                res += f"--------------------------\nKOSTEN: {total:.2f} €\n"
+                if margin > 0: res += f"VK (+{margin}%): {sell:.2f} €"
+                lbl_res.config(text=res)
+            except:
+                lbl_res.config(text="⚠️ Bitte Zahlen eingeben!")
+
+        ttk.Button(parent, text="Berechnen", command=calc, style="Accent.TButton").pack(fill="x", pady=10)
 
     def update_color_preview(self, event=None):
         cols = get_colors_from_text(self.combo_color.get())
@@ -2923,11 +3125,12 @@ class FilamentApp:
                     for rw in (range(r, 0, -1) if log else range(1, r + 1)):
                         row_name = shelf_names.get(str(rw), f"{lbl_r} {rw}")
                         for cl in range(1, c + 1):
+                            col_name = shelf_names.get(f"col_{cl}", f"{lbl_c} {cl}")
                             if is_double:
-                                slots.append(f"{row_name} - {lbl_c} {cl} (H)")
-                                slots.append(f"{row_name} - {lbl_c} {cl} (V)")
+                                slots.append(f"{row_name} - {col_name} (H)")
+                                slots.append(f"{row_name} - {col_name} (V)")
                             else:
-                                slots.append(f"{row_name} - {lbl_c} {cl}")
+                                slots.append(f"{row_name} - {col_name}")
                     new_values = slots
                     break
 
@@ -3340,7 +3543,6 @@ class FilamentApp:
         from core.logic import parse_shelves_string
         parsed_shelves = parse_shelves_string(shelves_str)
         
-        # Holt exakt das Regal, das wir bearbeiten wollen
         target_shelf = next((s for s in parsed_shelves if s['name'] == target_shelf_name), None)
         if not target_shelf: return
         shelf_count = target_shelf['rows']
@@ -3348,11 +3550,12 @@ class FilamentApp:
         win_height = max(250, 120 + (shelf_count * 32))
         win.geometry(f"350x{win_height}")
         
-        # NEU: Ein verschachteltes Dictionary (V2), um Regale zu trennen!
         all_shelf_names = self.settings.get("shelf_names_v2", {})
         old_names = all_shelf_names.get(target_shelf_name, {})
         
-        lbl_r = current_lbl_r if current_lbl_r else self.settings.get('label_row', 'Fach')
+        # WICHTIG: Wir trennen, was in der Datenbank steht und was die UI anzeigt
+        db_lbl_r = self.settings.get('label_row', 'Fach')
+        ui_lbl_r = current_lbl_r if current_lbl_r else db_lbl_r
         
         entries = {}
         frame_list = ttk.Frame(win)
@@ -3361,45 +3564,58 @@ class FilamentApp:
         for i in range(1, shelf_count + 1):
             frm = ttk.Frame(frame_list)
             frm.pack(fill="x", pady=3)
-            ttk.Label(frm, text=f"{lbl_r} {i}:", width=12).pack(side="left")
+            ttk.Label(frm, text=f"{ui_lbl_r} {i}:", width=12).pack(side="left")
             ent = ttk.Entry(frm)
             ent.pack(side="right", fill="x", expand=True)
-            ent.insert(0, old_names.get(str(i), f"{lbl_r} {i}"))
+            ent.insert(0, old_names.get(str(i), f"{ui_lbl_r} {i}"))
             entries[str(i)] = ent
 
         def save_names():
-            new_names = {k: v.get().strip() for k, v in entries.items()}
-            
+            new_names = {str(k): v.get().strip() for k, v in entries.items()}
             changes_made = 0
+            
             for i in range(1, shelf_count + 1):
-                old_val = old_names.get(str(i), f"{lbl_r} {i}")
-                new_val = new_names.get(str(i), f"{lbl_r} {i}")
+                # Wir prüfen beide möglichen alten Namen (Datenbank vs. Fallback)
+                old_val = old_names.get(str(i), f"{db_lbl_r} {i}")
+                new_val = new_names.get(str(i), f"{ui_lbl_r} {i}")
                 
                 if old_val != new_val: 
-                    lbl_c = self.settings.get('label_col', 'Slot')
-                    search_str = f"{old_val} - {lbl_c} "
-                    replace_str = f"{new_val} - {lbl_c} "
+                    # Wir suchen ab sofort nur noch nach dem Reihen-Namen (Kugelsicher!)
+                    search_str1 = f"{old_val} - "
+                    search_str2 = f"{db_lbl_r} {i} - "
+                    replace_str = f"{new_val} - "
                     
                     for item in self.inventory:
-                        # KUGELSICHER: Nur ändern, wenn die Spule auch in DIESEM Regal liegt!
-                        if item.get("type") == target_shelf_name and item.get("loc_id", "").startswith(search_str):
-                            item["loc_id"] = item["loc_id"].replace(search_str, replace_str, 1)
-                            changes_made += 1
+                        if item.get("type") == target_shelf_name:
+                            loc_id = str(item.get("loc_id", ""))
+                            # Prüft auf den gespeicherten ODER den Standard-Namen
+                            if loc_id.startswith(search_str1):
+                                item["loc_id"] = loc_id.replace(search_str1, replace_str, 1)
+                                changes_made += 1
+                            elif loc_id.startswith(search_str2):
+                                item["loc_id"] = loc_id.replace(search_str2, replace_str, 1)
+                                changes_made += 1
             
             all_shelf_names[target_shelf_name] = new_names
             self.settings["shelf_names_v2"] = all_shelf_names
+            
+            # ANTI-ÜBERSCHREIB-FIX: Wir injizieren die neuen Namen sofort in das Einstellungs-Fenster im Hintergrund!
+            if parent_win and hasattr(parent_win, 'settings'):
+                parent_win.settings["shelf_names_v2"] = all_shelf_names
+                
             self.data_manager.save_settings(self.settings)
             
-            if changes_made > 0:
-                self.data_manager.save_inventory(self.inventory)
-                self.refresh_table()
-                
+            # IMMER speichern und aktualisieren, um Tabellen-Hänger zu vermeiden
+            self.data_manager.save_inventory(self.inventory)
+            self.refresh_table()
             self.update_slot_dropdown()
-            messagebox.showinfo("Gespeichert", f"Namen für {target_shelf_name} aktualisiert!\n{changes_made} Spulen wurden automatisch angepasst.", parent=win)
+            
+            messagebox.showinfo("Gespeichert", f"Namen für {target_shelf_name} aktualisiert!\n{changes_made} Spulen wurden automatisch umgebucht.", parent=win)
             win.destroy()
 
         ttk.Button(win, text="💾 Speichern & Aktualisieren", command=save_names, style="Accent.TButton").pack(pady=15)
-    
+
+
     def send_to_storage(self):
         sel = self.tree.selection()
         if not sel:
@@ -3847,14 +4063,23 @@ class FilamentApp:
         lbl_row = self.settings.get("label_row", "Fach")
         lbl_col = self.settings.get("label_col", "Slot")
         
+        shelf_names_all = self.settings.get("shelf_names_v2", {})
+
         for sh in parsed_shelves:
             name = sh['name']
             rows = sh['rows']
             cols = sh['cols']
+            shelf_names = shelf_names_all.get(name, {})
             for r in range(1, rows + 1):
+                row_name = shelf_names.get(str(r), f"{lbl_row} {r}")
                 for c in range(1, cols + 1):
-                    # FIX: Exaktes VibeSpool Format! (z.B. "REGAL Fach 1 - Slot 1")
-                    all_locs.append(f"{name} {lbl_row} {r} - {lbl_col} {c}")
+                    col_name = shelf_names.get(f"col_{c}", f"{lbl_col} {c}")
+                    # Hier ist jetzt die Doppeltiefe auch im Sync aktiv!
+                    if self.settings.get("double_depth", False):
+                        all_locs.append(f"{name} {row_name} - {col_name} (H)")
+                        all_locs.append(f"{name} {row_name} - {col_name} (V)")
+                    else:
+                        all_locs.append(f"{name} {row_name} - {col_name}")
         
         if self.settings.get("custom_locs", ""):
             custom = [x.strip() for x in self.settings.get("custom_locs", "").split(",") if x.strip()]
@@ -4526,33 +4751,166 @@ class FilamentApp:
         ttk.Button(frm, text="🔄 Jetzt Synchronisieren", command=perform_sync, style="Accent.TButton").pack(fill="x", pady=10)
 
     def _ask_for_smart_deduction(self, job, parent_win, tree_widget, refresh_tree=None):
-        # --- NEU: Verhindern, dass der Dialog für denselben Druck doppelt aufgeht ---
         job_id = str(job.get('id', ''))
-        if not hasattr(self, 'active_popups'):
-            self.active_popups = set()
-            
-        if job_id in self.active_popups:
-            return # Dialog ist bereits offen, brich ab!
-            
-        self.active_popups.add(job_id)
-        # --------------------------------------------------------------------------
-        """Intelligenter Abzugs-Dialog, der Multi-Color automatisch erkennt und aufteilt!"""
-        dialog = tk.Toplevel(self.root)
-        dialog.title("🧠 Smart-Match Zuweisung")
-        dialog.geometry("650x500")
-        dialog.attributes('-topmost', True)
-        from core.utils import center_window
-        center_window(dialog, self.root)
         
-        # Pylance-Safe: Wir binden die job_id explizit an das Event!
-        dialog.protocol("WM_DELETE_WINDOW", lambda j=job_id: [self.active_popups.discard(j), dialog.destroy()])
+        # --- NEU: Wir nutzen das interne Side-Panel (Pylance-Safe!) ---
+        side_panel = getattr(parent_win, 'side_panel', None)
+        main_content = getattr(parent_win, 'main_content', None)
+        if not side_panel or not main_content: return
+        
+        for widget in side_panel.winfo_children():
+            widget.destroy()
+            
+        side_panel.pack(side="right", fill="y", before=main_content)
+        
+        header = ttk.Frame(side_panel)
+        header.pack(fill="x", pady=10, padx=10)
+        ttk.Label(header, text="🧠 Smart-Match", font=("Segoe UI", 12, "bold")).pack(side="left")
+        ttk.Button(header, text="❌", width=3, command=side_panel.pack_forget).pack(side="right")
+        ttk.Separator(side_panel, orient="horizontal").pack(fill="x")
+
+        # Container für den Inhalt
+        content_frm = ttk.Frame(side_panel, padding=15)
+        content_frm.pack(fill="both", expand=True)
+
+        model = job['name']
+        total_weight = job['weight']
+        mappings = job.get('mapping', [])
+
+        ttk.Label(content_frm, text=f"{model}", font=("Segoe UI", 11, "bold"), wraplength=400, justify="center").pack(pady=(5, 5))
+        
+        duration = job.get('duration_h', 0.0)
+        kwh_price = float(self.settings.get("kwh_price", 0.30))
+        watts = int(self.settings.get("printer_watts", 150))
+        strom_kosten = duration * (watts / 1000.0) * kwh_price
+        
+        info_str = f"Verbrauch: {total_weight}g"
+        if duration > 0: info_str += f"\nZeit: {duration:.1f}h | Strom: {strom_kosten:.2f} €"
+        ttk.Label(content_frm, text=info_str, font=("Segoe UI", 9), foreground="#0078D7", justify="center").pack(pady=5)
+
+        from core.logic import calculate_net_weight
+        spool_list = []
+        for s in self.inventory:
+            if s.get('type') == 'VERBRAUCHT': continue
+            net = calculate_net_weight(s.get('weight_gross', '0'), s.get('spool_id', -1), self.spools, s.get('empty_weight'))
+            color_clean = re.sub(r'\s*\(\s*#[0-9a-fA-F]{6}\s*\)', '', s.get('color', '')).strip()
+            spool_list.append(f"[{s['id']}] {s.get('brand')} {color_clean} ({net}g übrig)")
+
+        if not mappings:
+            mappings = [{"ams": -1, "weight": total_weight}]
+            
+        valid_mappings = [m for m in mappings if m.get('weight', 0) > 0]
+        if not valid_mappings:
+            valid_mappings = [{"ams": -1, "weight": total_weight}]
+
+        entries = []
+        
+        for m in valid_mappings:
+            row = ttk.Frame(content_frm)
+            row.pack(fill="x", pady=5)
+            
+            raw_ams = m.get('ams', -1)
+            weight = round(m.get('weight', 0.0), 1)
+            best_match = None
+            lbl_text = "Unbekannt:"
+            
+            if raw_ams >= 0:
+                ams_num = (raw_ams // 4) + 1
+                slot_num = (raw_ams % 4) + 1
+                ams_name = f"AMS {ams_num}"
+                lbl_text = f"{ams_name} Slot {slot_num}:"
+                best_match = next((s for s in self.inventory if s.get('type') == ams_name and str(s.get('loc_id')) == str(slot_num)), None)
+
+            ttk.Label(row, text=lbl_text, width=12, font=("Segoe UI", 9, "bold")).pack(side="left")
+            
+            combo = ttk.Combobox(row, values=spool_list, width=28, font=("Segoe UI", 9))
+            combo.pack(side="left", padx=5)
+            
+            if best_match:
+                net_match = calculate_net_weight(best_match.get('weight_gross', '0'), best_match.get('spool_id', -1), self.spools, best_match.get('empty_weight'))
+                color_match = re.sub(r'\s*\(\s*#[0-9a-fA-F]{6}\s*\)', '', best_match.get('color', '')).strip()
+                match_str = f"[{best_match['id']}] {best_match.get('brand')} {color_match} ({net_match}g übrig)"
+                if match_str in spool_list: combo.set(match_str)
+            elif spool_list: combo.current(0)
+                
+            ent_w = ttk.Entry(row, width=6, justify="right", font=("Segoe UI", 9, "bold"))
+            ent_w.pack(side="left")
+            ent_w.insert(0, str(weight))
+            ttk.Label(row, text="g").pack(side="left")
+            
+            entries.append({"combo": combo, "weight_entry": ent_w})
+
+        def confirm():
+            total_deducted = 0
+            for e in entries:
+                sel = e["combo"].get()
+                try: w_val = float(e["weight_entry"].get().replace(',', '.'))
+                except ValueError: continue
+                
+                if w_val <= 0: continue
+                
+                if sel and sel.startswith("["):
+                    spool_id = sel.split("]")[0][1:]
+                    item = next((i for i in self.inventory if str(i['id']) == spool_id), None)
+                    if item:
+                        old_gross = float(item.get('weight_gross', 0.0))
+                        item['weight_gross'] = round(max(0.0, old_gross - w_val), 1)
+
+                        mat_cost = 0.0
+                        try:
+                            sp_price = float(str(item.get('price', '0')).replace(',', '.')) or 0.0
+                            sp_cap = float(str(item.get('capacity', '1000'))) or 1000.0
+                            if sp_cap > 0: mat_cost = w_val * (sp_price / sp_cap)
+                        except: pass
+
+                        anteil = w_val / total_weight if total_weight > 0 else 1.0
+                        wear_price = float(self.settings.get("wear_per_hour", 0.20))
+                        
+                        echte_kosten = mat_cost + (strom_kosten * anteil) + ((duration * wear_price) * anteil)
+                        margin_percent = int(self.settings.get("profit_margin", 0))
+                        vk_preis = echte_kosten * (1 + (margin_percent / 100.0))
+
+                        if "history" not in item: item["history"] = []
+                        item["history"].append({
+                            "date": datetime.now().strftime("%Y-%m-%d %H:%M"),
+                            "action": f"Cloud: {model}",
+                            "change": f"-{w_val}g",
+                            "cost": f"{echte_kosten:.2f} €",
+                            "sell_price": f"{vk_preis:.2f} €" if margin_percent > 0 else "-"
+                        })
+                        total_deducted += w_val
+
+            if total_deducted > 0:
+                self.log_consumption(total_deducted)
+                self.data_manager.save_inventory(self.inventory)
+                self.refresh_table()
+                
+                deducted = self.settings.get("deducted_cloud_jobs", [])
+                if job_id not in deducted:
+                    deducted.append(job_id)
+                    self.settings["deducted_cloud_jobs"] = deducted
+                    self.data_manager.save_settings(self.settings)
+                
+                if refresh_tree:
+                    try: refresh_tree() 
+                    except Exception: pass
+                
+                side_panel.pack_forget()
+                anteil = total_deducted / total_weight if total_weight > 0 else 1.0
+                self.show_custom_toast("💰 Filament verrechnet", f"Verbrauch: {total_deducted:.1f}g\nGesamtkosten: {mat_cost + (strom_kosten * anteil):.2f} €")
+            else:
+                messagebox.showerror("Fehler", "Es wurden keine gültigen Gewichte eingetragen.", parent=parent_win)
+
+        ttk.Button(content_frm, text="✅ Jetzt Abziehen", style="Accent.TButton", command=confirm).pack(side="bottom", pady=15)
+
+    def _build_cloud_deduction_ui(self, content, job, parent_win, tree_widget, refresh_tree=None):
 
         model = job['name']
         total_weight = job['weight']
         mappings = job.get('mapping', [])
         job_id = str(job.get('id', ''))
 
-        ttk.Label(dialog, text=f"Druck: {model}", font=("Segoe UI", 12, "bold"), wraplength=550, justify="center").pack(pady=(15, 5))
+        ttk.Label(content, text=f"Druck: {model}", font=("Segoe UI", 12, "bold"), wraplength=350, justify="center").pack(pady=(10, 5))
         
         # --- NEU: Stromkosten berechnen ---
         duration = job.get('duration_h', 0.0)
@@ -4562,10 +4920,10 @@ class FilamentApp:
         
         info_str = f"Verbrauch: {total_weight}g"
         if duration > 0: info_str += f"  |  Zeit: {duration:.1f}h  |  Strom: {strom_kosten:.2f} €"
-        ttk.Label(dialog, text=info_str, font=("Segoe UI", 10), foreground="#0078D7").pack(pady=5)
+        ttk.Label(content, text=info_str, font=("Segoe UI", 10), foreground="#0078D7", justify="center", wraplength=350).pack(pady=5)
 
-        frm = ttk.LabelFrame(dialog, text="Verwendete Spulen zuweisen", padding=15)
-        frm.pack(fill="both", expand=True, padx=20, pady=10)
+        frm = ttk.LabelFrame(content, text="Verwendete Spulen zuweisen", padding=10)
+        frm.pack(fill="both", expand=True, pady=10)
 
         # 1. Spulen-Liste formatieren
         from core.logic import calculate_net_weight
@@ -4574,7 +4932,7 @@ class FilamentApp:
             if s.get('type') == 'VERBRAUCHT': continue
             net = calculate_net_weight(s.get('weight_gross', '0'), s.get('spool_id', -1), self.spools, s.get('empty_weight'))
             color_clean = re.sub(r'\s*\(\s*#[0-9a-fA-F]{6}\s*\)', '', s.get('color', '')).strip()
-            spool_list.append(f"[{s['id']}] {s.get('brand')} {color_clean} ({net}g übrig)")
+            spool_list.append(f"[{s['id']}] {s.get('brand')} {color_clean} ({net}g)")
 
         # 2. Multi-Color Fallback (Falls API keine Daten liefert)
         if not mappings:
@@ -4607,22 +4965,25 @@ class FilamentApp:
                 # Wir suchen direkt, was aktuell in VibeSpool auf diesem Slot liegt!
                 best_match = next((s for s in self.inventory if s.get('type') == ams_name and str(s.get('loc_id')) == str(slot_num)), None)
 
-            ttk.Label(row, text=lbl_text, width=15, font=("Segoe UI", 9, "bold")).pack(side="left")
+            ttk.Label(row, text=lbl_text, width=12, font=("Segoe UI", 9, "bold")).pack(side="left")
             
-            combo = ttk.Combobox(row, values=spool_list, width=40, font=("Segoe UI", 10))
-            combo.pack(side="left", padx=5)
+            combo = ttk.Combobox(row, values=spool_list, width=22, font=("Segoe UI", 9))
+            combo.pack(side="left", padx=5, fill="x", expand=True)
             
             # Die vorgeschlagene Spule automatisch eintragen
             if best_match:
                 net_match = calculate_net_weight(best_match.get('weight_gross', '0'), best_match.get('spool_id', -1), self.spools, best_match.get('empty_weight'))
                 color_match = re.sub(r'\s*\(\s*#[0-9a-fA-F]{6}\s*\)', '', best_match.get('color', '')).strip()
-                match_str = f"[{best_match['id']}] {best_match.get('brand')} {color_match} ({net_match}g übrig)"
-                if match_str in spool_list:
-                    combo.set(match_str)
+                match_str = f"[{best_match['id']}] {best_match.get('brand')} {color_match} ({net_match}g)"
+                
+                for sp_item in spool_list:
+                    if sp_item.startswith(f"[{best_match['id']}]"):
+                        combo.set(sp_item)
+                        break
             elif spool_list:
                 combo.current(0)
                 
-            ent_w = ttk.Entry(row, width=8, justify="right", font=("Segoe UI", 10, "bold"))
+            ent_w = ttk.Entry(row, width=6, justify="right", font=("Segoe UI", 9, "bold"))
             ent_w.pack(side="left")
             ent_w.insert(0, str(weight))
             ttk.Label(row, text=" g").pack(side="left")
@@ -4631,6 +4992,7 @@ class FilamentApp:
 
         def confirm():
             total_deducted = 0
+            mat_cost = 0.0
             for e in entries:
                 sel = e["combo"].get()
                 try:
@@ -4648,12 +5010,14 @@ class FilamentApp:
                         item['weight_gross'] = round(new_gross, 1)
 
                         # --- Kosten exakt berechnen! ---
-                        mat_cost = 0.0
+                        spool_mat_cost = 0.0
                         try:
                             spool_price = float(str(item.get('price', '0')).replace(',', '.')) or 0.0
                             spool_capacity = float(str(item.get('capacity', '1000'))) or 1000.0
-                            if spool_capacity > 0: mat_cost = w_val * (spool_price / spool_capacity)
+                            if spool_capacity > 0: spool_mat_cost = w_val * (spool_price / spool_capacity)
                         except: pass
+                        
+                        mat_cost += spool_mat_cost
 
                         # Strom, Verschleiß & Marge anteilig berechnen (wichtig bei Multi-Color!)
                         anteil = w_val / total_weight if total_weight > 0 else 1.0
@@ -4662,7 +5026,7 @@ class FilamentApp:
                         wear_price = float(self.settings.get("wear_per_hour", 0.20))
                         wear_anteil = (duration * wear_price) * anteil
                         
-                        echte_kosten = mat_cost + strom_anteil + wear_anteil
+                        echte_kosten = spool_mat_cost + strom_anteil + wear_anteil
                         
                         margin_percent = int(self.settings.get("profit_margin", 0))
                         vk_preis = echte_kosten * (1 + (margin_percent / 100.0))
@@ -4698,15 +5062,16 @@ class FilamentApp:
                     except Exception: 
                         pass
                 
-                self.active_popups.discard(job_id)
-                dialog.destroy()
+                self.toggle_side_panel(force_close=True)
+                
                 anteil = total_deducted / total_weight if total_weight > 0 else 1.0
                 gesamt_kosten = mat_cost + (strom_kosten * anteil)
                 self.show_custom_toast("💰 Filament verrechnet", f"Verbrauch: {total_deducted:.1f}g\nGesamtkosten (Material + Strom): {gesamt_kosten:.2f} €")
             else:
-                messagebox.showerror("Fehler", "Es wurden keine gültigen Gewichte eingetragen.", parent=dialog)
+                from tkinter import messagebox
+                messagebox.showerror("Fehler", "Es wurden keine gültigen Gewichte eingetragen.", parent=self.root)
 
-        ttk.Button(dialog, text="✅ Jetzt Abziehen", style="Accent.TButton", command=confirm).pack(pady=(10, 15))
+        ttk.Button(content, text="✅ Jetzt Abziehen", style="Accent.TButton", command=confirm).pack(pady=(10, 15), fill="x")
     
     def _process_cloud_history(self, history_data, dialog):
         """Zeigt die Cloud-Historie mit Status-Tracking und Filter-Option an."""
@@ -4714,17 +5079,31 @@ class FilamentApp:
             
         win = tk.Toplevel(self.root)
         win.title("📋 Cloud Historie - Zuweisen oder Ignorieren")
-        win.geometry("850x600")
+        win.geometry("1100x650") # Breiter für das Side-Panel
         win.configure(bg=self.root.cget('bg'))
         win.attributes('-topmost', True)
+        from core.utils import center_window
+        center_window(win, self.root)
+        
+        # --- NEU: Master Layout für internes Side-Panel (Pylance-Safe!) ---
+        master_frame = ttk.Frame(win)
+        master_frame.pack(fill="both", expand=True)
+        setattr(win, 'master_frame', master_frame)
+        
+        side_panel = ttk.Frame(master_frame, width=450, relief="solid", borderwidth=1)
+        side_panel.pack_propagate(False)
+        setattr(win, 'side_panel', side_panel)
+        
+        main_content = ttk.Frame(master_frame)
+        main_content.pack(side="left", fill="both", expand=True)
+        setattr(win, 'main_content', main_content)
         
         # --- Kopfzeile mit Titel und Filter ---
-        header = ttk.Frame(win)
+        header = ttk.Frame(main_content)
         header.pack(fill="x", padx=10, pady=10)
         
         ttk.Label(header, text="Letzte erfolgreiche Druckaufträge aus der Cloud:", font=("Segoe UI", 12, "bold")).pack(side="left")
         
-        # NEU: Der Filter-Haken (Zustand wird in Settings gespeichert)
         self.var_hide_completed = tk.BooleanVar(value=self.settings.get("hide_completed_cloud_jobs", False))
         
         def toggle_filter():
@@ -4737,7 +5116,7 @@ class FilamentApp:
         
         # --- Die Tabelle ---
         columns = ("status", "name", "weight", "date")
-        tree = ttk.Treeview(win, columns=columns, show="headings", height=15)
+        tree = ttk.Treeview(main_content, columns=columns, show="headings", height=15)
         tree.heading("status", text="Status")
         tree.heading("name", text="Modell")
         tree.heading("weight", text="Verbrauch")
@@ -4750,11 +5129,9 @@ class FilamentApp:
         
         tree.tag_configure("done", foreground="#28a745")
         tree.tag_configure("ignored", foreground="#6c757d")
-        tree.pack(fill="both", expand=True, padx=10, pady=10)
         
         self.current_cloud_jobs = {str(job.get('id', '')): job for job in history_data if 'id' in job}
 
-        # NEU: Zentrale Refresh-Logik für die Tabelle
         def refresh_tree():
             for i in tree.get_children(): tree.delete(i)
             
@@ -4769,7 +5146,6 @@ class FilamentApp:
                 is_done = job_id in deducted
                 is_ignored = job_id in ignored
                 
-                # Wenn Filter aktiv ist: erledigte Sachen überspringen
                 if hide and (is_done or is_ignored): continue
                 
                 if is_done:
@@ -4781,8 +5157,7 @@ class FilamentApp:
                 
                 tree.insert("", "end", iid=job_id, values=(stat, job['name'], f"{job['weight']:.1f} g", job['date']), tags=tags)
 
-        # --- FIX: Button-Leiste ZUERST unten packen ---
-        btn_frame = ttk.Frame(win)
+        btn_frame = ttk.Frame(main_content)
         btn_frame.pack(fill="x", side="bottom", padx=10, pady=15)
 
         def on_deduct_click(event=None):
@@ -4811,9 +5186,8 @@ class FilamentApp:
         ttk.Button(btn_frame, text="🚫 Ignorieren", command=on_ignore_toggle).pack(side="left", padx=5)
         ttk.Button(btn_frame, text="Schließen", command=win.destroy).pack(side="right", padx=5)
         
-        # --- Die Tabelle (Nimmt sich den Restspeicher) ---
         tree.pack(fill="both", expand=True, padx=10, pady=(10, 0))
-        refresh_tree() # Initiales Laden
+        refresh_tree()
 
     def broadcast_mqtt(self):
         # 1. Ist MQTT überhaupt aktiviert?

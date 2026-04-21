@@ -23,10 +23,10 @@
 ## 🐛 Hotfixes & UX-Polish (v2.0.1)
 - [X] **BUGFIX:** Nozzle- und Bed-Temp Felder verdoppeln ihre Werte beim Laden, da die Insert-Befehle im Code versehentlich doppelt ausgeführt werden.
 - [x] **UX-FIX:** Systematische Prüfung aller Pop-up-Fenster: Buttons müssen hart an den unteren Rand gekoppelt werden (`side="bottom"`), damit sie bei hoher Windows-Skalierung nicht mehr abgeschnitten werden.
-- [ ] **UX-EVALUATION:** Prüfung, ob wir Dialoge/Untermenüs künftig als "Klappmenüs" (Accordions) direkt ins Hauptfenster integrieren können, um die "Pop-up-Flut" zu reduzieren.
+- [X] **UX-EVALUATION:** Prüfung, ob wir Dialoge/Untermenüs künftig als "Klappmenüs" (Accordions) direkt ins Hauptfenster integrieren können, um die "Pop-up-Flut" zu reduzieren.
+- [X] **📝 Auftrags-Planer (Print Queue & MES):** Neues Planungs-Tool für kommende Drucke. Zuweisung von Kunde/Titel, Modell-Links, Spulen (inkl. Multi-Color ID 1 + ID 2) und Notizen ("Marble für Body, Grün für Schrift"). Später direkt mit Cloud-Abzug verknüpfbar.
 
 ## 🚀 Priorität 1: Next Steps (v2.1.0)
-- [ ] **📝 Auftrags-Planer (Print Queue & MES):** Neues Planungs-Tool für kommende Drucke. Zuweisung von Kunde/Titel, Modell-Links, Spulen (inkl. Multi-Color ID 1 + ID 2) und Notizen ("Marble für Body, Grün für Schrift"). Später direkt mit Cloud-Abzug verknüpfbar.
 - [ ] **🎨 Custom Label Designer:** Baukasten zum freien Gestalten von Etiketten (Logos hinzufügen, Schriftarten ändern).
 
 ## 🔮 Langzeit-Vision (v3.0)

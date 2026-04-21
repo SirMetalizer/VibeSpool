@@ -60,14 +60,6 @@ class BambuCloudAPI:
             response = self.session.get(url, timeout=15)
             data = response.json()
             
-            # --- DEBUG LOGGING ---
-            import json, os
-            debug_path = os.path.join(os.getcwd(), "bambu_tasks_debug.json")
-            with open(debug_path, "w", encoding="utf-8") as f:
-                json.dump(data, f, indent=4)
-            print(f"☁️ [Bambu Tasks]: Antwort gespeichert in {debug_path}")
-            # ---------------------
-            
             # Hier greifen wir tiefer, da Bambu manchmal "hits" oder "tasks" als Unterordner nutzt
             jobs = []
             if isinstance(data, list):

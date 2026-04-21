@@ -2,6 +2,7 @@ import json
 import os
 import re
 import tkinter as tk
+from tkinter import ttk
 from PIL import Image, ImageTk, ImageDraw
 
 COLOR_MAP = {
@@ -163,3 +164,70 @@ def center_window(window, parent):
     x = parent.winfo_x() + (parent.winfo_width() // 2) - (window.winfo_width() // 2)
     y = parent.winfo_y() + (parent.winfo_height() // 2) - (window.winfo_height() // 2)
     window.geometry(f"+{x}+{y}")
+
+# --- NEUE UI-KOMPONENTEN FÜR KLAPPMENÜS (ACCORDIONS) ---
+class ScrollableFrame(ttk.Frame):
+    def __init__(self, container, *args, **kwargs):
+        super().__init__(container, *args, **kwargs)
+        
+        # --- NEU: Kugelsicheres Ermitteln der Hintergrundfarbe ---
+        try:
+            bg_color = container.cget('bg')
+        except tk.TclError:
+            # Falls es ein modernes ttk-Widget ist, nimm die Farbe vom Hauptfenster
+            bg_color = container.winfo_toplevel().cget('bg')
+            
+        # Canvas für das Scroll-Verhalten
+        self.canvas = tk.Canvas(self, highlightthickness=0, bg=bg_color)
+        
+        scrollbar = ttk.Scrollbar(self, orient="vertical", command=self.canvas.yview)
+        self.inner = ttk.Frame(self.canvas)
+        
+        self.inner.bind("<Configure>", lambda e: self.canvas.configure(scrollregion=self.canvas.bbox("all")))
+        self.canvas.bind('<Configure>', self._on_canvas_configure)
+        
+        self.canvas_window = self.canvas.create_window((0, 0), window=self.inner, anchor="nw")
+        self.canvas.configure(yscrollcommand=scrollbar.set)
+        
+        self.canvas.pack(side="left", fill="both", expand=True)
+        scrollbar.pack(side="right", fill="y")
+        
+        self.bind_all("<MouseWheel>", self._on_mousewheel)
+
+    def _on_canvas_configure(self, event):
+        # Passt die Breite des inneren Frames dynamisch ans Fenster an
+        self.canvas.itemconfig(self.canvas_window, width=event.width)
+
+    def _on_mousewheel(self, event):
+        try:
+            # Prüfen, ob das Element überhaupt noch existiert, bevor wir scrollen!
+            if self.canvas.winfo_exists():
+                self.canvas.yview_scroll(int(-1*(event.delta/120)), "units")
+        except Exception:
+            pass
+
+class CollapsibleFrame(ttk.Frame):
+    def __init__(self, parent, title="", *args, **kwargs):
+        super().__init__(parent, *args, **kwargs)
+        self.show = tk.BooleanVar(value=False)
+        
+        self.frm_header = ttk.Frame(self)
+        self.frm_header.pack(fill="x", pady=(5,0))
+        
+        # Der Toggle-Button
+        self.btn_toggle = ttk.Checkbutton(
+            self.frm_header, text=f"▶  {title}", 
+            command=self.toggle, variable=self.show, style="Toolbutton"
+        )
+        self.btn_toggle.pack(fill="x", expand=True, ipady=5)
+        
+        # Container für den Inhalt
+        self.content = ttk.Frame(self, padding=15)
+        
+    def toggle(self):
+        if self.show.get():
+            self.btn_toggle.config(text=self.btn_toggle.cget("text").replace("▶", "▼"))
+            self.content.pack(fill="both", expand=True)
+        else:
+            self.btn_toggle.config(text=self.btn_toggle.cget("text").replace("▼", "▶"))
+            self.content.pack_forget()

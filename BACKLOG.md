@@ -1,5 +1,12 @@
 # 📋 VibeSpool Development Backlog
 
+## ✅ Abgeschlossen (v2.0.1 - "The Pop-up Killer & Print Queue Update")
+- [x] **UX-EVALUATION & Refactoring:** Pop-up-Fenster in dynamische, verschiebbare Side-Panels (PanedWindow) umgebaut, um die "Pop-up-Flut" zu stoppen.
+- [x] **Lager-Logik (Grid-Naming V2):** Raster-basiertes Naming für Regal-Fächer UND Slots inkl. magischer Hintergrund-Umbuchung von Spulen.
+- [x] **📝 Auftrags-Planer (Print Queue & MES):** Neues Planungs-Tool für kommende Drucke. Zuweisung von Kunde/Titel, Modell-Links, Spulen (inkl. Multi-Color ID 1 + ID 2) und Notizen ("Marble für Body, Grün für Schrift").
+- [x] **BUGFIX:** Nozzle- und Bed-Temp Felder verdoppeln ihre Werte beim Laden nicht mehr.
+- [x] **UX-FIX:** Systematische Prüfung aller Pop-up-Fenster: Buttons hart an den unteren Rand gekoppelt, gegen Abschneiden bei hoher Windows-Skalierung.
+
 ## ✅ Abgeschlossen (v2.0.0 - "The Cost Center & Enterprise Update")
 - [x] **Globales Cost Center:** Vollständige Historie aller Drucke (manuell & Cloud) über alle Spulen hinweg im Finanz-Dashboard.
 - [x] **Gewerbe-Kalkulation (Marge & Verschleiß):** Berechnung von Maschinenabnutzung (pro Stunde) und automatischer Aufschlag einer Gewinnmarge für den Verkaufspreis.
@@ -20,14 +27,10 @@
 - [x] **Alphanumerische IDs:** Support für Text-IDs (A134, PLA-01).
 - [x] **Hersteller-Barcode Scanner:** Handy-Scanner liest jetzt auch 1D-Strichcodes auf Originalverpackungen und lernt diese.
 
-## 🐛 Hotfixes & UX-Polish (v2.0.1)
-- [X] **BUGFIX:** Nozzle- und Bed-Temp Felder verdoppeln ihre Werte beim Laden, da die Insert-Befehle im Code versehentlich doppelt ausgeführt werden.
-- [x] **UX-FIX:** Systematische Prüfung aller Pop-up-Fenster: Buttons müssen hart an den unteren Rand gekoppelt werden (`side="bottom"`), damit sie bei hoher Windows-Skalierung nicht mehr abgeschnitten werden.
-- [X] **UX-EVALUATION:** Prüfung, ob wir Dialoge/Untermenüs künftig als "Klappmenüs" (Accordions) direkt ins Hauptfenster integrieren können, um die "Pop-up-Flut" zu reduzieren.
-- [X] **📝 Auftrags-Planer (Print Queue & MES):** Neues Planungs-Tool für kommende Drucke. Zuweisung von Kunde/Titel, Modell-Links, Spulen (inkl. Multi-Color ID 1 + ID 2) und Notizen ("Marble für Body, Grün für Schrift"). Später direkt mit Cloud-Abzug verknüpfbar.
-
 ## 🚀 Priorität 1: Next Steps (v2.1.0)
+- [ ] **📦 Professionelles Windows Setup:** Umstellung der portablen `.exe` auf einen echten Windows-Installer (via Inno Setup) inkl. Startmenü-Einträgen, Desktop-Icon und schnelleren Ladezeiten.
 - [ ] **🎨 Custom Label Designer:** Baukasten zum freien Gestalten von Etiketten (Logos hinzufügen, Schriftarten ändern).
 
 ## 🔮 Langzeit-Vision (v3.0)
 - [ ] **📂 3MF Deep-Dive FTP Parsing:** Automatisches Auslesen der Gewichte pro Slot direkt vom Drucker-Speicher, noch bevor die Cloud es meldet.
+- [ ] **☁️ Planer Auto-Sync:** Den Auftrags-Planer (MES) intelligent mit der Bambu-Cloud verknüpfen.

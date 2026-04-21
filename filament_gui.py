@@ -1691,8 +1691,6 @@ class StatisticsDialog(tk.Toplevel):
             import datetime, json, os
             date_str = entry.get("date", "").split(" ")[0]
             if not date_str: date_str = datetime.date.today().isoformat()
-            
-            day_total = sum(abs(float(h.get("change", "0").replace("g", "").replace(" ", "").replace(",", "."))) for s in self.inventory for h in s.get("history", []) if h.get("date", "").startswith(date_str) and float(h.get("change", "0").replace("g", "").replace(" ", "").replace(",", ".")) < 0)
                         
             data_dir = getattr(self.app.data_manager, 'base_dir', '')
             history_file = os.path.join(data_dir, "history.json") if data_dir else "history.json"
@@ -1702,11 +1700,16 @@ class StatisticsDialog(tk.Toplevel):
                     with open(history_file, "r") as f: hist_data = json.load(f)
                 except: pass
                 
-            hist_data[date_str] = round(day_total, 1)
+            # FIX: Nur die exakte Differenz zum bestehenden Tages-Total verrechnen!
+            if delta != 0.0:
+                current_day_total = hist_data.get(date_str, 0.0)
+                # Da delta negativ ist, wenn der Verbrauch höher wird, ziehen wir es ab!
+                new_day_total = max(0.0, current_day_total - delta)
+                hist_data[date_str] = round(new_day_total, 1)
             
-            try:
-                with open(history_file, "w") as f: json.dump(hist_data, f, indent=4)
-            except: pass
+                try:
+                    with open(history_file, "w") as f: json.dump(hist_data, f, indent=4)
+                except: pass
             
             self.app.data_manager.save_inventory(self.inventory)
             self.app.refresh_table()
@@ -1721,6 +1724,29 @@ class StatisticsDialog(tk.Toplevel):
                 
                 curr_gross = float(spool.get('weight_gross', 0))
                 spool['weight_gross'] = round(max(0.0, curr_gross - old_val), 1)
+                
+                import datetime, json, os
+                date_str = entry.get("date", "").split(" ")[0]
+                if not date_str: date_str = datetime.date.today().isoformat()
+                
+                data_dir = getattr(self.app.data_manager, 'base_dir', '')
+                history_file = os.path.join(data_dir, "history.json") if data_dir else "history.json"
+                hist_data = {}
+                if os.path.exists(history_file):
+                    try:
+                        with open(history_file, "r") as f: hist_data = json.load(f)
+                    except: pass
+                
+                # FIX: Das gelöschte Filament aus dem Balkendiagramm abziehen
+                if old_val != 0.0:
+                    current_day_total = hist_data.get(date_str, 0.0)
+                    new_day_total = max(0.0, current_day_total + old_val)
+                    hist_data[date_str] = round(new_day_total, 1)
+                    
+                    try:
+                        with open(history_file, "w") as f: json.dump(hist_data, f, indent=4)
+                    except: pass
+
                 del spool["history"][hist_idx]
                 
                 self.app.data_manager.save_inventory(self.inventory)
@@ -1976,6 +2002,7 @@ class FilamentApp:
         # Pylance Definitionen für Hintergrund-Tasks
         self.tray_icon = None
         self.active_popups = set()
+        self.stats_dialog = None  # Pylance-Fix: Platzhalter für das Finanz-Dashboard
         
         # Suppress type checking for this assignment since load_all returns (list, dict, list)
         inventory_data, settings_data, spools_data = self.data_manager.load_all(DEFAULT_SETTINGS)
@@ -2091,6 +2118,16 @@ class FilamentApp:
         
         # FIX: Ein Leerzeichen vor dem Emoji schiebt es optisch genau in die Mitte!
         add_nav_btn("Label", lambda: LabelCreatorDialog(self.root, self.inventory), "   🏷️")
+
+        # --- NEU: Dashboard-Referenz speichern für Live-Updates (Pylance-sicher!) ---
+        def open_statistics():
+            dlg = self.stats_dialog # Lokale Kopie für Pylance
+            if dlg is not None and dlg.winfo_exists():
+                dlg.focus_set()
+                dlg.build_ui() # Wenn schon offen: Einfach live neu zeichnen!
+            else:
+                self.stats_dialog = StatisticsDialog(self.root, self.inventory, self)
+        add_nav_btn("Finanzen", open_statistics, "📊")
         
         add_nav_btn("Finanzen", lambda: StatisticsDialog(self.root, self.inventory, self), "📊")
         add_nav_btn("Swap", self.quick_swap_dialog, "🔄")
@@ -3297,6 +3334,14 @@ class FilamentApp:
             
         self.tree.tag_configure("alert", background="#ffe6e6", foreground="#d9534f")
         self.tree.tag_configure("grayed", foreground="#999999")
+
+        # --- NEU: Live-Update für ein offenes Finanz-Dashboard (Pylance-sicher!) ---
+        dlg = getattr(self, 'stats_dialog', None)
+        if dlg is not None and dlg.winfo_exists():
+            dlg.build_ui()
+
+        if hasattr(self, 'stats_dialog') and self.stats_dialog and self.stats_dialog.winfo_exists():
+            self.stats_dialog.build_ui()
     
     def get_input_data(self):
         try:
@@ -3911,8 +3956,27 @@ class FilamentApp:
                 new_gross = max(0, old_gross - weight_g)
                 item['weight_gross'] = new_gross
                 
+                # --- NEU: Historie für Auto-Sync eintragen! ---
+                if "history" not in item: item["history"] = []
+                
+                mat_cost = 0.0
+                try:
+                    sp_price = float(str(item.get('price', '0')).replace(',', '.')) or 0.0
+                    sp_cap = float(str(item.get('capacity', '1000'))) or 1000.0
+                    if sp_cap > 0: mat_cost = weight_g * (sp_price / sp_cap)
+                except: pass
+                
+                from datetime import datetime
+                item["history"].append({
+                    "date": datetime.now().strftime("%Y-%m-%d %H:%M"),
+                    "action": "Bambu Live-Sync",
+                    "change": f"-{weight_g:.1f}g",
+                    "cost": f"{mat_cost:.2f} €",
+                    "sell_price": "-"
+                })
+                
                 self.data_manager.save_inventory(self.inventory)
-                self.log_consumption(weight_g)
+                self.log_consumption(weight_g) # Live Sync ist immer "heute"
                 self.refresh_table()
                 self.broadcast_mqtt()
                 
@@ -4620,12 +4684,11 @@ class FilamentApp:
                 
         webbrowser.open(url)
 
-    def log_consumption(self, amount_g):
+    def log_consumption(self, amount_g, specific_date=None):
         import datetime
         import json
         import os
         
-        # NEU: Wir blocken nur noch echte Nullen, erlauben aber Minuswerte!
         if amount_g == 0: return 
         
         data_dir = getattr(self.data_manager, 'base_dir', '')
@@ -4638,13 +4701,10 @@ class FilamentApp:
                     history = json.load(f)
             except: pass
             
-        today = datetime.date.today().isoformat()
+        # FIX: Wenn ein Datum übergeben wird, nimm das! Sonst nimm "Heute".
+        today = specific_date if specific_date else datetime.date.today().isoformat()
         
-        # Heutigen Verbrauch berechnen (Wenn amount_g negativ ist, wird abgezogen!)
         new_val = history.get(today, 0.0) + float(amount_g)
-        
-        # NEU: Verhindert, dass der Tagesverbrauch unter 0g fällt 
-        # (z.B. wenn man gestern gedruckt hat, aber heute erst die Korrektur einträgt)
         history[today] = max(0.0, new_val)
         
         with open(history_file, "w") as f:
@@ -4753,7 +4813,11 @@ class FilamentApp:
     def _ask_for_smart_deduction(self, job, parent_win, tree_widget, refresh_tree=None):
         job_id = str(job.get('id', ''))
         
-        # --- NEU: Wir nutzen das interne Side-Panel (Pylance-Safe!) ---
+        # --- FIX 1: Original-Datum des Drucks aus der Cloud holen! ---
+        from datetime import datetime
+        job_date_str = job.get('date', datetime.now().strftime("%Y-%m-%d %H:%M"))
+        job_day = job_date_str.split(" ")[0] # Zieht nur das Datum (YYYY-MM-DD) für das Chart heraus
+        
         side_panel = getattr(parent_win, 'side_panel', None)
         main_content = getattr(parent_win, 'main_content', None)
         if not side_panel or not main_content: return
@@ -4769,7 +4833,6 @@ class FilamentApp:
         ttk.Button(header, text="❌", width=3, command=side_panel.pack_forget).pack(side="right")
         ttk.Separator(side_panel, orient="horizontal").pack(fill="x")
 
-        # Container für den Inhalt
         content_frm = ttk.Frame(side_panel, padding=15)
         content_frm.pack(fill="both", expand=True)
 
@@ -4779,7 +4842,10 @@ class FilamentApp:
 
         ttk.Label(content_frm, text=f"{model}", font=("Segoe UI", 11, "bold"), wraplength=400, justify="center").pack(pady=(5, 5))
         
-        duration = job.get('duration_h', 0.0)
+        # Sicherstellen, dass Dauer eine Float-Zahl ist
+        try: duration = float(job.get('duration_h', 0.0) or 0.0)
+        except: duration = 0.0
+        
         kwh_price = float(self.settings.get("kwh_price", 0.30))
         watts = int(self.settings.get("printer_watts", 150))
         strom_kosten = duration * (watts / 1000.0) * kwh_price
@@ -4804,7 +4870,6 @@ class FilamentApp:
             valid_mappings = [{"ams": -1, "weight": total_weight}]
 
         entries = []
-        
         for m in valid_mappings:
             row = ttk.Frame(content_frm)
             row.pack(fill="x", pady=5)
@@ -4872,7 +4937,7 @@ class FilamentApp:
 
                         if "history" not in item: item["history"] = []
                         item["history"].append({
-                            "date": datetime.now().strftime("%Y-%m-%d %H:%M"),
+                            "date": job_date_str, # <--- FIX 2: Original Datum des Drucks schreiben!
                             "action": f"Cloud: {model}",
                             "change": f"-{w_val}g",
                             "cost": f"{echte_kosten:.2f} €",
@@ -4881,7 +4946,8 @@ class FilamentApp:
                         total_deducted += w_val
 
             if total_deducted > 0:
-                self.log_consumption(total_deducted)
+                # FIX 3: Den Tages-Verbrauch an das richtige Datum im Balkendiagramm schicken!
+                self.log_consumption(total_deducted, specific_date=job_day)
                 self.data_manager.save_inventory(self.inventory)
                 self.refresh_table()
                 

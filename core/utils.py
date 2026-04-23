@@ -121,6 +121,14 @@ def get_colors_from_text(text):
             continue
             
         part_lower = part.lower()
+        
+        if "rainbow" in part_lower or "regenbogen" in part_lower:
+            # Wir geben einfach die 6 Grundfarben zurück. 
+            # Das Icon-Tool malt uns daraus automatisch 6 Streifen!
+            result_colors.extend(["#FF0000", "#FFA500", "#FFFF00", "#008000", "#0000FF", "#800080"])
+            continue
+        
+        
         found = False
         
         # Check 2: Suche in den ECHTEN Farben zuerst! (sortiert nach Länge, damit "weinrot" vor "rot" greift)

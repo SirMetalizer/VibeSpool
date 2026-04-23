@@ -29,7 +29,7 @@ from core.label_creator import LabelCreatorDialog
 from core.print_queue import PrintQueueDialog
 
 # --- KONFIGURATION ---
-APP_VERSION = "2.0.1"
+APP_VERSION = "2.0.2"
 GITHUB_REPO = "SirMetalizer/VibeSpool" 
 
 # --- DEFAULTS ---
@@ -2127,8 +2127,7 @@ class FilamentApp:
                 dlg.build_ui() # Wenn schon offen: Einfach live neu zeichnen!
             else:
                 self.stats_dialog = StatisticsDialog(self.root, self.inventory, self)
-        add_nav_btn("Finanzen", open_statistics, "📊")
-        
+
         add_nav_btn("Finanzen", lambda: StatisticsDialog(self.root, self.inventory, self), "📊")
         add_nav_btn("Swap", self.quick_swap_dialog, "🔄")
         add_nav_btn("Flow", lambda: FlowCalculatorDialog(self.root, self.entry_flow), "🧪")
@@ -4737,7 +4736,7 @@ class FilamentApp:
         """Öffnet den Login-Dialog für die Bambu Cloud mit Passwort-Speicher-Option."""
         dialog = tk.Toplevel(self.root)
         dialog.title("☁️ Bambu Cloud Login")
-        dialog.geometry("450x450")
+        dialog.geometry("450x550")
         dialog.configure(bg=self.root.cget('bg'))
         center_window(dialog, self.root)
         
@@ -4808,7 +4807,35 @@ class FilamentApp:
 
             threading.Thread(target=lambda: cloud_thread(None), daemon=True).start()
 
-        ttk.Button(frm, text="🔄 Jetzt Synchronisieren", command=perform_sync, style="Accent.TButton").pack(fill="x", pady=10)
+        ttk.Button(frm, text="🔄 Login mit E-Mail & Passwort", command=perform_sync, style="Accent.TButton").pack(fill="x", pady=10)
+
+        # --- NEU: DER BROWSER-LOGIN BEREICH ---
+        ttk.Separator(frm, orient="horizontal").pack(fill="x", pady=15)
+        ttk.Label(frm, text="Alternative: Sicherer Browser-Login", font=("Segoe UI", 9, "bold")).pack(pady=(0,5))
+        
+        def start_browser_login():
+            lbl_status.config(text="🌐 Bitte im Browser anmelden...", foreground="#0078d7")
+            
+            def on_complete(success, message):
+                if success:
+                    # Token in Settings speichern
+                    self.settings["bambu_cloud_access_token"] = message
+                    self.data_manager.save_settings(self.settings)
+                    lbl_status.config(text="✅ Login erfolgreich! Lade Daten...", foreground="green")
+                    
+                    # Historie direkt laden
+                    cloud = BambuCloudAPI()
+                    cloud.set_auth_token(message)
+                    h_success, h_data = cloud.fetch_print_history(limit=15)
+                    if h_success:
+                        self.root.after(0, lambda: self._process_cloud_history(h_data, dialog))
+                else:
+                    lbl_status.config(text=f"❌ Fehler: {message}", foreground="red")
+
+            cloud_api = BambuCloudAPI()
+            cloud_api.login_via_browser(on_complete)
+
+        ttk.Button(frm, text="🌐 Anmelden via MakerWorld / Bambu Lab", command=start_browser_login).pack(fill="x", pady=5)
 
     def _ask_for_smart_deduction(self, job, parent_win, tree_widget, refresh_tree=None):
         job_id = str(job.get('id', ''))

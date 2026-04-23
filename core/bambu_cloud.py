@@ -1,5 +1,10 @@
 import requests
 import json
+import webbrowser
+import http.server
+import socketserver
+import threading
+import urllib.parse
 
 class BambuCloudAPI:
     def __init__(self):
@@ -7,6 +12,7 @@ class BambuCloudAPI:
         self.token = None
         self.refresh_token = None
         self.base_url = "https://api.bambulab.com/v1"
+        self.server_running = False
     
     def set_auth_token(self, access_token):
         """Setzt einen bestehenden 90-Tage-Token, um den Login komplett zu überspringen."""
@@ -22,6 +28,10 @@ class BambuCloudAPI:
         try:
             headers = {"User-Agent": "BambuHandy/2.0", "Content-Type": "application/json"}
             response = self.session.post(url, json=payload, headers=headers, timeout=10)
+            
+            if response.status_code != 200:
+                return False, f"HTTP {response.status_code}: {response.text}"
+                
             data = response.json()
             
             if data.get("loginType") == "verifyCode": return False, "2FA_REQUIRED"
@@ -29,16 +39,21 @@ class BambuCloudAPI:
             token = data.get("accessToken")
             if token:
                 self.token = token
-                self.refresh_token = data.get("refreshToken") # Wichtig für später!
+                self.refresh_token = data.get("refreshToken")
                 self.session.headers.update({"Authorization": f"Bearer {self.token}"})
                 return True, {"access": self.token, "refresh": self.refresh_token}
-            return False, data.get("message", "Login fehlgeschlagen.")
+                
+            bambu_error = data.get("message", "")
+            if not bambu_error:
+                bambu_error = str(data)
+                
+            return False, f"Bambu sagt: {bambu_error}"
+            
         except Exception as e:
-            return False, str(e)
+            return False, f"Verbindungsfehler: {str(e)}"
 
     def login_with_refresh(self, refresh_token):
-        """Versucht den Login nur mit dem gespeicherten Refresh-Token (Kein 2FA nötig!)."""
-        url = f"{self.base_url}/user-service/user/refresh" # Spezieller Endpunkt zum Erneuern
+        url = f"{self.base_url}/user-service/user/refresh" 
         payload = {"refreshToken": refresh_token}
         try:
             response = self.session.post(url, json=payload, timeout=10)
@@ -53,6 +68,59 @@ class BambuCloudAPI:
         except:
             return False, "Netzwerkfehler"
 
+    def login_via_browser(self, callback_success):
+        """Startet den OAuth-Flow über den System-Browser (Der echte Bambu Studio Link)."""
+        PORT = 8080
+        
+        login_url = "https://bambulab.com/de-de/sign-in?from=studio&source=portal&to=https%3A%2F%2Fbambulab.com%2Fsign-in%2Fcallback%3Fsource%3Dportal%26locale%3Dde%26redirect_url%3Dhttp%253A%252F%252Flocalhost%253A8080%26openBy%3Dsuite%26from%3Dstudio"
+        
+        auth_result = {}
+        
+        class OAuthHandler(http.server.BaseHTTPRequestHandler):
+            def do_GET(self):
+                query = urllib.parse.urlparse(self.path).query
+                params = urllib.parse.parse_qs(query)
+                
+                # FIX: Wir lauschen jetzt auch auf "access_token" (mit Unterstrich)!
+                if any(k in params for k in ["token", "ticket", "code", "accessToken", "access_token"]):
+                    auth_result["data"] = params
+                    self.send_response(200)
+                    self.send_header("Content-type", "text/html")
+                    self.end_headers()
+                    self.wfile.write(b"<html><body style='font-family:sans-serif;text-align:center;padding-top:50px;'>")
+                    self.wfile.write(b"<h1 style='color:#2ecc71;'>VibeSpool Login erfolgreich!</h1>")
+                    self.wfile.write(b"<p>Du kannst dieses Fenster jetzt schliessen und zu VibeSpool zurueckkehren.</p>")
+                    self.wfile.write(b"</body></html>")
+                    
+                    threading.Thread(target=self.server.shutdown).start()
+                else:
+                    self.send_response(404)
+                    self.end_headers()
+
+            def log_message(self, format, *args): return
+
+        def run_server():
+            with socketserver.TCPServer(("localhost", PORT), OAuthHandler) as httpd:
+                self.server_running = True
+                httpd.handle_request() 
+                
+                if "data" in auth_result:
+                    params = auth_result["data"]
+                    # FIX: Holt den Token nun priorisiert unter "access_token"
+                    token = params.get("access_token", params.get("token", params.get("ticket", params.get("accessToken", params.get("code", [None])))))[0]
+                    
+                    if token:
+                        self.token = token
+                        self.session.headers.update({"Authorization": f"Bearer {self.token}"})
+                        callback_success(True, token)
+                    else:
+                        callback_success(False, "Kein Ticket oder Token im Redirect gefunden.")
+                else:
+                    callback_success(False, "Login abgebrochen.")
+
+        webbrowser.open(login_url)
+        threading.Thread(target=run_server, daemon=True).start()
+
     def fetch_print_history(self, limit=10):
         if not self.token: return False, "Nicht eingeloggt."
         url = f"{self.base_url}/user-service/my/tasks"
@@ -60,14 +128,11 @@ class BambuCloudAPI:
             response = self.session.get(url, timeout=15)
             data = response.json()
             
-            # Hier greifen wir tiefer, da Bambu manchmal "hits" oder "tasks" als Unterordner nutzt
             jobs = []
             if isinstance(data, list):
                 jobs = data
             elif isinstance(data, dict):
-                # Wir durchsuchen alle bekannten Felder
                 jobs = data.get("data", data.get("hits", data.get("tasks", [])))
-                # Wenn es ein verschachteltes "data" -> "hits" gibt:
                 if not jobs and "data" in data and isinstance(data["data"], dict):
                      jobs = data["data"].get("hits", [])
 
@@ -77,14 +142,12 @@ class BambuCloudAPI:
                 name = job.get("title", job.get("designTitle", job.get("name", "Unbekannter Druck")))
                 date_end = job.get("endTime", job.get("createTime", job.get("end_time", "")))
 
-                # --- NEU: Druckzeit für die Stromkosten berechnen ---
                 duration_hours = 0.0
                 import datetime
                 try:
                     start_str = job.get("startTime", job.get("createTime", ""))
                     end_str = job.get("endTime", "")
                     if start_str and end_str:
-                        # Bambu liefert Zeitstempel wie "2024-04-12T15:30:00.000Z"
                         fmt = "%Y-%m-%dT%H:%M:%S"
                         s_clean = start_str.split(".")[0].replace("Z", "")
                         e_clean = end_str.split(".")[0].replace("Z", "")
@@ -100,7 +163,7 @@ class BambuCloudAPI:
                     "name": name,
                     "weight": float(weight) if weight else 0.0,
                     "date": date_end,
-                    "duration_h": duration_hours, # NEU: Wird für Stromkosten übergeben!
+                    "duration_h": duration_hours,
                     "mapping": job.get("amsDetailMapping", [])
                 })
                 

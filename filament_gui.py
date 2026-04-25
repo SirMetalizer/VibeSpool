@@ -29,7 +29,7 @@ from core.label_creator import LabelCreatorDialog
 from core.print_queue import PrintQueueDialog
 
 # --- KONFIGURATION ---
-APP_VERSION = "2.0.2"
+APP_VERSION = "2.0.3"
 GITHUB_REPO = "SirMetalizer/VibeSpool" 
 
 # --- DEFAULTS ---
@@ -4840,10 +4840,9 @@ class FilamentApp:
     def _ask_for_smart_deduction(self, job, parent_win, tree_widget, refresh_tree=None):
         job_id = str(job.get('id', ''))
         
-        # --- FIX 1: Original-Datum des Drucks aus der Cloud holen! ---
         from datetime import datetime
-        job_date_str = job.get('date', datetime.now().strftime("%Y-%m-%d %H:%M"))
-        job_day = job_date_str.split(" ")[0] # Zieht nur das Datum (YYYY-MM-DD) für das Chart heraus
+        job_date_str = job.get('date', datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+        job_day = job_date_str.split(" ")[0] 
         
         side_panel = getattr(parent_win, 'side_panel', None)
         main_content = getattr(parent_win, 'main_content', None)
@@ -4863,13 +4862,12 @@ class FilamentApp:
         content_frm = ttk.Frame(side_panel, padding=15)
         content_frm.pack(fill="both", expand=True)
 
-        model = job['name']
-        total_weight = job['weight']
+        model = job.get('name', 'Unbekannt')
+        total_weight = job.get('weight', 0.0)
         mappings = job.get('mapping', [])
 
         ttk.Label(content_frm, text=f"{model}", font=("Segoe UI", 11, "bold"), wraplength=400, justify="center").pack(pady=(5, 5))
         
-        # Sicherstellen, dass Dauer eine Float-Zahl ist
         try: duration = float(job.get('duration_h', 0.0) or 0.0)
         except: duration = 0.0
         
@@ -4886,6 +4884,7 @@ class FilamentApp:
         for s in self.inventory:
             if s.get('type') == 'VERBRAUCHT': continue
             net = calculate_net_weight(s.get('weight_gross', '0'), s.get('spool_id', -1), self.spools, s.get('empty_weight'))
+            import re
             color_clean = re.sub(r'\s*\(\s*#[0-9a-fA-F]{6}\s*\)', '', s.get('color', '')).strip()
             spool_list.append(f"[{s['id']}] {s.get('brand')} {color_clean} ({net}g übrig)")
 
@@ -4911,7 +4910,44 @@ class FilamentApp:
                 slot_num = (raw_ams % 4) + 1
                 ams_name = f"AMS {ams_num}"
                 lbl_text = f"{ams_name} Slot {slot_num}:"
-                best_match = next((s for s in self.inventory if s.get('type') == ams_name and str(s.get('loc_id')) == str(slot_num)), None)
+                
+                # --- NEU: DIE ZEITMASCHINE (SMART AMS MEMORY) ---
+                import os, json
+                snap_file = os.path.join(getattr(self.data_manager, 'base_dir', ''), "ams_snapshots.json")
+                if os.path.exists(snap_file):
+                    try:
+                        with open(snap_file, "r") as f:
+                            snaps = json.load(f)
+                            
+                        try: job_dt = datetime.strptime(job_date_str, "%Y-%m-%d %H:%M:%S")
+                        except:
+                            try: job_dt = datetime.strptime(job_date_str, "%Y-%m-%d %H:%M")
+                            except: job_dt = datetime.now()
+                            
+                        closest_key = None
+                        min_diff = None
+                        
+                        # Wir suchen exakt das Beweisfoto, das am nächsten am Druck-Datum dran ist!
+                        for snap_time_str, snap_data in snaps.items():
+                            try:
+                                snap_dt = datetime.strptime(snap_time_str, "%Y-%m-%d %H:%M:%S")
+                                diff = abs((job_dt - snap_dt).total_seconds())
+                                if min_diff is None or diff < min_diff:
+                                    min_diff = diff
+                                    closest_key = snap_time_str
+                            except: pass
+                            
+                        if closest_key:
+                            target_key = f"{ams_name}_{slot_num}"
+                            spool_id = snaps[closest_key].get(target_key)
+                            if spool_id:
+                                best_match = next((s for s in self.inventory if str(s.get('id')) == spool_id), None)
+                    except: pass
+                
+                # Fallback: Wenn es keinen Snapshot gibt (oder er gelöscht wurde), nehmen wir das, was JETZT im AMS ist
+                if not best_match:
+                    best_match = next((s for s in self.inventory if s.get('type') == ams_name and str(s.get('loc_id')) == str(slot_num)), None)
+                # --- ENDE ZEITMASCHINE ---
 
             ttk.Label(row, text=lbl_text, width=12, font=("Segoe UI", 9, "bold")).pack(side="left")
             
@@ -4964,7 +5000,7 @@ class FilamentApp:
 
                         if "history" not in item: item["history"] = []
                         item["history"].append({
-                            "date": job_date_str, # <--- FIX 2: Original Datum des Drucks schreiben!
+                            "date": job_date_str,
                             "action": f"Cloud: {model}",
                             "change": f"-{w_val}g",
                             "cost": f"{echte_kosten:.2f} €",
@@ -4973,7 +5009,6 @@ class FilamentApp:
                         total_deducted += w_val
 
             if total_deducted > 0:
-                # FIX 3: Den Tages-Verbrauch an das richtige Datum im Balkendiagramm schicken!
                 self.log_consumption(total_deducted, specific_date=job_day)
                 self.data_manager.save_inventory(self.inventory)
                 self.refresh_table()
@@ -4990,11 +5025,15 @@ class FilamentApp:
                 
                 side_panel.pack_forget()
                 anteil = total_deducted / total_weight if total_weight > 0 else 1.0
-                self.show_custom_toast("💰 Filament verrechnet", f"Verbrauch: {total_deducted:.1f}g\nGesamtkosten: {mat_cost + (strom_kosten * anteil):.2f} €")
+                
+                if hasattr(self, "show_custom_toast"):
+                    self.show_custom_toast("💰 Filament verrechnet", f"Verbrauch: {total_deducted:.1f}g\nGesamtkosten: {mat_cost + (strom_kosten * anteil):.2f} €")
             else:
+                from tkinter import messagebox
                 messagebox.showerror("Fehler", "Es wurden keine gültigen Gewichte eingetragen.", parent=parent_win)
 
         ttk.Button(content_frm, text="✅ Jetzt Abziehen", style="Accent.TButton", command=confirm).pack(side="bottom", pady=15)
+
 
     def _build_cloud_deduction_ui(self, content, job, parent_win, tree_widget, refresh_tree=None):
 

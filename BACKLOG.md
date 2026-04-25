@@ -28,7 +28,7 @@
 - [x] **Hersteller-Barcode Scanner:** Handy-Scanner liest jetzt auch 1D-Strichcodes auf Originalverpackungen und lernt diese.
 
 ## 🚀 Priorität 1: Next Steps (v2.1.0)
-- [ ] **📦 Professionelles Windows Setup:** Umstellung der portablen `.exe` auf einen echten Windows-Installer (via Inno Setup) inkl. Startmenü-Einträgen, Desktop-Icon und schnelleren Ladezeiten.
+- [x] **📦 Professionelles Windows Setup:** Umstellung der portablen `.exe` auf einen echten Windows-Installer (via Inno Setup) inkl. Startmenü-Einträgen, Desktop-Icon und schnelleren Ladezeiten.
 - [ ] **🎨 Custom Label Designer:** Baukasten zum freien Gestalten von Etiketten (Logos hinzufügen, Schriftarten ändern).
 
 ## 🔮 Langzeit-Vision (v3.0)

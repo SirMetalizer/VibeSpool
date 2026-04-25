@@ -51,6 +51,51 @@ class DataManager:
         return inventory, settings, spools
 
     def save_inventory(self, inventory):
+        # --- NEU: Smart AMS Snapshot (Die Zeitmaschine) ---
+        import datetime
+        import os
+        import json
+        snapshot = {}
+        for item in inventory:
+            if str(item.get("type", "")).startswith("AMS"):
+                key = f"{item.get('type')}_{item.get('loc_id', '')}"
+                snapshot[key] = str(item.get("id"))
+                
+        # FIX: "if snapshot:" entfernt! Er speichert jetzt auch, wenn das AMS komplett leer ist.
+        snap_file = os.path.join(self.base_dir, "ams_snapshots.json")
+        try:
+            snaps = {}
+            if os.path.exists(snap_file):
+                with open(snap_file, "r") as f:
+                    snaps = json.load(f)
+            
+            # Nur speichern wenn sich wirklich etwas am AMS geändert hat (vermeidet Spam)
+            last_snap = None
+            if snaps:
+                last_snap_key = sorted(snaps.keys())[-1]
+                last_snap = snaps[last_snap_key]
+            
+            if last_snap != snapshot:
+                now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                snaps[now_str] = snapshot
+                
+                # Behalte immer nur die letzten 200 Ereignisse im Gedächtnis
+                if len(snaps) > 200:
+                    keys_to_keep = sorted(snaps.keys())[-200:]
+                    snaps = {k: snaps[k] for k in keys_to_keep}
+                    
+                with open(snap_file, "w") as f:
+                    json.dump(snaps, f, indent=4)
+        except Exception as e: 
+            print(f"Zeitmaschinen-Fehler: {e}")
+        # --- ENDE NEU ---
+        
+        # PYLANCE-FIX: Die Variable heißt hier "self.data_file"
+        from core.utils import save_json
+        save_json(self.data_file, inventory)
+        
+        # PYLANCE-FIX: Die Variable heißt hier "self.data_file" und nicht "self.inventory_file"
+        from core.utils import save_json
         save_json(self.data_file, inventory)
 
     def save_settings(self, settings):

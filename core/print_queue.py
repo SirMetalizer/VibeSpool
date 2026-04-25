@@ -227,12 +227,19 @@ class PrintQueueDialog(tk.Toplevel):
         self.btn_delete = ttk.Button(frm_actions, text="🗑️", style="Delete.TButton", command=self.delete_job, width=3)
         self.btn_delete.pack(side="left")
         
-        # NEU: Der Erledigt Button!
-        self.btn_finish = ttk.Button(frm_right, text="✅ Erledigt & Spulen abziehen", command=self.finish_job)
-        self.btn_finish.pack(fill="x", pady=10)
+        # --- NEU: ERLEDIGT BEREICH (Zwei Buttons!) ---
+        frm_finish = ttk.Frame(frm_right)
+        frm_finish.pack(fill="x", pady=10)
+        
+        self.btn_finish = ttk.Button(frm_finish, text="✅ Erledigt & Abziehen", command=self.finish_job)
+        self.btn_finish.pack(side="left", fill="x", expand=True, padx=(0, 5))
+        
+        self.btn_finish_no = ttk.Button(frm_finish, text="✅ Ohne Abzug erledigen", command=self.finish_job_no_deduct)
+        self.btn_finish_no.pack(side="left", fill="x", expand=True)
         
         self.btn_delete.state(['disabled'])
         self.btn_finish.state(['disabled'])
+        self.btn_finish_no.state(['disabled'])
 
         self.refresh_list()
 
@@ -258,11 +265,13 @@ class PrintQueueDialog(tk.Toplevel):
             self.btn_save.config(text="💾 Änderungen speichern")
             self.btn_delete.state(['!disabled'])
             
-            # Wenn der Job schon erledigt ist, Abziehen-Button deaktivieren
+            # Wenn der Job schon erledigt ist, Abziehen-Buttons deaktivieren
             if "Erledigt" in job.get('status', ''):
                 self.btn_finish.state(['disabled'])
+                self.btn_finish_no.state(['disabled'])
             else:
                 self.btn_finish.state(['!disabled'])
+                self.btn_finish_no.state(['!disabled'])
             
             self.ent_title.delete(0, tk.END); self.ent_title.insert(0, job.get('title', ''))
             self.ent_link.delete(0, tk.END); self.ent_link.insert(0, job.get('link', ''))
@@ -275,6 +284,7 @@ class PrintQueueDialog(tk.Toplevel):
         self.btn_save.config(text="➕ Auftrag speichern")
         self.btn_delete.state(['disabled'])
         self.btn_finish.state(['disabled'])
+        self.btn_finish_no.state(['disabled'])
         self.ent_title.delete(0, tk.END)
         self.ent_link.delete(0, tk.END)
         self.ent_spools.delete(0, tk.END)
@@ -340,6 +350,18 @@ class PrintQueueDialog(tk.Toplevel):
             
         # Dialog für den Abzug öffnen
         JobDeductionDialog(self, self, job, matched_spools)
+
+    # --- NEU: Funktion für das lautlose Erledigen ---
+    def finish_job_no_deduct(self):
+        if not self.selected_job_id: return
+        job = next((j for j in self.jobs if j['id'] == self.selected_job_id), None)
+        if not job: return
+        
+        if messagebox.askyesno("Auftrag abschließen", "Soll der Auftrag als 'Erledigt' markiert werden, OHNE Filament abzuziehen?", parent=self):
+            job['status'] = "Erledigt ✅"
+            self.app.data_manager.save_jobs(self.jobs)
+            self.refresh_list()
+            self.reset_form()
 
     def delete_job(self):
         if not self.selected_job_id: return

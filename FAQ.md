@@ -4,7 +4,7 @@ Hier findest du Antworten auf die häufigsten Fragen rund um die Einrichtung und
 *Tipp: VibeSpool hat auch ein eingebautes Handbuch! Klicke einfach links unten auf den **"❓ Hilfe"** Button im Programm.*
 
 ### ☁️ Wie nutze ich den Bambu Cloud Sync?
-Sobald du die Cloud in den Optionen aktiviert und dich eingeloggt hast, lädt VibeSpool deine letzten erfolgreichen Drucke herunter. Klicke im linken Menü einfach auf **☁️ Cloud** und danach doppelt auf einen erledigten Druck. VibeSpool schlägt dir dank "Smart-Match" sofort die richtige Spule vor und berechnet die Kosten. Kleine Testdrucke kannst du mit "Ignorieren" bequem aus der Liste ausblenden.
+Sobald du die Cloud in den Optionen aktiviert hast, klickst du links auf **☁️ Cloud** und wählst den sicheren Browser-Login aus. VibeSpool lädt dann deine letzten erfolgreichen Drucke herunter. Klicke doppelt auf einen erledigten Druck. VibeSpool schlägt dir dank dem neuen "Smart AMS Memory" sofort die Spule vor, die **zum exakten Zeitpunkt des Drucks** im Drucker lag! Kleine Testdrucke kannst du mit "Ignorieren" bequem aus der Liste ausblenden.
 
 ### 💰 Wie berechnet VibeSpool meine Druckkosten?
 VibeSpool schätzt nicht, sondern rechnet wie ein ERP-System mit harten Fakten:

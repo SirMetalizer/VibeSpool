@@ -1,6 +1,6 @@
 # 🧵 VibeSpool - Das smarte Filament-Management-System
 
-![Version](https://img.shields.io/badge/version-2.0.1-blue.svg)
+![Version](https://img.shields.io/badge/version-2.0.3-blue.svg)
 ![Python](https://img.shields.io/badge/python-3.10%2B-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
@@ -10,51 +10,22 @@
 
 ---
 
-## 🆕 Was ist neu in Version 2.0.1? ("The Pop-up Killer & Print Queue Update")
-Dieses Update bringt massive Verbesserungen für den Workflow und die Verwaltung eures Filament-Lagers. Wir haben das Feedback ernst genommen und nervige Pop-up-Fenster in Rente geschickt!
+## 🆕 Was ist neu in Version 2.0.3? ("The Time Machine & Security Update")
+Dieses Update bringt massive Verbesserungen unter der Haube! Wir haben den Login-Prozess komplett neu gedacht, einen echten Windows-Installer gebaut und VibeSpool ein fotografisches Gedächtnis verpasst.
+
+**Wichtig**: Falls deine Dateien nicht mehr gefunden werden, gehe in die Optionen und stelle sicher, dass der Daten-Pfad korrekt ist (z.B. `C:\Users\DeinName\Documents\VibeSpoolData`). Schließe VibeSpool und starte es neu, damit deine Dateien eingelesen werden. 
 
 ### ✨ Die Highlights:
 
-* **Slide-In Panels statt Pop-up Chaos:** 
-  Egal ob Kostenschnellrechner, Regal-Konfigurator oder Bambu-Cloud-Sync: Alle Werkzeuge öffnen sich jetzt elegant als verschiebbares Panel an der rechten Bildschirmseite! Ihr könnt die Fenster beliebig breit ziehen und habt eure Haupttabelle (oder die Lager-Vorschau) links weiterhin voll im Blick.
-
-  <img width="1263" height="893" alt="image" src="https://github.com/user-attachments/assets/dcf05c97-76ce-4c55-8f93-b606b6a28175" />
-
-* **Grid-Naming V2 (Die absolute Lager-Kontrolle):** 
-  Ihr wolltet es, ihr bekommt es! Ab sofort könnt ihr im Regal-Planer nicht mehr nur die Reihen (Fächer) umbenennen, sondern auch jede einzelne Spalte (Slot). Wenn Slot 3 ab sofort "PLA-Spalte" heißen soll – bitteschön!
-
-* **Magische Spulen-Umbuchung:**
-  Das Beste am neuen Naming-System: Ändert ihr den Namen eines Fachs oder Slots, sucht VibeSpool im Hintergrund automatisch alle Spulen, die dort liegen, und bucht sie live auf den neuen Namen um. Kein manuelles Anpassen mehr nötig!
-
-* **Live-Updates (Keine Neustarts mehr):**
-  Wenn ihr in den Einstellungen Dinge wie Doppeltiefe, Fach-Namen oder Regal-Größen ändert, müsst ihr die App danach nicht mehr neu starten. Die Haupt-Tabelle, alle Dropdown-Menüs und der Lager-Visualisierer updaten sich im selben Moment, in dem ihr auf Speichern klickt.
-
-* **Smarterer Bambu Cloud Sync:**
-  Der AMS-Sync versteht jetzt eure neuen Custom-Namen und die Doppeltiefen-Einstellung, wenn er euch Zielorte für neue Spulen vorschlägt.
+* **🔐 Sicherer Browser-Login (OAuth2):** Schluss mit der manuellen Passworteingabe! VibeSpool leitet euch nun auf die offizielle MakerWorld/BambuLab-Website im Browser weiter. (Voller Support für Google/Apple-Login & 2FA). VibeSpool fängt das Login-Ticket sicher im Hintergrund ab.
+* **🕰️ Smart AMS Memory ("Die Zeitmaschine"):** VibeSpool ist jetzt intelligenter als die offizielle Bambu-App! Wenn du einen Druck von vor 3 Tagen abziehst, schaut VibeSpool in seine neuen Hintergrund-Snapshots und weiß exakt, welches Filament *zum Zeitpunkt des Drucks* im AMS lag!
+* **📦 Echter Windows-Installer:** VibeSpool kommt jetzt mit einem professionellen Setup-Programm (`VibeSpool_Setup.exe`), das die Software sauber installiert und Desktop- sowie Startmenü-Verknüpfungen anlegt.
+* **📝 Flexiblere Print-Queue:** Geplante Aufträge können jetzt mit **"✅ Ohne Abzug erledigen"** abgehakt werden. Perfekt, wenn ein Druck fehlgeschlagen ist oder das Filament bereits manuell abgezogen wurde.
+* **🌈 Rainbow-Fix:** Spulen mit dem Namen "Rainbow" oder "Regenbogen" erhalten nun vollautomatisch ein schickes, sechsfarbiges Regenbogen-Icon in der Tabelle und der Regalansicht!
 
 ---
 
-## 🆕 Was ist neu in Version 2.0.0? ("The Enterprise & Cost Center Update")
-VibeSpool macht den Sprung zum professionellen ERP-System für Gewerbetreibende und Power-User!
-* **Auto-Heal & Retro-Fit:** Historien-Einträge können jetzt nachträglich bearbeitet werden. VibeSpool korrigiert das Diagramm und das Spulengewicht vollautomatisch. Alte Drucke können mit den neuen "Retro-Fit" Buttons sekundenschnell nachträglich kalkuliert werden.
-* **Individuelles Leergewicht:** Für exotische Spulen kann jetzt on-the-fly ein einmaliges Leergewicht berechnet und an die Spule gebunden werden.
-* **Quick-Cost Rechner:** Ein Standalone-Kalkulator, um schnell Preise für Kunden zu berechnen, ohne das Lager anzufassen.
-
-
-**Übersicht Finanzen:**
-
-<img width="1096" height="888" alt="image" src="https://github.com/user-attachments/assets/d6087302-53c5-4680-8416-14f69bf809c8" />
-
-**Druckhistorie aus der Bambu Cloud:**
-
-<img width="853" height="641" alt="image" src="https://github.com/user-attachments/assets/882971f5-ac53-4c55-bd49-cd73ced4ca34" />
-
-**Kostenrechner:**
-
-<img width="964" height="697" alt="image" src="https://github.com/user-attachments/assets/d56dcd36-11d0-47f3-b1d6-358f7c92ffe7" />
-
-
-## ✨ Features
+## ✨ Weitere Features
 
 ### ☁️ Bambu Cloud API & Smart-Match
 Verbinde VibeSpool mit der Bambu Cloud. Das System lädt deine fertigen Druckaufträge herunter, erkennt automatisch, welche Spulen im AMS verwendet wurden (**Smart-Match**) und teilt den Verbrauch bei Multi-Color-Drucken grammgenau auf.
@@ -73,6 +44,19 @@ VibeSpool berechnet nicht nur Material- und Stromkosten, sondern berücksichtigt
 
 ### 💰 Druckkosten-Rechner & Logbuch
 VibeSpool kombiniert den Kaufpreis deiner Spulen mit deinem lokalen Strompreis und der Laufzeit des Drucks. Bei jedem Cloud-Sync siehst du auf den Cent genau, was dein Druck gekostet hat. Alles wird im **Spulen-Logbuch** dauerhaft als "Kontoauszug" gespeichert.
+
+### 📊 Unified Analytics Dashboard
+**Übersicht Finanzen:**
+
+<img width="1096" height="888" alt="image" src="https://github.com/user-attachments/assets/d6087302-53c5-4680-8416-14f69bf809c8" />
+
+**Druckhistorie aus der Bambu Cloud:**
+
+<img width="853" height="641" alt="image" src="https://github.com/user-attachments/assets/882971f5-ac53-4c55-bd49-cd73ced4ca34" />
+
+**Kostenrechner:**
+
+<img width="964" height="697" alt="image" src="https://github.com/user-attachments/assets/d56dcd36-11d0-47f3-b1d6-358f7c92ffe7" />
 
 ### 📊 Unified Analytics & Auto-Heal Historie
 Ein interaktives Dashboard zeigt dir den genauen Bestandswert, den Ø-Preis/kg und einen 7-Tage-Verbrauchsverlauf. Fehler beim Eintragen gemacht? Die Historie lässt sich nachträglich bearbeiten – VibeSpool repariert das Spulengewicht und das Chart automatisch (**Auto-Heal**).

@@ -1,6 +1,5 @@
 ### 📄 BAMBU-INTEGRATION-HOWTO.md
 
-```markdown
 # 📖 Anleitung: Bambu Lab Drucker in VibeSpool integrieren
 
 VibeSpool bietet **zwei** mächtige Wege, um mit deinem Bambu Lab Drucker zu sprechen: Den lokalen Live-Sync (für die AMS-Slot-Erkennung) und die Bambu Cloud API (für die Druck-Historie und genaue Verbrauchswerte).
@@ -14,8 +13,8 @@ Dies ist der wichtigste Schritt, damit VibeSpool das verbrauchte Filament am End
 2. Wechsle in den Reiter **🤖 Drucker** und scrolle ganz nach unten.
 3. Setze den Haken bei **"Cloud-Historie & Smart-Match aktivieren"** und speichere.
 4. In der linken Seitenleiste von VibeSpool erscheint nun der Button **"☁️ Cloud"**. Klicke darauf.
-5. Melde dich einmalig mit deinem Bambu Lab E-Mail-Account an. (Falls 2FA aktiv ist, fragt VibeSpool dich nach dem Code aus deiner E-Mail).
-6. **Fertig!** VibeSpool speichert einen sicheren 90-Tage-Token. Du siehst nun deine letzten Drucke und kannst das verbrauchte Filament per Doppelklick direkt abziehen.
+5. Klicke auf den Button **"🌐 Anmelden via MakerWorld / Bambu Lab"**. Dein normaler Webbrowser öffnet sich. Melde dich dort sicher und offiziell bei Bambu Lab an (inkl. Support für Google-Login oder 2FA-Codes).
+6. **Fertig!** Das Browser-Fenster bestätigt den Login und VibeSpool speichert einen sicheren 90-Tage-Token. Du siehst nun deine letzten Drucke und kannst das verbrauchte Filament per Doppelklick direkt abziehen.
 
 ---
 

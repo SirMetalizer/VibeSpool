@@ -1,6 +1,6 @@
 # 📋 VibeSpool Development Backlog
 
-## ✅ Abgeschlossen (v2.0.5 - "The Finance, Archive & Scroll Update")
+## ✅ Abgeschlossen (v2.1.0 - "The Finance, Archive & Scroll Update")
 - [x] **📊 Finanzen Hersteller & Farbe:** Neues Register im Analytics-Dashboard für Gruppierung nach Marke und bereinigter Farbe, inklusive interaktiver Sortierung aller Tabellenspalten.
 - [x] **📦 Responsive Auto-Scroll:** Canvas-Ansichten scrollen nun vollautomatisch mit, wenn eine Spule per Drag & Drop nahe an den Fensterrand gezogen wird.
 - [x] **📝 Auftrags-Archiv & Bilder:** Aufteilung des Auftragsplaners in "Warteschlange" und "Archiv", und Möglichkeit, Modellbilder für Druckaufträge hinzuzufügen (automatisch komprimiert auf 600x600 px).
@@ -32,7 +32,7 @@
 - [x] **Omni-Live-Suche**
 - [x] **🧮 Quick-Cost Rechner**
 
-## 🚀 Priorität 1: Next Steps (v2.1.0)
+## 🚀 Priorität 1: Next Steps (v2.2.0)
 - [ ] **📚 Globale Filament-Datenbank (Bake-in):** Integrierte Datenbank für bekannte Hersteller-Filamente, die per Klick (inkl. Leergewicht und Shop-Link) ins eigene Lager kopiert werden können.
 - [ ] **🎨 Custom Label Designer:** Baukasten zum freien Gestalten von Etiketten (Logos hinzufügen, Schriftarten ändern).
 

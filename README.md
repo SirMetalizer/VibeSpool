@@ -1,6 +1,6 @@
 # 🧵 VibeSpool - Das smarte Filament-Management-System
 
-![Version](https://img.shields.io/badge/version-2.0.3-blue.svg)
+![Version](https://img.shields.io/badge/version-2.1.0-blue.svg)
 ![Python](https://img.shields.io/badge/python-3.10%2B-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
@@ -10,22 +10,44 @@
 
 ---
 
-## 🆕 Was ist neu in Version 2.0.3? ("The Time Machine & Security Update")
-Dieses Update bringt massive Verbesserungen unter der Haube! Wir haben den Login-Prozess komplett neu gedacht, einen echten Windows-Installer gebaut und VibeSpool ein fotografisches Gedächtnis verpasst.
-
-**Wichtig**: Falls deine Dateien nicht mehr gefunden werden, gehe in die Optionen und stelle sicher, dass der Daten-Pfad korrekt ist (z.B. `C:\Users\DeinName\Documents\VibeSpoolData`). Schließe VibeSpool und starte es neu, damit deine Dateien eingelesen werden. 
+## 🆕 Was ist neu in Version 2.1.0? ("The Finance, Archive & Scroll Update")
+Dieses Update bringt großartige neue Features für Analysen, Auftrags-Management und eine noch reibungslosere Bedienung!
 
 ### ✨ Die Highlights:
 
-* **🔐 Sicherer Browser-Login (OAuth2):** Schluss mit der manuellen Passworteingabe! VibeSpool leitet euch nun auf die offizielle MakerWorld/BambuLab-Website im Browser weiter. (Voller Support für Google/Apple-Login & 2FA). VibeSpool fängt das Login-Ticket sicher im Hintergrund ab.
-* **🕰️ Smart AMS Memory ("Die Zeitmaschine"):** VibeSpool ist jetzt intelligenter als die offizielle Bambu-App! Wenn du einen Druck von vor 3 Tagen abziehst, schaut VibeSpool in seine neuen Hintergrund-Snapshots und weiß exakt, welches Filament *zum Zeitpunkt des Drucks* im AMS lag!
-* **📦 Echter Windows-Installer:** VibeSpool kommt jetzt mit einem professionellen Setup-Programm (`VibeSpool_Setup.exe`), das die Software sauber installiert und Desktop- sowie Startmenü-Verknüpfungen anlegt.
-* **📝 Flexiblere Print-Queue:** Geplante Aufträge können jetzt mit **"✅ Ohne Abzug erledigen"** abgehakt werden. Perfekt, wenn ein Druck fehlgeschlagen ist oder das Filament bereits manuell abgezogen wurde.
-* **🌈 Rainbow-Fix:** Spulen mit dem Namen "Rainbow" oder "Regenbogen" erhalten nun vollautomatisch ein schickes, sechsfarbiges Regenbogen-Icon in der Tabelle und der Regalansicht!
+* **📊 Finanzen nach Hersteller & Farbe:** Im Analytics-Dashboard gibt es ein neues Register für die detaillierte Aufteilung nach Marke (Hersteller) und bereinigter Farbe. Sämtliche Tabellenspalten im Dashboard lassen sich jetzt per Klick interaktiv sortieren!
+* **📝 Auftrags-Planer V2 (Archiv & Bilder):** Druckaufträge sind nun in eine aktive "Warteschlange" und ein "Archiv" für abgeschlossene Aufträge aufgeteilt. Du kannst Modellbilder hochladen (die automatisch ressourcenschonend komprimiert werden) und siehst diese direkt als Vorschau. Beim Abschließen werden Kosten und Verbrauch automatisch in das Spulen-Logbuch übernommen.
+* **📜 Logbuch-Editor mit Preiskalkulatoren:** Einträge im Spulen-Logbuch können jetzt per Doppelklick editiert werden. Ein integrierter Rechner ermittelt dabei automatisch Materialkosten und Verkaufspreise basierend auf deiner gewünschten Gewinnmarge.
+* **📦 Responsive Auto-Scroll:** Beim Drag & Drop von Spulen in der Regal- oder AMS-Ansicht scrollt das Fenster nun vollautomatisch mit, wenn du dich dem Fensterrand näherst. Perfekt für große Lager oder kleinere Monitore.
 
 ---
 
-## ✨ Weitere Features
+## 📋 Features im Überblick
+
+Hier ist eine Zusammenfassung aller Kernfunktionen von VibeSpool:
+
+* **🎨 Modernes "Apple-Look" Interface:** Clean & responsive GUI im "Apple-Design" (optimiert für Light- und Darkmode).
+* **📦 Visuelle Lagerverwaltung:** Virtuelles Abbild deiner Regale (inkl. Doppeltiefe & Quick-Swap ins AMS) und responsivem Drag & Drop Auto-Scroll.
+* **☁️ Bambu Cloud Sync & Smart-Match:** Vollautomatisches Synchronisieren deiner Druckaufträge und grammgenauer Materialabzug inkl. historischem AMS-Gedächtnis.
+* **🤖 Bambu AMS Live-Sync via MQTT:** Echtzeitabgleich der AMS-Slots im lokalen Netzwerk.
+* **📝 MES Auftrags-Planer:** Verwalten von Kunden, Projekten, Notizen, Modell-Links und -bildern inkl. Archiv und automatisierter Preiskalkulation beim Beenden.
+* **💰 Integriertes Cost Center:** Globale Berechnung von Material- und Stromkosten sowie Maschinenverschleiß und Wunsch-Gewinnmarge.
+* **🧮 Standalone-Kostenrechner:** Schnelle Preiskalkulation für Kundenangebote.
+* **📜 Editierbares Spulen-Logbuch:** Lückenloser Kontoauszug für jede Spule mit nachträglicher Editierfunktion (Auto-Heal).
+* **⚖️ Die Schlaue Waage:** Automatische Netto-Gewichtsberechnung anhand von vordefinierten Leerspulen-Gewichten bekannter Marken.
+* **📱 Mobile Companion & Barcodescanner:** Kabellose Steuerung und Einscannen von Filament-Barcodes direkt über das eigene Smartphone.
+* **🏷️ Label Creator & QR-Code-Generator:** Etikettendruck für Spulen auf DIN A4 PDF-Bögen oder Rollen-Etikettierern.
+* **🛒 Einkaufsliste / Nachbestell-Manager:** Übersicht leerer Filamente mit direkten Shop-Links (Bambu, Amazon etc.) und CSV-Export.
+* **🧪 Flow- & K-Wert-Rechner:** Schnelle Kalibrierung der Flussrate direkt in der App.
+* **🔐 OAuth2 Login & Sicherheit:** Sichere Anmeldung bei MakerWorld direkt über deinen Webbrowser (ohne manuelle Passworteingabe).
+* **📥 System-Tray & Hintergrundbetrieb:** Lautlose Ausführung im Windows-System-Tray mit Toast-Benachrichtigungen bei fertigen Drucken.
+* **📤 Backup & Restore:** Einfacher Daten-Export und -Import als ZIP-Archiv.
+* **📋 CSV-Import:** Bequeme Migration von Spulendaten aus alten Tabellen.
+* **📚 In-App Handbuch:** Integriertes Wiki zur Erklärung aller Programmfunktionen.
+
+---
+
+## ✨ Weitere Features (Detail-Ansicht)
 
 ### ☁️ Bambu Cloud API & Smart-Match
 Verbinde VibeSpool mit der Bambu Cloud. Das System lädt deine fertigen Druckaufträge herunter, erkennt automatisch, welche Spulen im AMS verwendet wurden (**Smart-Match**) und teilt den Verbrauch bei Multi-Color-Drucken grammgenau auf.
@@ -35,7 +57,7 @@ Verbinde VibeSpool mit der Bambu Cloud. Das System lädt deine fertigen Druckauf
 ### 📝 NEU: Auftrags-Planer (Print Queue & MES):
 VibeSpool wird zur Schaltzentrale deiner Druck-Aufträge! Mit dem neuen Planungs-Tool kannst du anstehende Drucke verwalten. Weise Kunden oder Projekt-Titel zu, speichere direkte Links zu den 3D-Modellen und hinterlege genaue Notizen (z.B. "Marble für Body, Grün für Schrift").
 
-**Das Highlight:** Du kannst die exakten Spulen aus deinem Inventar (inkl. Multi-Color ID 1 + ID 2) direkt dem Auftrag zuweisen!
+**Das Highlight:** Du kannst die exakten Spulen aus deinem Inventar (inkl. Multi-Color ID 1 + ID 2) direkt dem Auftrag zuweisen! In Version 2.1.0 erweitert um ein Archiv für abgeschlossene Aufträge, Bild-Uploads für Modelle und automatisierte Preiskalkulation beim Fertigstellen.
 
 <img width="1068" height="747" alt="image" src="https://github.com/user-attachments/assets/720140a3-a733-4e17-bfdd-0f3322211ff3" />
 
@@ -43,7 +65,7 @@ VibeSpool wird zur Schaltzentrale deiner Druck-Aufträge! Mit dem neuen Planungs
 VibeSpool berechnet nicht nur Material- und Stromkosten, sondern berücksichtigt auch Maschinenverschleiß (pro Druckstunde) und schlägt automatisch deine Gewinnmarge (%) auf. Alle Drucke über alle Spulen hinweg laufen im globalen Kassenbuch zusammen. Ein Standalone Quick-Cost Rechner hilft dir bei schnellen Kundenangeboten.
 
 ### 💰 Druckkosten-Rechner & Logbuch
-VibeSpool kombiniert den Kaufpreis deiner Spulen mit deinem lokalen Strompreis und der Laufzeit des Drucks. Bei jedem Cloud-Sync siehst du auf den Cent genau, was dein Druck gekostet hat. Alles wird im **Spulen-Logbuch** dauerhaft als "Kontoauszug" gespeichert.
+VibeSpool kombiniert den Kaufpreis deiner Spulen mit deinem lokalen Strompreis und der Laufzeit des Drucks. Bei jedem Cloud-Sync siehst du auf den Cent genau, was dein Druck gekostet hat. Alles wird im **Spulen-Logbuch** dauerhaft als "Kontoauszug" gespeichert. In Version 2.1.0 lassen sich Logbucheinträge per Doppelklick korrigieren und mit einem Gewinnmargen-Rechner neu bewerten.
 
 ### 📊 Unified Analytics Dashboard
 **Übersicht Finanzen:**
@@ -73,7 +95,7 @@ VibeSpool wird kabellos! Scanne einfach den QR-Code am Monitor und dein Handy wi
 Nie wieder Leergewichte raten. Trage das Brutto-Gewicht ein, das deine Küchenwaage anzeigt. VibeSpool erkennt Hersteller und Material, zieht das korrekte Leerspulen-Gewicht ab und bucht das Netto-Gewicht ein.
 
 ### 📦 Lagerverwaltung & Doppeltiefe Regale
-Bilde dein echtes Regal virtuell nach (z.B. 4 Reihen, 8 Spalten). VibeSpool unterstützt sogar **doppeltiefe Regale** (2 Spulen hintereinander) und bietet eine **Quick-Swap** Funktion, um Spulen blitzschnell ins AMS zu tauschen.
+Bilde dein echtes Regal virtuell nach (z.B. 4 Reihen, 8 Spalten). VibeSpool unterstützt sogar **doppeltiefe Regale** (2 Spulen hintereinander) und bietet eine **Quick-Swap** Funktion, um Spulen blitzschnell ins AMS zu tauschen. Die Regalansicht scrollt bei Drag & Drop vollautomatisch mit.
 
 ### 🏷️ Etiketten-Druck & Label Creator
 Generiere automatisch fertige Etiketten mit QR-Codes, Drucktemperaturen und Farben. Exportiere sie als PNG oder direkt als **PDF-Bögen** für DIN A4 oder Rollen-Etikettendrucker.
@@ -112,15 +134,16 @@ Starten:
 python filament_gui.py
    ```
 
+## 🆕 Was ist neu in Version 2.0.3? ("The Time Machine & Security Update")
+* **🔐 Sicherer Browser-Login (OAuth2):** Vollautomatischer Login-Flow für MakerWorld/BambuLab via Webbrowser.
+* **🕰️ Smart AMS Memory:** Hintergrund-Snapshots der AMS-Belegung zur korrekten historischen Zuordnung bei Cloud-Drucken.
+* **📦 Setup-Installer:** Professionelles Windows-Installationsprogramm für bequemen Desktop- und Startmenü-Zugriff.
+* **🌈 Rainbow-Icon:** Regenbogen-Filamente erhalten automatisch farbenfrohe Icons.
+
 ## 🆕 Was ist neu in Version 1.10.0? ("The Smart Pro Update")
-Bambu Cloud & Smart-Match: Abzüge aus der Cloud werden jetzt vollautomatisch den richtigen AMS-Slots zugewiesen.
-
 * **Finanz-Dashboard**: Reale Berechnung von Strom- und Materialkosten pro Druck. Neues Unified-Dashboard mit Preis/kg Auswertung.
-
 * **Spulen-Logbuch**: Detaillierte Historie für jede einzelne Spule (Wann, wie viel, wie teuer).
-
 * **In-App Handbuch**: Ein integriertes Mini-Wiki erklärt alle Features direkt im Programm.
-
 * **System-Tray**: Die App kann nun minimiert im Hintergrund weiterlaufen.
 
 ## 🤝 Support & Spenden

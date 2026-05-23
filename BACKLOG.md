@@ -1,5 +1,15 @@
 # 📋 VibeSpool Development Backlog
 
+## ✅ Abgeschlossen (v2.0.5 - "The Finance, Archive & Scroll Update")
+- [x] **📊 Finanzen Hersteller & Farbe:** Neues Register im Analytics-Dashboard für Gruppierung nach Marke und bereinigter Farbe, inklusive interaktiver Sortierung aller Tabellenspalten.
+- [x] **📦 Responsive Auto-Scroll:** Canvas-Ansichten scrollen nun vollautomatisch mit, wenn eine Spule per Drag & Drop nahe an den Fensterrand gezogen wird.
+- [x] **📝 Auftrags-Archiv & Bilder:** Aufteilung des Auftragsplaners in "Warteschlange" und "Archiv", und Möglichkeit, Modellbilder für Druckaufträge hinzuzufügen (automatisch komprimiert auf 600x600 px).
+- [x] **📜 Logbuch-Editierfunktion:** Doppelklick im Spulen-Logbuch öffnet nun einen Editierbereich mit integrierten Materialkosten- und Gewinnmargen-Rechnern.
+
+## ✅ Abgeschlossen (v2.0.4 - "The Apple Design & Code Refactoring Update")
+- [x] **🎨 Apple Look Design:** Vollständiger optischer Overhaul im cleanen "Apple Look" (Light: `#F2F2F7`, Dark: `#1C1C1E`, Accent: `#007AFF`). Schutz vor "Ostfriesen-Bug" durch Kontrast-Absicherung für alle Eingaben, Text-Boxen und Dropdowns.
+- [x] **📂 Modularisierung:** Extraktion von 10 Toplevel-Dialogen aus der monolithischen `filament_gui.py` in das `core`-Verzeichnis zur Verbesserung der Wartbarkeit.
+
 ## ✅ Abgeschlossen (v2.0.3 - "The Time Machine & Security Update")
 - [x] **🔐 Sicherer Browser-Login (OAuth2):** Umstellung der Bambu-API auf den offiziellen MakerWorld-Login via Webbrowser (Port 8080 Listener).
 - [x] **🕰️ Smart AMS Memory:** Hintergrund-Snapshots der AMS-Belegung in `ams_snapshots.json`. Cloud-Syncs suchen nun nach historischen AMS-Belegungen.

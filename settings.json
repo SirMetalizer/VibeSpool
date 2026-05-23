@@ -3,5 +3,6 @@
     "shelf_cols": 8,
     "num_ams": 1,
     "custom_locs": "Filamenttrockner",
-    "theme": "dark"
+    "theme": "dark",
+    "custom_db_path": "C:/Users/ich/OneDrive/Documents/VibeSpool"
 }

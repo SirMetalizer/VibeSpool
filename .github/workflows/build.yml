@@ -44,11 +44,11 @@ jobs:
       run: |
         echo "[Setup]" > setup.iss
         echo "AppName=VibeSpool" >> setup.iss
-        echo "AppVersion=2.1.0" >> setup.iss
+        echo "AppVersion=2.1.1" >> setup.iss
         echo "DefaultDirName={autopf}\VibeSpool" >> setup.iss
         echo "DefaultGroupName=VibeSpool" >> setup.iss
         echo "OutputDir=dist" >> setup.iss
-        echo "OutputBaseFilename=VibeSpool_Setup_v2.1.0" >> setup.iss
+        echo "OutputBaseFilename=VibeSpool_Setup_v2.1.1" >> setup.iss
         echo "SetupIconFile=core\vibespool-icon.ico" >> setup.iss
         echo "Compression=lzma2" >> setup.iss
         echo "SolidCompression=yes" >> setup.iss
@@ -70,31 +70,31 @@ jobs:
       run: |
         pyinstaller --noconsole --windowed --hidden-import cv2 --hidden-import pystray --collect-all pyzbar --name "VibeSpool_Mac" filament_gui.py
         cd dist
-        zip -r VibeSpool_Mac_v2.1.0.zip VibeSpool_Mac.app
+        zip -r VibeSpool_Mac_v2.1.1.zip VibeSpool_Mac.app
 
     - name: Windows Setup als Artifact sichern
       if: matrix.os == 'windows-latest'
       uses: actions/upload-artifact@65462800fd760344b1a7b4382951275a0abb4808 # v4.3.3
       with:
         name: VibeSpool-Windows-Setup
-        path: dist/VibeSpool_Setup_v2.1.0.exe
+        path: dist/VibeSpool_Setup_v2.1.1.exe
 
     - name: Mac ZIP als Artifact sichern
       if: matrix.os == 'macos-latest'
       uses: actions/upload-artifact@65462800fd760344b1a7b4382951275a0abb4808 # v4.3.3
       with:
         name: VibeSpool-Mac
-        path: dist/VibeSpool_Mac_v2.1.0.zip
+        path: dist/VibeSpool_Mac_v2.1.1.zip
 
     # --- AUTO-UPLOAD INS RELEASE ---
     - name: Setup an Release anhängen (Windows)
       if: github.event_name == 'release' && matrix.os == 'windows-latest'
       uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2
       with:
-        files: dist/VibeSpool_Setup_v2.1.0.exe
+        files: dist/VibeSpool_Setup_v2.1.1.exe
 
     - name: ZIP an Release anhängen (Mac)
       if: github.event_name == 'release' && matrix.os == 'macos-latest'
       uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2
       with:
-        files: dist/VibeSpool_Mac_v2.1.0.zip
+        files: dist/VibeSpool_Mac_v2.1.1.zip

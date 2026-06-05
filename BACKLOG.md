@@ -29,6 +29,7 @@
 - [x] **🧮 Quick-Cost Rechner**
 
 ## 🚀 Priorität 1: Next Steps (v2.2.0)
+## 🚀 Priorität 1: Next Steps (v2.2.0)
 - [ ] **📚 Globale Filament-Datenbank (Bake-in):** Integrierte Datenbank für bekannte Hersteller-Filamente, die per Klick (inkl. Leergewicht und Shop-Link) ins eigene Lager kopiert werden können.
 - [ ] **🎨 Custom Label Designer:** Baukasten zum freien Gestalten von Etiketten (Logos hinzufügen, Schriftarten ändern).
 

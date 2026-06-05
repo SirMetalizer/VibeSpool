@@ -17,10 +17,10 @@ jobs:
 
     steps:
     - name: Code auschecken
-      uses: actions/checkout@v4
+      uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
 
     - name: Python einrichten
-      uses: actions/setup-python@v5
+      uses: actions/setup-python@39cd14951b54a861877478d1033230a1b64a275b # v5.1.1
       with:
         python-version: '3.11'
 
@@ -44,11 +44,11 @@ jobs:
       run: |
         echo "[Setup]" > setup.iss
         echo "AppName=VibeSpool" >> setup.iss
-        echo "AppVersion=2.0.3" >> setup.iss
+        echo "AppVersion=2.1.0" >> setup.iss
         echo "DefaultDirName={autopf}\VibeSpool" >> setup.iss
         echo "DefaultGroupName=VibeSpool" >> setup.iss
         echo "OutputDir=dist" >> setup.iss
-        echo "OutputBaseFilename=VibeSpool_Setup_v2.0.3" >> setup.iss
+        echo "OutputBaseFilename=VibeSpool_Setup_v2.1.0" >> setup.iss
         echo "SetupIconFile=core\vibespool-icon.ico" >> setup.iss
         echo "Compression=lzma2" >> setup.iss
         echo "SolidCompression=yes" >> setup.iss
@@ -70,31 +70,31 @@ jobs:
       run: |
         pyinstaller --noconsole --windowed --hidden-import cv2 --hidden-import pystray --collect-all pyzbar --name "VibeSpool_Mac" filament_gui.py
         cd dist
-        zip -r VibeSpool_Mac_v2.0.3.zip VibeSpool_Mac.app
+        zip -r VibeSpool_Mac_v2.1.0.zip VibeSpool_Mac.app
 
     - name: Windows Setup als Artifact sichern
       if: matrix.os == 'windows-latest'
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@65462800fd760344b1a7b4382951275a0abb4808 # v4.3.3
       with:
         name: VibeSpool-Windows-Setup
-        path: dist/VibeSpool_Setup_v2.0.3.exe
+        path: dist/VibeSpool_Setup_v2.1.0.exe
 
     - name: Mac ZIP als Artifact sichern
       if: matrix.os == 'macos-latest'
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@65462800fd760344b1a7b4382951275a0abb4808 # v4.3.3
       with:
         name: VibeSpool-Mac
-        path: dist/VibeSpool_Mac_v2.0.3.zip
+        path: dist/VibeSpool_Mac_v2.1.0.zip
 
     # --- AUTO-UPLOAD INS RELEASE ---
     - name: Setup an Release anhängen (Windows)
       if: github.event_name == 'release' && matrix.os == 'windows-latest'
-      uses: softprops/action-gh-release@v2
+      uses: softprops/action-gh-release@c95fe1489396fe8a2ec87ab4939a48f65552d22d # v2.0.6
       with:
-        files: dist/VibeSpool_Setup_v2.0.3.exe
+        files: dist/VibeSpool_Setup_v2.1.0.exe
 
     - name: ZIP an Release anhängen (Mac)
       if: github.event_name == 'release' && matrix.os == 'macos-latest'
-      uses: softprops/action-gh-release@v2
+      uses: softprops/action-gh-release@c95fe1489396fe8a2ec87ab4939a48f65552d22d # v2.0.6
       with:
-        files: dist/VibeSpool_Mac_v2.0.3.zip
+        files: dist/VibeSpool_Mac_v2.1.0.zip

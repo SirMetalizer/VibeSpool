@@ -46,7 +46,7 @@ def get_colors_from_text(text):
     if not text:
         return ["#FFFFFF"]
 
-    # 🌍 STUFE 1: Echte, kräftige Farben (Werden immer zuerst priorisiert!)
+    # 🌍 STUFE 1: Echte, kräftige Farben
     color_map = {
         # Schwarz, Grau & Silber
         "black": "#000000", "schwarz": "#000000", "grey": "#808080", "gray": "#808080", 
@@ -93,12 +93,9 @@ def get_colors_from_text(text):
         "purple": "#800080", "lila": "#800080", "violet": "#EE82EE", "violett": "#EE82EE",
         "lavender": "#E6E6FA", "lavendel": "#E6E6FA", "lilac": "#C8A2C8", "flieder": "#C8A2C8",
         "amethyst": "#9966CC", "aubergine": "#3D0C02",
-        
     }
     
-    # 🌫️ STUFE 2: Fallback-Farben (z.B. "Clear", "Translucent"). 
-    # Werden NUR benutzt, wenn im Text KEINE echte Farbe gefunden wurde.
-    # So gewinnt bei "Translucent Türkis" das Türkis und nicht das Grau!
+    # Fallback-Farben
     fallback_map = {
         "clear": "#E0E0E0", "klar": "#E0E0E0", "transparent": "#E0E0E0", "translucent": "#E0E0E0", 
         "glow": "#CCFFCC", "leucht": "#CCFFCC", "glass": "#E0E0E0", "glas": "#E0E0E0",
@@ -113,39 +110,60 @@ def get_colors_from_text(text):
         if not part:
             continue
         
-        # Check 1: Hat dieser Teil einen Hex-Code in sich?
-        hex_match = re.search(r'#[0-9a-fA-F]{6}', part)
-        if hex_match:
-            result_colors.append(hex_match.group(0).upper())
+        # Check 1: Hex-Codes finden
+        hex_matches = re.findall(r'#[0-9a-fA-F]{6}', part)
+        if hex_matches:
+            for hm in hex_matches:
+                result_colors.append(hm.upper())
             continue
             
         part_lower = part.lower()
         
-        # --- CHECK 1.5 (NEU): Rainbow / Regenbogen ---
+        # Check 1.5: Rainbow / Regenbogen
         if "rainbow" in part_lower or "regenbogen" in part_lower:
-            result_colors.extend(["#FF0000", "#FFA500", "#FFFF00", "#008000", "#0000FF", "#800080"])
+            result_colors.extend(["#FF0000", "#FFA500", "#FFFF00", "#008000", "#0000FF", "#4B0082", "#EE82EE"])
             continue
             
-        found = False
+        # Mehrere Farben im String finden
+        found_matches = []
+        temp_text = part_lower
         
-        # Check 2: Suche in den ECHTEN Farben zuerst! (sortiert nach Länge, damit "weinrot" vor "rot" greift)
+        # Echte Farben
         for name in sorted(color_map.keys(), key=len, reverse=True):
-            if name in part_lower:
-                result_colors.append(color_map[name])
-                found = True
-                break
-                
-        # Check 3: Wenn keine echte Farbe da ist, checken wir die Modifikatoren (Translucent, Clear...)
-        if not found:
-            for name in sorted(fallback_map.keys(), key=len, reverse=True):
-                if name in part_lower:
-                    result_colors.append(fallback_map[name])
-                    found = True
+            start = 0
+            while True:
+                idx = temp_text.find(name, start)
+                if idx == -1:
                     break
-        
-        # Check 4: Ultimativer Fallback: Grau (Wenn absolut nichts passt)
-        if not found:
-            result_colors.append("#CCCCCC") 
+                found_matches.append((idx, color_map[name]))
+                temp_text = temp_text[:idx] + " " * len(name) + temp_text[idx + len(name):]
+                start = idx + len(name)
+                
+        # Wenn echte Farben gefunden wurden, übernehmen wir sie in Reihenfolge des Vorkommens
+        if found_matches:
+            found_matches.sort()
+            for idx, color in found_matches:
+                result_colors.append(color)
+            continue
+            
+        # Fallbacks
+        for name in sorted(fallback_map.keys(), key=len, reverse=True):
+            start = 0
+            while True:
+                idx = temp_text.find(name, start)
+                if idx == -1:
+                    break
+                found_matches.append((idx, fallback_map[name]))
+                temp_text = temp_text[:idx] + " " * len(name) + temp_text[idx + len(name):]
+                start = idx + len(name)
+                
+        if found_matches:
+            found_matches.sort()
+            for idx, color in found_matches:
+                result_colors.append(color)
+            continue
+            
+        result_colors.append("#CCCCCC")
             
     return result_colors if result_colors else ["#FFFFFF"]
 

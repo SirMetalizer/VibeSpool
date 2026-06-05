@@ -27,25 +27,25 @@ MOBILE_HTML = """
     <style>
         body { background-color: #2b2b2b; color: white; font-family: 'Segoe UI', sans-serif; text-align: center; margin: 0; padding: 0; }
         .header { background: #1e1e1e; padding: 15px; box-shadow: 0 2px 5px rgba(0,0,0,0.5); }
-        h1 { font-size: 22px; margin: 0; color: #0078d7; }
+        h1 { font-size: 22px; margin: 0; color: #007AFF; }
 
         .tabs { display: flex; background: #3c3f41; }
         .tab-btn { flex: 1; padding: 15px; background: none; border: none; color: #bbb; font-size: 15px; font-weight: bold; cursor: pointer; border-bottom: 3px solid transparent; }
-        .tab-btn.active { color: white; border-bottom: 3px solid #0078d7; }
+        .tab-btn.active { color: white; border-bottom: 3px solid #007AFF; }
 
         .content { padding: 20px; }
         .tab-content { display: none; }
         .tab-content.active { display: block; }
 
-        .btn-scan { display: inline-block; background-color: #0078d7; color: white; font-size: 18px; font-weight: bold; padding: 15px 30px; border-radius: 12px; cursor: pointer; box-shadow: 0 4px 6px rgba(0,0,0,0.3); width: 100%; box-sizing: border-box;}
-        .btn-scan:active { background-color: #005a9e; }
+        .btn-scan { display: inline-block; background-color: #007AFF; color: white; font-size: 18px; font-weight: bold; padding: 15px 30px; border-radius: 12px; cursor: pointer; box-shadow: 0 4px 6px rgba(0,0,0,0.3); width: 100%; box-sizing: border-box;}
+        .btn-scan:active { background-color: #0056B3; }
         input[type="file"] { display: none; }
         
         #status { margin-bottom: 20px; padding: 15px; border-radius: 8px; background: #3c3f41; font-weight: bold; display:none;}
         .success { background: #28a745 !important; color: white; } .error { background: #d9534f !important; color: white;}
 
         #dashboard { display: none; margin-top: 10px; background: #3c3f41; padding: 15px; border-radius: 10px; text-align: left;}
-        #dash-title { color: #0078d7; font-size: 18px; margin-top: 0; margin-bottom: 5px; font-weight: bold;}
+        #dash-title { color: #007AFF; font-size: 18px; margin-top: 0; margin-bottom: 5px; font-weight: bold;}
         #dash-net { font-size: 14px; color: #bbb; margin-bottom: 15px; }
         .control-group { margin-bottom: 15px; display: flex; gap: 10px; }
         .control-group input, .control-group select { flex-grow: 1; padding: 12px; font-size: 16px; border-radius: 5px; border: 1px solid #555; background: #2b2b2b; color: white; }
@@ -53,7 +53,7 @@ MOBILE_HTML = """
         .btn-red { background: #d9534f; } .btn-green { background: #28a745; }
         #btn-reset { width: 100%; padding: 15px; background: #555; color: white; font-size: 18px; font-weight: bold; border: none; border-radius: 8px; margin-top: 10px; cursor: pointer; }
 
-        .instruction-box { background: #3c3f41; padding: 20px; border-radius: 10px; text-align: left; line-height: 1.6; margin-bottom: 20px; border-left: 4px solid #0078d7;}
+        .instruction-box { background: #3c3f41; padding: 20px; border-radius: 10px; text-align: left; line-height: 1.6; margin-bottom: 20px; border-left: 4px solid #007AFF;}
         .instruction-box ol { padding-left: 20px; margin: 10px 0; }
     </style>
 </head>

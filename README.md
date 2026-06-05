@@ -1,6 +1,6 @@
 # 🧵 VibeSpool - Das smarte Filament-Management-System
 
-![Version](https://img.shields.io/badge/version-2.0.4-blue.svg)
+![Version](https://img.shields.io/badge/version-2.1.1-blue.svg)
 ![Python](https://img.shields.io/badge/python-3.10%2B-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
@@ -10,7 +10,7 @@
 
 ---
 
-## 🆕 Was ist neu in Version 2.0.4? ("The Planner, Quick Cost & Visualizer Customization Update")
+## 🆕 Was ist neu in Version 2.1.1? ("The Planner, Quick Cost & Visualizer Customization Update")
 Dieses Update erweitert die Funktionen des Auftragsplaners, des Quick-Cost Rechners und bringt vollständige Personalisierungsmöglichkeiten für die visuelle Regalübersicht!
 
 ### ✨ Die Highlights:
@@ -25,7 +25,7 @@ Dieses Update erweitert die Funktionen des Auftragsplaners, des Quick-Cost Rechn
 
 ---
 
-## ✨ Weitere Features
+## ✨ Weitere Features (Detail-Ansicht)
 
 ### ☁️ Bambu Cloud API & Smart-Match
 Verbinde VibeSpool mit der Bambu Cloud. Das System lädt deine fertigen Druckaufträge herunter, erkennt automatisch, welche Spulen im AMS verwendet wurden (**Smart-Match**) und teilt den Verbrauch bei Multi-Color-Drucken grammgenau auf.
@@ -41,7 +41,7 @@ VibeSpool wird zur Schaltzentrale deiner Druck-Aufträge! Mit dem Planungs-Tool 
 VibeSpool berechnet nicht nur Material- und Stromkosten, sondern berücksichtigt auch Maschinenverschleiß (pro Druckstunde) und schlägt automatisch deine Gewinnmarge (%) auf. Alle Drucke über alle Spulen hinweg laufen im globalen Kassenbuch zusammen.
 
 ### 💰 Druckkosten-Rechner & Logbuch
-VibeSpool kombiniert den Kaufpreis deiner Spulen mit deinem lokalen Strompreis und der Laufzeit des Drucks. Bei jedem Cloud-Sync siehst du auf den Cent genau, was dein Druck gekostet hat. Alles wird im **Spulen-Logbuch** dauerhaft als "Kontoauszug" gespeichert.
+VibeSpool kombiniert den Kaufpreis deiner Spulen mit deinem lokalen Strompreis und der Laufzeit des Drucks. Bei jedem Cloud-Sync siehst du auf den Cent genau, was dein Druck gekostet hat. Alles wird im **Spulen-Logbuch** dauerhaft als "Kontoauszug" gespeichert. In Version 2.1.0 lassen sich Logbucheinträge per Doppelklick korrigieren und mit einem Gewinnmargen-Rechner neu bewerten.
 
 ### 📊 Unified Analytics Dashboard
 **Übersicht Finanzen:**
@@ -71,7 +71,7 @@ VibeSpool wird kabellos! Scanne einfach den QR-Code am Monitor und dein Handy wi
 Nie wieder Leergewichte raten. Trage das Brutto-Gewicht ein, das deine Küchenwaage anzeigt. VibeSpool erkennt Hersteller und Material, zieht das korrekte Leerspulen-Gewicht ab und bucht das Netto-Gewicht ein.
 
 ### 📦 Lagerverwaltung & Doppeltiefe Regale
-Bilde dein echtes Regal virtuell nach (z.B. 4 Reihen, 8 Spalten). VibeSpool unterstützt sogar **doppeltiefe Regale** (2 Spulen hintereinander) und bietet eine **Quick-Swap** Funktion, um Spulen blitzschnell ins AMS zu tauschen.
+Bilde dein echtes Regal virtuell nach (z.B. 4 Reihen, 8 Spalten). VibeSpool unterstützt sogar **doppeltiefe Regale** (2 Spulen hintereinander) und bietet eine **Quick-Swap** Funktion, um Spulen blitzschnell ins AMS zu tauschen. Die Regalansicht scrollt bei Drag & Drop vollautomatisch mit.
 
 ### 🏷️ Etiketten-Druck & Label Creator
 Generiere automatisch fertige Etiketten mit QR-Codes, Drucktemperaturen und Farben. Exportiere sie als PNG oder direkt als **PDF-Bögen** für DIN A4 oder Rollen-Etikettendrucker.
@@ -114,6 +114,12 @@ Starten:
 ---
 
 ## ⏳ Release-Historie
+
+### 🆕 Was ist neu in Version 2.1.0? ("The Finance, Archive & Scroll Update")
+* **📊 Finanzen nach Hersteller & Farbe:** Im Analytics-Dashboard gibt es ein neues Register für die detaillierte Aufteilung nach Marke (Hersteller) und bereinigter Farbe. Sämtliche Tabellenspalten im Dashboard lassen sich jetzt per Klick interaktiv sortieren!
+* **📝 Auftrags-Planer V2 (Archiv & Bilder):** Druckaufträge sind nun in eine aktive "Warteschlange" und ein "Archiv" für abgeschlossene Aufträge aufgeteilt. Du kannst Modellbilder hochladen (die automatisch ressourcenschonend komprimiert werden) und siehst diese direkt als Vorschau. Beim Abschließen werden Kosten und Verbrauch automatisch in das Spulen-Logbuch übernommen.
+* **📜 Logbuch-Editor mit Preiskalkulatoren:** Einträge im Spulen-Logbuch können jetzt per Doppelklick editiert werden. Ein integrierter Rechner ermittelt dabei automatisch Materialkosten und Verkaufspreise basierend auf deiner gewünschten Gewinnmarge.
+* **📦 Responsive Auto-Scroll:** Beim Drag & Drop von Spulen in der Regal- oder AMS-Ansicht scrollt das Fenster nun vollautomatisch mit, wenn du dich dem Fensterrand näherst. Perfekt für große Lager oder kleinere Monitore.
 
 ### 🆕 Was ist neu in Version 2.0.3? ("The Time Machine & Security Update")
 * **🔐 Sicherer Browser-Login (OAuth2):** VibeSpool leitet euch nun auf die offizielle MakerWorld/BambuLab-Website im Browser weiter. (Voller Support für Google/Apple-Login & 2FA).

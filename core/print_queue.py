@@ -30,12 +30,15 @@ class JobDeductionDialog(tk.Toplevel):
         
         ttk.Label(frm, text="⏱️ Gesamte Druckzeit (in Stunden, z.B. 2.5):").pack(anchor="w")
         self.ent_time = ttk.Entry(frm)
-        self.ent_time.insert(0, "1.0")
+        # Pre-fill with planned print time if available
+        planned_time = str(self.job.get('print_time', '1.0'))
+        self.ent_time.insert(0, planned_time)
         self.ent_time.pack(fill="x", pady=(0, 15))
         
         ttk.Label(frm, text="⚖️ Verbrauch pro Spule (in Gramm):", font=("Segoe UI", 10, "bold")).pack(anchor="w", pady=(10, 5))
         
         self.spool_entries = {}
+        planned_weights = self.job.get('spool_weights', {})
         for sp in self.matched_spools:
             row = ttk.Frame(frm)
             row.pack(fill="x", pady=2)
@@ -44,7 +47,12 @@ class JobDeductionDialog(tk.Toplevel):
             ttk.Label(row, text=lbl_text, width=35).pack(side="left")
             
             ent = ttk.Entry(row, width=10)
-            ent.insert(0, "0")
+            # Pre-fill with planned spool weight if available
+            sp_id_str = str(sp['id'])
+            planned_w = str(planned_weights.get(sp_id_str, planned_weights.get(int(sp_id_str), '0')))
+            if planned_w.endswith(".0"):
+                planned_w = planned_w[:-2]
+            ent.insert(0, planned_w)
             ent.pack(side="right")
             ttk.Label(row, text="g").pack(side="right", padx=5)
             self.spool_entries[sp['id']] = ent
@@ -146,6 +154,7 @@ class PrintQueueDialog(tk.Toplevel):
 
         self.selected_job_id = None
         self.jobs = self.app.data_manager.load_jobs()
+        self.selected_spool_entries = {}  # maps spool_id -> (entry_widget, row_frame)
         
         self.build_ui()
 
@@ -195,11 +204,20 @@ class PrintQueueDialog(tk.Toplevel):
         self.ent_link.pack(side="left", fill="x", expand=True)
         ttk.Button(frm_link, text="🌐", width=3, command=self.open_url).pack(side="left", padx=(5, 0))
         
-        ttk.Label(frm_right, text="Spulen (IDs oder Freitext):").pack(anchor="w")
+        # NEU: Druckzeit (Std)
+        ttk.Label(frm_right, text="Druckzeit (Stunden, z.B. 2.5):").pack(anchor="w")
+        self.ent_print_time = ttk.Entry(frm_right)
+        self.ent_print_time.insert(0, "1.0")
+        self.ent_print_time.pack(fill="x", pady=(0, 10))
+        self.ent_print_time.bind("<KeyRelease>", self.recalculate_price)
+
+        # NEU: Verwendete Spulen & Gewichte
+        ttk.Label(frm_right, text="Ausgewählte Spulen & Grammzahl:").pack(anchor="w")
+        self.spools_list_frame = ttk.Frame(frm_right)
+        self.spools_list_frame.pack(fill="x", pady=(0, 10))
+        
         frm_spool_input = ttk.Frame(frm_right)
         frm_spool_input.pack(fill="x", pady=(0, 10))
-        self.ent_spools = ttk.Entry(frm_spool_input)
-        self.ent_spools.pack(side="left", fill="x", expand=True)
         
         spool_list = ["+ Spule hinzufügen..."]
         for i in self.app.inventory:
@@ -207,13 +225,17 @@ class PrintQueueDialog(tk.Toplevel):
                 color_clean = str(i.get('color', '')).split('(')[0].strip()
                 spool_list.append(f"[{i['id']}] {i.get('brand','')} {color_clean}")
         
-        self.combo_add = ttk.Combobox(frm_spool_input, values=spool_list, state="readonly", width=22)
+        self.combo_add = ttk.Combobox(frm_spool_input, values=spool_list, state="readonly")
         self.combo_add.current(0)
-        self.combo_add.pack(side="left", padx=(5, 0))
+        self.combo_add.pack(side="left", fill="x", expand=True)
         self.combo_add.bind("<<ComboboxSelected>>", self.on_quick_add_spool)
         
+        # NEU: Errechneter Preis
+        self.lbl_calc_price = ttk.Label(frm_right, text="Errechneter Preis: 0.00 €", font=("Segoe UI", 11, "bold"), foreground="#0078d7")
+        self.lbl_calc_price.pack(anchor="w", pady=(0, 10))
+        
         ttk.Label(frm_right, text="Notizen (Planung / Details):").pack(anchor="w")
-        self.txt_notes = tk.Text(frm_right, height=6, font=("Segoe UI", 10))
+        self.txt_notes = tk.Text(frm_right, height=4, font=("Segoe UI", 10))
         self.txt_notes.pack(fill="x", pady=(0, 15))
         
         # --- ACTION BUTTONS ---
@@ -243,14 +265,101 @@ class PrintQueueDialog(tk.Toplevel):
 
         self.refresh_list()
 
+    def add_spool_row(self, spool_id, weight=100.0):
+        spool_id_str = str(spool_id)
+        if spool_id_str in self.selected_spool_entries:
+            return
+            
+        sp = next((i for i in self.app.inventory if str(i['id']) == spool_id_str), None)
+        
+        row_frm = ttk.Frame(self.spools_list_frame)
+        row_frm.pack(fill="x", pady=2)
+        
+        if sp:
+            color_clean = re.sub(r'\s*\(\s*#[0-9a-fA-F]{6}\s*\)', '', sp.get('color', '')).strip()
+            lbl_text = f"[{sp['id']}] {sp.get('brand','')} {color_clean}:"
+        else:
+            lbl_text = f"[{spool_id_str}] Custom Spule:"
+            
+        ttk.Label(row_frm, text=lbl_text, width=30, anchor="w").pack(side="left")
+        
+        ent = ttk.Entry(row_frm, width=8)
+        w_str = str(weight)
+        if w_str.endswith(".0"):
+            w_str = w_str[:-2]
+        ent.insert(0, w_str)
+        ent.pack(side="left", padx=5)
+        ttk.Label(row_frm, text="g").pack(side="left", padx=(0, 10))
+        
+        btn_del = ttk.Button(row_frm, text="❌", width=3, command=lambda: self.remove_spool_row(spool_id_str))
+        btn_del.pack(side="right")
+        
+        ent.bind("<KeyRelease>", self.recalculate_price)
+        
+        self.selected_spool_entries[spool_id_str] = (ent, row_frm)
+        self.recalculate_price()
+
+    def remove_spool_row(self, spool_id_str):
+        if spool_id_str in self.selected_spool_entries:
+            ent, row_frm = self.selected_spool_entries[spool_id_str]
+            row_frm.destroy()
+            del self.selected_spool_entries[spool_id_str]
+            self.recalculate_price()
+
+    def recalculate_price(self, event=None):
+        try:
+            print_time_val = self.ent_print_time.get().replace(",", ".")
+            duration = float(print_time_val) if print_time_val else 0.0
+        except ValueError:
+            duration = 0.0
+            
+        kwh_price = float(self.app.settings.get("kwh_price", 0.30))
+        watts = int(self.app.settings.get("printer_watts", 150))
+        wear_price = float(self.app.settings.get("wear_per_hour", 0.20))
+        margin_percent = int(self.app.settings.get("profit_margin", 0))
+        
+        strom_gesamt = duration * (watts / 1000.0) * kwh_price
+        wear_gesamt = duration * wear_price
+        
+        total_weight = 0.0
+        weights = {}
+        for sp_id, (ent, _) in self.selected_spool_entries.items():
+            try:
+                w_val = float(ent.get().replace(",", "."))
+            except ValueError:
+                w_val = 0.0
+            weights[sp_id] = w_val
+            total_weight += w_val
+            
+        total_cost = 0.0
+        for sp_id, w_val in weights.items():
+            if w_val <= 0: continue
+            sp = next((i for i in self.app.inventory if str(i['id']) == sp_id), None)
+            if not sp: continue
+            
+            mat_cost = 0.0
+            try:
+                price = float(str(sp.get('price', '0')).replace(',', '.'))
+                cap = float(str(sp.get('capacity', '1000')))
+                if cap > 0: mat_cost = w_val * (price / cap)
+            except: pass
+            
+            share = w_val / total_weight if total_weight > 0 else 0.0
+            spool_share_cost = mat_cost + (strom_gesamt * share) + (wear_gesamt * share)
+            total_cost += spool_share_cost
+            
+        sell_price = total_cost * (1 + (margin_percent / 100.0))
+        
+        res_text = f"Errechneter Preis: {total_cost:.2f} €"
+        if margin_percent > 0:
+            res_text += f" (VK: {sell_price:.2f} €)"
+        self.lbl_calc_price.config(text=res_text)
+
     def on_quick_add_spool(self, event):
         sel = self.combo_add.get()
         if sel.startswith("["):
             spid = sel.split("]")[0].replace("[", "")
-            current = self.ent_spools.get().strip()
-            new_val = f"{current}, {spid}" if current else spid
-            self.ent_spools.delete(0, tk.END)
-            self.ent_spools.insert(0, new_val)
+            self.add_spool_row(spid, 100.0)
         self.combo_add.current(0)
 
     def on_job_select(self, event):
@@ -265,7 +374,6 @@ class PrintQueueDialog(tk.Toplevel):
             self.btn_save.config(text="💾 Änderungen speichern")
             self.btn_delete.state(['!disabled'])
             
-            # Wenn der Job schon erledigt ist, Abziehen-Buttons deaktivieren
             if "Erledigt" in job.get('status', ''):
                 self.btn_finish.state(['disabled'])
                 self.btn_finish_no.state(['disabled'])
@@ -275,8 +383,30 @@ class PrintQueueDialog(tk.Toplevel):
             
             self.ent_title.delete(0, tk.END); self.ent_title.insert(0, job.get('title', ''))
             self.ent_link.delete(0, tk.END); self.ent_link.insert(0, job.get('link', ''))
-            self.ent_spools.delete(0, tk.END); self.ent_spools.insert(0, job.get('spools', ''))
+            
+            # Print time prefill
+            self.ent_print_time.delete(0, tk.END)
+            self.ent_print_time.insert(0, str(job.get('print_time', '1.0')))
+            
+            # Clear current spool rows
+            for _, (_, row_frm) in self.selected_spool_entries.items():
+                row_frm.destroy()
+            self.selected_spool_entries.clear()
+            
+            # Load spool weights
+            spool_weights = job.get('spool_weights', {})
+            spools_str = job.get('spools', '').strip()
+            
+            if spool_weights:
+                for sp_id, w in spool_weights.items():
+                    self.add_spool_row(sp_id, w)
+            elif spools_str:
+                parts = [p.strip() for p in spools_str.split(',') if p.strip()]
+                for p in parts:
+                    self.add_spool_row(p, 0.0)
+                    
             self.txt_notes.delete("1.0", tk.END); self.txt_notes.insert("1.0", job.get('notes', ''))
+            self.recalculate_price()
 
     def reset_form(self):
         self.selected_job_id = None
@@ -287,9 +417,17 @@ class PrintQueueDialog(tk.Toplevel):
         self.btn_finish_no.state(['disabled'])
         self.ent_title.delete(0, tk.END)
         self.ent_link.delete(0, tk.END)
-        self.ent_spools.delete(0, tk.END)
+        
+        self.ent_print_time.delete(0, tk.END)
+        self.ent_print_time.insert(0, "1.0")
+        
+        for _, (_, row_frm) in self.selected_spool_entries.items():
+            row_frm.destroy()
+        self.selected_spool_entries.clear()
+        
         self.txt_notes.delete("1.0", tk.END)
         self.tree.selection_remove(self.tree.selection())
+        self.recalculate_price()
 
     def save_job(self):
         title = self.ent_title.get().strip()
@@ -297,13 +435,31 @@ class PrintQueueDialog(tk.Toplevel):
             messagebox.showwarning("Fehler", "Titel fehlt!", parent=self)
             return
 
+        spool_weights = {}
+        spools_list = []
+        for sp_id, (ent, _) in self.selected_spool_entries.items():
+            try:
+                w = float(ent.get().replace(",", "."))
+            except ValueError:
+                w = 0.0
+            spool_weights[str(sp_id)] = w
+            spools_list.append(str(sp_id))
+        spools_str = ", ".join(spools_list)
+        
+        try:
+            print_time_val = float(self.ent_print_time.get().replace(",", "."))
+        except ValueError:
+            print_time_val = 1.0
+
         if self.selected_job_id:
             job = next((j for j in self.jobs if j['id'] == self.selected_job_id), None)
             if job:
                 job.update({
                     "title": title,
                     "link": self.ent_link.get().strip(),
-                    "spools": self.ent_spools.get().strip(),
+                    "spools": spools_str,
+                    "spool_weights": spool_weights,
+                    "print_time": print_time_val,
                     "notes": self.txt_notes.get("1.0", tk.END).strip()
                 })
         else:
@@ -312,7 +468,9 @@ class PrintQueueDialog(tk.Toplevel):
                 "date": datetime.now().strftime("%Y-%m-%d"),
                 "title": title,
                 "link": self.ent_link.get().strip(),
-                "spools": self.ent_spools.get().strip(),
+                "spools": spools_str,
+                "spool_weights": spool_weights,
+                "print_time": print_time_val,
                 "notes": self.txt_notes.get("1.0", tk.END).strip(),
                 "status": "Geplant"
             }
@@ -330,17 +488,14 @@ class PrintQueueDialog(tk.Toplevel):
         spools_str = job.get('spools', '').strip()
         matched_spools = []
         
-        # IDs extrahieren
         if spools_str:
             parts = [p.strip() for p in spools_str.split(',') if p.strip()]
             for p in parts:
-                # Prüfen ob der Part eine gültige ID in unserem Inventory ist
                 sp = next((i for i in self.app.inventory if str(i['id']) == p), None)
                 if sp:
                     matched_spools.append(sp)
                     
         if not matched_spools:
-            # Keine verknüpften Spulen gefunden
             if messagebox.askyesno("Auftrag abschließen", "In diesem Auftrag sind keine bekannten Spulen-IDs hinterlegt.\nSoll der Auftrag einfach als 'Erledigt' markiert werden?", parent=self):
                 job['status'] = "Erledigt ✅"
                 self.app.data_manager.save_jobs(self.jobs)
@@ -348,10 +503,8 @@ class PrintQueueDialog(tk.Toplevel):
                 self.reset_form()
             return
             
-        # Dialog für den Abzug öffnen
         JobDeductionDialog(self, self, job, matched_spools)
 
-    # --- NEU: Funktion für das lautlose Erledigen ---
     def finish_job_no_deduct(self):
         if not self.selected_job_id: return
         job = next((j for j in self.jobs if j['id'] == self.selected_job_id), None)

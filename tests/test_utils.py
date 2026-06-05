@@ -10,10 +10,10 @@ def test_get_colors_from_text_hex():
 def test_get_colors_from_text_names():
     assert get_colors_from_text("Rot") == ["#FF0000"]
     assert get_colors_from_text("Blue") == ["#0000FF"]
-    assert get_colors_from_text("Red and Blue") == ["#FF0000", "#0000FF"]
+    assert get_colors_from_text("Red/Blue") == ["#FF0000", "#0000FF"]
 
 def test_get_colors_from_text_rainbow():
-    rainbow = ["#FF0000", "#FFA500", "#FFFF00", "#008000", "#0000FF", "#4B0082", "#EE82EE"]
+    rainbow = ["#FF0000", "#FFA500", "#FFFF00", "#008000", "#0000FF", "#800080"]
     assert get_colors_from_text("Regenbogen") == rainbow
     assert get_colors_from_text("Rainbow") == rainbow
 

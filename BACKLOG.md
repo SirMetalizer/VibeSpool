@@ -1,5 +1,11 @@
 # 📋 VibeSpool Development Backlog
 
+## ✅ Abgeschlossen (v2.1.1 - "The Planner, Quick Cost & Visualizer Update")
+- [x] **📝 Flexibler Auftragsplaner:** Zuweisung mehrerer Spulen mit individueller Grammvorgabe und geplanter Druckzeit sowie Live-Preisanzeige. Pre-fill beim anschließenden Abzug.
+- [x] **🧮 Multi-Spool Quick Cost:** Der Schnellrechner unterstützt nun beliebig viele Spulenzeilen.
+- [x] **🤖 AMS Pinning:** Optionale Fixierung der AMS-Einheiten am oberen Fensterrand im Regal-Visualisierer (persistiert in Einstellungen).
+- [x] **📊 Finanz-Grouping:** Kombinierte Aggregations-Ansichten (z.B. Marke & Farbe) im Bestands-Dashboard.
+
 ## ✅ Abgeschlossen (v2.0.3 - "The Time Machine & Security Update")
 - [x] **🔐 Sicherer Browser-Login (OAuth2):** Umstellung der Bambu-API auf den offiziellen MakerWorld-Login via Webbrowser (Port 8080 Listener).
 - [x] **🕰️ Smart AMS Memory:** Hintergrund-Snapshots der AMS-Belegung in `ams_snapshots.json`. Cloud-Syncs suchen nun nach historischen AMS-Belegungen.
@@ -22,7 +28,7 @@
 - [x] **Omni-Live-Suche**
 - [x] **🧮 Quick-Cost Rechner**
 
-## 🚀 Priorität 1: Next Steps (v2.1.0)
+## 🚀 Priorität 1: Next Steps (v2.2.0)
 - [ ] **📚 Globale Filament-Datenbank (Bake-in):** Integrierte Datenbank für bekannte Hersteller-Filamente, die per Klick (inkl. Leergewicht und Shop-Link) ins eigene Lager kopiert werden können.
 - [ ] **🎨 Custom Label Designer:** Baukasten zum freien Gestalten von Etiketten (Logos hinzufügen, Schriftarten ändern).
 

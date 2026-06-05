@@ -29,7 +29,7 @@ from core.label_creator import LabelCreatorDialog
 from core.print_queue import PrintQueueDialog
 
 # --- KONFIGURATION ---
-APP_VERSION = "2.0.3"
+APP_VERSION = "2.1.1"
 GITHUB_REPO = "SirMetalizer/VibeSpool" 
 
 # --- DEFAULTS ---
@@ -435,6 +435,8 @@ class SettingsDialog(tk.Toplevel):
         self.var_logistics = tk.BooleanVar(value=self.settings.get("logistics_order", False))
         ttk.Checkbutton(tab_lager, text="Logistik-Modus (unten = Reihe 1)", variable=self.var_logistics).pack(anchor="w", pady=5)
         ttk.Checkbutton(tab_lager, text="Doppeltiefe Regale (2 Rollen pro Slot)", variable=self.var_double).pack(anchor="w", pady=(10, 5))
+        self.var_ams_fixed = tk.BooleanVar(value=self.settings.get("ams_fixed_top", False))
+        ttk.Checkbutton(tab_lager, text="AMS oben fixieren (Regal-Ansicht)", variable=self.var_ams_fixed).pack(anchor="w", pady=5)
         
 
         # TAB 3: DRUCKER
@@ -965,6 +967,7 @@ class SettingsDialog(tk.Toplevel):
                 "double_depth": self.var_double.get(),
                 "shelves": self.var_shelves.get(),
                 "logistics_order": self.var_logistics.get(),
+                "ams_fixed_top": self.var_ams_fixed.get(),
                 "label_row": new_label_row,
                 "label_col": new_label_col,
                 "num_ams": int(self.ent_ams.get()),
@@ -994,6 +997,8 @@ class SettingsDialog(tk.Toplevel):
             
             # --- NEU: LIVE-UPDATE DER OBERFLÄCHE ---
             if app_inst:
+                if hasattr(app_inst, 'var_ams_fixed_main'):
+                    app_inst.var_ams_fixed_main.set(self.var_ams_fixed.get())
                 app_inst.refresh_table() 
                 
                 # Dropdowns live updaten (damit neue Namen / Tiefe sofort wählbar sind)
@@ -1001,7 +1006,7 @@ class SettingsDialog(tk.Toplevel):
                     app_inst.update_slot_dropdown()
                 
                 # Lageransicht sofort neu zeichnen, falls sie offen ist
-                if hasattr(app_inst, 'shelf_visualizer') and app_inst.shelf_visualizer:
+                if hasattr(app_inst, 'shelf_visualizer') and app_inst.shelf_visualizer and app_inst.shelf_visualizer.winfo_exists():
                     app_inst.shelf_visualizer.redraw()
                 
                 # NEU: Cloud Button live zeigen/verstecken
@@ -1034,9 +1039,31 @@ class ShelfVisualizer(tk.Toplevel):
         self.drag_source = None
         self.drag_window = None
 
-        self.canvas = tk.Canvas(self, bg=parent.cget('bg'), highlightthickness=0)
-        v_scroll = ttk.Scrollbar(self, orient="vertical", command=self.canvas.yview)
-        h_scroll = ttk.Scrollbar(self, orient="horizontal", command=self.canvas.xview)
+        # Toolbar for pinning option
+        self.toolbar = ttk.Frame(self, padding=(10, 5))
+        self.toolbar.pack(side="top", fill="x")
+        
+        self.var_ams_fixed = tk.BooleanVar(value=self.settings.get("ams_fixed_top", False))
+        chk_fixed = ttk.Checkbutton(self.toolbar, text="🤖 AMS oben fixieren", variable=self.var_ams_fixed, command=self.toggle_ams_fixed)
+        chk_fixed.pack(side="left")
+        
+        ttk.Label(self.toolbar, text="🔍 Symbolgröße:").pack(side="left", padx=(15, 5))
+        zoom_val = self.settings.get("shelf_zoom", "Mittel")
+        if zoom_val not in ["Klein", "Mittel", "Groß"]:
+            zoom_val = "Mittel"
+        self.combo_zoom = ttk.Combobox(self.toolbar, values=["Klein", "Mittel", "Groß"], state="readonly", width=8)
+        self.combo_zoom.set(zoom_val)
+        self.combo_zoom.pack(side="left")
+        self.combo_zoom.bind("<<ComboboxSelected>>", self.on_zoom_change)
+        
+        self.fixed_ams_container = ttk.LabelFrame(self, text="📌 Angeheftete AMS-Einheiten", padding=(10, 5))
+        
+        self.canvas_container = ttk.Frame(self)
+        self.canvas_container.pack(side="top", fill="both", expand=True)
+
+        self.canvas = tk.Canvas(self.canvas_container, bg=parent.cget('bg'), highlightthickness=0)
+        v_scroll = ttk.Scrollbar(self.canvas_container, orient="vertical", command=self.canvas.yview)
+        h_scroll = ttk.Scrollbar(self.canvas_container, orient="horizontal", command=self.canvas.xview)
         self.canvas.configure(yscrollcommand=v_scroll.set, xscrollcommand=h_scroll.set)
         h_scroll.pack(side="bottom", fill="x")
         v_scroll.pack(side="right", fill="y")
@@ -1055,15 +1082,42 @@ class ShelfVisualizer(tk.Toplevel):
         self.bind("<MouseWheel>", _on_mousewheel)
         self.canvas.bind("<MouseWheel>", _on_mousewheel)
         self.frame.bind("<MouseWheel>", _on_mousewheel)
+        self.toolbar.bind("<MouseWheel>", _on_mousewheel)
+        self.fixed_ams_container.bind("<MouseWheel>", _on_mousewheel)
+
+    def toggle_ams_fixed(self):
+        self.settings["ams_fixed_top"] = self.var_ams_fixed.get()
+        if self.app:
+            self.app.data_manager.save_settings(self.settings)
+        self.redraw()
+
+    def on_zoom_change(self, event=None):
+        self.settings["shelf_zoom"] = self.combo_zoom.get()
+        if self.app:
+            self.app.data_manager.save_settings(self.settings)
+        self.redraw()
 
     def redraw(self):
         # Alles alte löschen
         for widget in self.frame.winfo_children():
             widget.destroy()
+        for widget in self.fixed_ams_container.winfo_children():
+            widget.destroy()
             
         self.image_cache = []
         # NEU: Ein sauberes Lexikon, in dem wir die Daten zu jedem Widget speichern
         self.widget_data = {} 
+        
+        zoom = self.settings.get("shelf_zoom", "Mittel")
+        if zoom == "Klein":
+            m = 0.75
+            self.current_font = ("Segoe UI", 7, "bold")
+        elif zoom == "Groß":
+            m = 1.3
+            self.current_font = ("Segoe UI", 10, "bold")
+        else:
+            m = 1.0
+            self.current_font = ("Segoe UI", 8, "bold")
         
         from core.logic import parse_shelves_string
         self.parsed_shelves = parse_shelves_string(self.settings.get("shelves", "REGAL|4|8"))
@@ -1084,6 +1138,27 @@ class ShelfVisualizer(tk.Toplevel):
                     self.other_data[t].append(item)
             except: pass
             
+        # Wenn AMS oben fixiert sein soll, zeichnen wir es jetzt in den fixed container
+        if self.var_ams_fixed.get() and self.settings.get("num_ams", 1) > 0:
+            self.fixed_ams_container.pack(side="top", fill="x", padx=10, pady=(2, 6), before=self.canvas_container)
+            ams_wrapper = ttk.Frame(self.fixed_ams_container)
+            ams_wrapper.pack(fill="x")
+            for a in range(1, self.settings.get("num_ams", 1) + 1):
+                ams_name = f"AMS {a}"
+                ams_unit_frm = ttk.Frame(ams_wrapper)
+                ams_unit_frm.pack(side="left", padx=8, anchor="n")
+                
+                ttk.Label(ams_unit_frm, text=ams_name, font=("Segoe UI", 9, "bold")).pack(anchor="w", pady=(2, 1))
+                ams_frame = tk.Frame(ams_unit_frm, bg="#444444", padx=4, pady=4)
+                ams_frame.pack(anchor="w")
+                for i in range(1, 5): 
+                    cont = tk.Frame(ams_frame, bg="#444444")
+                    cont.pack(side="left", fill="y", padx=3)
+                    ttk.Label(cont, text=f"Slot {i}", foreground="white", background="#444444", font=("Segoe UI", 7)).pack(pady=(0, 1))
+                    self.draw_slot(cont, str(i), self.ams_data.get(f"{ams_name}_{i}"), True, int(75 * m), int(55 * m), ams_name, str(i))
+        else:
+            self.fixed_ams_container.pack_forget()
+
         pad = ttk.Frame(self.frame, padding=20)
         pad.pack(fill="both", expand=True)
         
@@ -1118,25 +1193,27 @@ class ShelfVisualizer(tk.Toplevel):
                         frm_v.pack(side="top", pady=(1, 0))
                         
                         slot_name_h = f"{row_label} - {col_label} (H)"
-                        self.draw_slot(frm_h, f"{short_label} (H)", self.shelf_data.get(f"{shelf['name']}_{slot_name_h}"), False, 65, 35, shelf['name'], slot_name_h)
+                        self.draw_slot(frm_h, f"{short_label} (H)", self.shelf_data.get(f"{shelf['name']}_{slot_name_h}"), False, int(65 * m), int(35 * m), shelf['name'], slot_name_h)
                         
                         slot_name_v = f"{row_label} - {col_label} (V)"
-                        self.draw_slot(frm_v, f"{short_label} (V)", self.shelf_data.get(f"{shelf['name']}_{slot_name_v}"), False, 65, 35, shelf['name'], slot_name_v)
+                        self.draw_slot(frm_v, f"{short_label} (V)", self.shelf_data.get(f"{shelf['name']}_{slot_name_v}"), False, int(65 * m), int(35 * m), shelf['name'], slot_name_v)
                     else:
                         slot_name = f"{row_label} - {col_label}"
-                        self.draw_slot(row_frame, short_label, self.shelf_data.get(f"{shelf['name']}_{slot_name}"), False, 70, 70, shelf['name'], slot_name)
+                        self.draw_slot(row_frame, short_label, self.shelf_data.get(f"{shelf['name']}_{slot_name}"), False, int(70 * m), int(70 * m), shelf['name'], slot_name)
                     
-        ttk.Separator(pad, orient="horizontal").pack(fill="x", pady=20)
-        for a in range(1, self.settings.get("num_ams", 1) + 1):
-            ams_name = f"AMS {a}"
-            ttk.Label(pad, text=ams_name, font=("Segoe UI", 14, "bold")).pack(anchor="w", pady=(10, 5))
-            ams_frame = tk.Frame(pad, bg="#444444", padx=10, pady=10)
-            ams_frame.pack(anchor="w")
-            for i in range(1, 5): 
-                cont = tk.Frame(ams_frame, bg="#444444")
-                cont.pack(side="left", fill="y", padx=10)
-                ttk.Label(cont, text=f"Slot {i}", foreground="white", background="#444444").pack(pady=(0, 5))
-                self.draw_slot(cont, str(i), self.ams_data.get(f"{ams_name}_{i}"), True, 120, 100, ams_name, str(i))
+        # Wenn AMS NICHT oben fixiert sein soll, zeichnen wir es hier am Ende der Regale
+        if not self.var_ams_fixed.get():
+            ttk.Separator(pad, orient="horizontal").pack(fill="x", pady=20)
+            for a in range(1, self.settings.get("num_ams", 1) + 1):
+                ams_name = f"AMS {a}"
+                ttk.Label(pad, text=ams_name, font=("Segoe UI", 14, "bold")).pack(anchor="w", pady=(10, 5))
+                ams_frame = tk.Frame(pad, bg="#444444", padx=10, pady=10)
+                ams_frame.pack(anchor="w")
+                for i in range(1, 5): 
+                    cont = tk.Frame(ams_frame, bg="#444444")
+                    cont.pack(side="left", fill="y", padx=10)
+                    ttk.Label(cont, text=f"Slot {i}", foreground="white", background="#444444").pack(pady=(0, 5))
+                    self.draw_slot(cont, str(i), self.ams_data.get(f"{ams_name}_{i}"), True, int(120 * m), int(100 * m), ams_name, str(i))
                 
         if self.other_data:
             ttk.Separator(pad, orient="horizontal").pack(fill="x", pady=20)
@@ -1161,7 +1238,7 @@ class ShelfVisualizer(tk.Toplevel):
                         row_frame.pack(anchor="w", pady=(5,0))
                         
                     item_loc_id = item.get("loc_id", "") or "-"
-                    self.draw_slot(row_frame, item_loc_id, item, False, 80, 70, loc_name, item_loc_id)
+                    self.draw_slot(row_frame, item_loc_id, item, False, int(80 * m), int(70 * m), loc_name, item_loc_id)
                     col_count += 1
                     
                 # --- NEU: Der Ablage-Magnet! ---
@@ -1171,7 +1248,7 @@ class ShelfVisualizer(tk.Toplevel):
                     row_frame.pack(anchor="w", pady=(5,0))
                 
                 # Wir zeichnen ein leeres Feld, das als Drop-Ziel für diesen Ort dient
-                self.draw_slot(row_frame, "➕\nAblegen", None, False, 80, 70, loc_name, "-")
+                self.draw_slot(row_frame, "➕\nAblegen", None, False, int(80 * m), int(70 * m), loc_name, "-")
 
     def draw_slot(self, parent, label, item, is_ams, w=90, h=80, loc_type=None, loc_id=None):
         bg_colors, fg_col, txt, tooltip = ["#D2B48C"] if not is_ams else ["#666666"], "#555" if not is_ams else "#CCC", f"{label}\nLEER", "Leer"
@@ -1193,7 +1270,8 @@ class ShelfVisualizer(tk.Toplevel):
             
         img = create_color_icon(bg_colors, (w, h), "black")
         self.image_cache.append(img)
-        lbl = tk.Label(parent, image=img, text=txt, compound="center", fg=fg_col, font=("Segoe UI", 8, "bold"), borderwidth=1, relief="flat")
+        font_style = getattr(self, 'current_font', ("Segoe UI", 8, "bold"))
+        lbl = tk.Label(parent, image=img, text=txt, compound="center", fg=fg_col, font=font_style, borderwidth=1, relief="flat")
         lbl.pack(side="left", padx=2, fill="y")
         
         # --- DRAG & DROP BINDINGS (Pylance-Safe) ---
@@ -1435,18 +1513,22 @@ class StatisticsDialog(tk.Toplevel):
         ttk.Label(kpi_frame, text="Aktive Spulen:", font=("Segoe UI", 12), background=kpi_frame.cget("bg")).grid(row=2, column=0, sticky="w", pady=2)
         ttk.Label(kpi_frame, text=str(total_spools), font=("Segoe UI", 14, "bold"), background=kpi_frame.cget("bg")).grid(row=2, column=1, sticky="w", padx=15, pady=2)
 
-        ttk.Label(left_panel, text="Aufschlüsselung nach Material:", font=("Segoe UI", 12, "bold")).pack(anchor="w", pady=(0, 5))
+        frm_group = ttk.Frame(left_panel)
+        frm_group.pack(anchor="w", fill="x", pady=(0, 5))
+        ttk.Label(frm_group, text="Aufschlüsselung nach:", font=("Segoe UI", 12, "bold")).pack(side="left")
         
-        tree_mat = ttk.Treeview(left_panel, columns=("mat", "count", "weight", "value", "avg"), show="headings", height=6)
+        self.combo_group = ttk.Combobox(frm_group, values=["Material", "Hersteller", "Farbe", "Hersteller & Farbe", "Material & Farbe"], state="readonly", width=18)
+        self.combo_group.current(0)
+        self.combo_group.pack(side="left", padx=10)
+        self.combo_group.bind("<<ComboboxSelected>>", lambda e: self.update_breakdown())
+        
+        self.tree_mat = ttk.Treeview(left_panel, columns=("mat", "count", "weight", "value", "avg"), show="headings", height=6)
         for col, head, w in zip(("mat", "count", "weight", "value", "avg"), ("Material", "Stk", "Gewicht", "Wert", "Ø Preis/kg"), (100, 40, 80, 80, 80)): 
-            tree_mat.heading(col, text=head)
-            tree_mat.column(col, width=w, anchor="center" if col != "mat" else "w")
-        tree_mat.pack(fill="both", expand=True)
+            self.tree_mat.heading(col, text=head)
+            self.tree_mat.column(col, width=w, anchor="center" if col != "mat" else "w")
+        self.tree_mat.pack(fill="both", expand=True)
         
-        for mat, stats in sorted(mat_stats.items(), key=lambda x: x[1]['value'], reverse=True): 
-            kg = stats['weight'] / 1000
-            avg_price = (stats['value'] / kg) if kg > 0 else 0
-            tree_mat.insert("", "end", values=(mat, stats['count'], f"{kg:.2f} kg", f"{stats['value']:.2f} €", f"{avg_price:.2f} €"))
+        self.update_breakdown()
 
         # --- 4. RECHTE SEITE (Schickes Verbrauchs-Chart) ---
         ttk.Label(right_panel, text="Verbrauch der letzten 7 Tage:", font=("Segoe UI", 12, "bold")).pack(anchor="w", pady=(0, 5))
@@ -1578,6 +1660,66 @@ class StatisticsDialog(tk.Toplevel):
                 pass
 
         self.lbl_total.config(text=f"Gesamtkosten aller Einträge: {total_costs:.2f} €")
+
+    def update_breakdown(self):
+        group_choice = self.combo_group.get()
+        
+        stats_dict = {}
+        for item in self.inventory:
+            if item.get('type') == 'VERBRAUCHT': continue
+            
+            # Get grouping key
+            if group_choice == "Hersteller":
+                key = item.get('brand', 'Unbekannt') or 'Unbekannt'
+            elif group_choice == "Farbe":
+                key = re.sub(r'\s*\(\s*#[0-9a-fA-F]{6}\s*\)', '', item.get('color', '')).strip() or 'Unbekannt'
+            elif group_choice == "Hersteller & Farbe":
+                brand = item.get('brand', 'Unbekannt') or 'Unbekannt'
+                color = re.sub(r'\s*\(\s*#[0-9a-fA-F]{6}\s*\)', '', item.get('color', '')).strip() or 'Unbekannt'
+                key = f"{brand} - {color}"
+            elif group_choice == "Material & Farbe":
+                mat = item.get('material', 'Unbekannt') or 'Unbekannt'
+                color = re.sub(r'\s*\(\s*#[0-9a-fA-F]{6}\s*\)', '', item.get('color', '')).strip() or 'Unbekannt'
+                key = f"{mat} - {color}"
+            else: # "Material"
+                key = item.get('material', 'Unbekannt') or 'Unbekannt'
+                
+            if key not in stats_dict:
+                stats_dict[key] = {'count': 0, 'weight': 0, 'value': 0.0}
+                
+            from core.logic import calculate_net_weight
+            net = calculate_net_weight(item.get('weight_gross', '0'), item.get('spool_id', -1), self.app.spools, item.get('empty_weight'))
+            
+            val = 0.0
+            try:
+                price, cap = float(str(item.get('price', '0')).replace(',', '.')), float(str(item.get('capacity', '1000')))
+                if cap > 0: val = (net / cap) * price
+            except: pass
+            
+            stats_dict[key]['count'] += 1
+            stats_dict[key]['weight'] += net
+            stats_dict[key]['value'] += val
+            
+        # Clear and populate Treeview
+        self.tree_mat.delete(*self.tree_mat.get_children())
+        
+        # Determine heading based on choice
+        heading_text = "Material"
+        if group_choice == "Hersteller":
+            heading_text = "Hersteller"
+        elif group_choice == "Farbe":
+            heading_text = "Farbe"
+        elif group_choice == "Hersteller & Farbe":
+            heading_text = "Hersteller & Farbe"
+        elif group_choice == "Material & Farbe":
+            heading_text = "Material & Farbe"
+            
+        self.tree_mat.heading("mat", text=heading_text)
+        
+        for key, stats in sorted(stats_dict.items(), key=lambda x: x[1]['value'], reverse=True): 
+            kg = stats['weight'] / 1000
+            avg_price = (stats['value'] / kg) if kg > 0 else 0
+            self.tree_mat.insert("", "end", values=(key, stats['count'], f"{kg:.2f} kg", f"{stats['value']:.2f} €", f"{avg_price:.2f} €"))
 
 
     
@@ -2007,6 +2149,7 @@ class FilamentApp:
         self.tray_icon = None
         self.active_popups = set()
         self.stats_dialog = None  # Pylance-Fix: Platzhalter für das Finanz-Dashboard
+        self.shelf_visualizer = None
         
         # Suppress type checking for this assignment since load_all returns (list, dict, list)
         inventory_data, settings_data, spools_data = self.data_manager.load_all(DEFAULT_SETTINGS)
@@ -2074,6 +2217,8 @@ class FilamentApp:
         self.menu_opts.add_command(label="💰 Druckkosten-Rechner", command=lambda: self.open_settings(2))
         self.menu_opts.add_command(label="⚙ System-Optionen & Smart Home", command=lambda: self.open_settings(3))
         self.menu_opts.add_command(label="📋 Listen-Verwaltung", command=lambda: self.open_settings(4))
+        self.var_ams_fixed_main = tk.BooleanVar(value=self.settings.get("ams_fixed_top", False))
+        self.menu_opts.add_checkbutton(label="🤖 AMS oben fixieren", variable=self.var_ams_fixed_main, command=self.toggle_ams_fixed_main)
         self.menu_opts.add_separator()
         self.menu_opts.add_command(label="📥 CSV Inventar Importieren", command=self.import_csv)
         self.menu_opts.add_command(label="💾 Datenbank Backup / Restore", command=lambda: BackupDialog(self.root, self.data_manager, self))
@@ -2117,7 +2262,7 @@ class FilamentApp:
             btn.bind("<Leave>", lambda e: self.on_nav_btn_hover(btn, False))
             return btn
 
-        add_nav_btn("Regal", lambda: ShelfVisualizer(self.root, self.inventory, self.settings, self.spools, self), "📦")
+        add_nav_btn("Regal", self.open_shelf_visualizer, "📦")
         add_nav_btn("Spulen", lambda: SpoolManager(self.root, self.data_manager, self.update_spool_dropdown), "🧵")
         
         # FIX: Ein Leerzeichen vor dem Emoji schiebt es optisch genau in die Mitte!
@@ -2496,7 +2641,7 @@ class FilamentApp:
         ttk.Separator(btn_frame, orient="horizontal").pack(fill="x", pady=4)
         
         # --- 4. Ansichten & Verwaltung ---
-        ttk.Button(btn_frame, text="📦 Regal & AMS Ansicht", command=lambda: ShelfVisualizer(self.root, self.inventory, self.settings, self.spools, self)).pack(fill="x", pady=2)
+        ttk.Button(btn_frame, text="📦 Regal & AMS Ansicht", command=self.open_shelf_visualizer).pack(fill="x", pady=2)
         ttk.Button(btn_frame, text="🧵 Leerspulen verwalten", command=lambda: SpoolManager(self.root, self.data_manager, self.update_spool_dropdown)).pack(fill="x", pady=2)
         
         ttk.Separator(btn_frame, orient="horizontal").pack(fill="x", pady=4)
@@ -2628,28 +2773,111 @@ class FilamentApp:
             build_func(content)
 
     def build_quick_cost_calculator(self, parent):
-        fields = [
-            ("Materialpreis (€/kg):", "price", "25.00"),
-            ("Verbrauch (Gramm):", "weight", "100"),
-            ("Druckzeit (Stunden):", "time", "5")
-        ]
-        entries = {}
-        for label, key, default in fields:
-            ttk.Label(parent, text=label).pack(anchor="w")
-            ent = ttk.Entry(parent)
-            ent.insert(0, default)
-            ent.pack(fill="x", pady=(0, 10))
-            entries[key] = ent
+        ttk.Label(parent, text="Spulen & Verbrauch (g):", font=("Segoe UI", 10, "bold")).pack(anchor="w", pady=(0, 5))
+        
+        spools_frame = ttk.Frame(parent)
+        spools_frame.pack(fill="x", pady=(0, 10))
+        
+        rows = []
+        
+        # Prepare spool dropdown values
+        spool_list = ["[ Manueller Eintrag ]"]
+        for i in self.inventory:
+            if i.get('type') != 'VERBRAUCHT':
+                color_clean = str(i.get('color', '')).split('(')[0].strip()
+                spool_list.append(f"[{i['id']}] {i.get('brand','')} {color_clean}")
 
+        def add_row(price="25.00", weight="100"):
+            row_container = ttk.Frame(spools_frame)
+            row_container.pack(fill="x", pady=5)
+            
+            # Line 1: Combobox
+            combo_spool = ttk.Combobox(row_container, values=spool_list, state="readonly", font=("Segoe UI", 9))
+            combo_spool.current(0)
+            combo_spool.pack(fill="x", pady=(0, 2))
+            
+            # Line 2: Fields and delete button
+            fields_frm = ttk.Frame(row_container)
+            fields_frm.pack(fill="x")
+            
+            ent_p = ttk.Entry(fields_frm, width=8)
+            ent_p.insert(0, price)
+            ent_p.pack(side="left")
+            ttk.Label(fields_frm, text="€/kg").pack(side="left", padx=(2, 8))
+            
+            ent_w = ttk.Entry(fields_frm, width=6)
+            ent_w.insert(0, weight)
+            ent_w.pack(side="left")
+            ttk.Label(fields_frm, text="g").pack(side="left", padx=2)
+            
+            btn_del = ttk.Button(fields_frm, text="❌", width=3, command=lambda: remove_row(row_container))
+            btn_del.pack(side="right")
+            
+            def on_spool_select(event):
+                val = combo_spool.get()
+                if val == "[ Manueller Eintrag ]":
+                    pass
+                else:
+                    match = re.match(r'^\[(\d+)\]', val)
+                    if match:
+                        sp_id = int(match.group(1))
+                        sp = next((i for i in self.inventory if i.get('id') == sp_id), None)
+                        if sp:
+                            try:
+                                sp_price = float(str(sp.get('price', '0')).replace(',', '.'))
+                                sp_cap = float(str(sp.get('capacity', '1000')))
+                                if sp_cap > 0:
+                                    price_per_kg = (sp_price / sp_cap) * 1000.0
+                                    ent_p.delete(0, tk.END)
+                                    ent_p.insert(0, f"{price_per_kg:.2f}")
+                                    calc()  # Recalculate live
+                            except: pass
+                            
+            combo_spool.bind("<<ComboboxSelected>>", on_spool_select)
+            
+            rows.append((row_container, ent_p, ent_w, btn_del))
+            if len(rows) == 1:
+                btn_del.state(['disabled'])
+            else:
+                for r in rows:
+                    r[3].state(['!disabled'])
+                    
+        def remove_row(row_container):
+            for i, r in enumerate(rows):
+                if r[0] == row_container:
+                    r[0].destroy()
+                    rows.pop(i)
+                    break
+            if len(rows) == 1:
+                rows[0][3].state(['disabled'])
+            calc()  # Recalculate live
+                
+        # Initial row
+        add_row()
+        
+        btn_add = ttk.Button(parent, text="➕ Spule hinzufügen", command=lambda: add_row())
+        btn_add.pack(fill="x", pady=(0, 15))
+        
+        ttk.Label(parent, text="Druckzeit (Stunden):", font=("Segoe UI", 10, "bold")).pack(anchor="w")
+        ent_time = ttk.Entry(parent)
+        ent_time.insert(0, "5")
+        ent_time.pack(fill="x", pady=(0, 15))
+        
         lbl_res = ttk.Label(parent, text="", font=("Segoe UI", 11, "bold"), foreground="#0078d7", justify="center")
         lbl_res.pack(pady=20)
-
+        
         def calc():
             try:
-                p = float(entries["price"].get().replace(",", "."))
-                w = float(entries["weight"].get().replace(",", "."))
-                t = float(entries["time"].get().replace(",", "."))
-                mat = w * (p / 1000.0)
+                t = float(ent_time.get().replace(",", "."))
+                
+                mat = 0.0
+                total_w = 0.0
+                for row_container, ent_p, ent_w, _ in rows:
+                    p = float(ent_p.get().replace(",", "."))
+                    w = float(ent_w.get().replace(",", "."))
+                    mat += w * (p / 1000.0)
+                    total_w += w
+                    
                 kwh = float(self.settings.get("kwh_price", 0.30))
                 watt = int(self.settings.get("printer_watts", 150))
                 elec = t * (watt / 1000.0) * kwh
@@ -2658,14 +2886,28 @@ class FilamentApp:
                 margin = int(self.settings.get("profit_margin", 0))
                 sell = total * (1 + (margin/100.0))
                 
-                res = f"Material: {mat:.2f} € | Strom: {elec:.2f} €\nVerschleiß: {wear:.2f} €\n"
+                res = f"Gesamt-Gewicht: {total_w:.1f} g\n"
+                res += f"Material: {mat:.2f} € | Strom: {elec:.2f} €\nVerschleiß: {wear:.2f} €\n"
                 res += f"--------------------------\nKOSTEN: {total:.2f} €\n"
                 if margin > 0: res += f"VK (+{margin}%): {sell:.2f} €"
                 lbl_res.config(text=res)
             except:
                 lbl_res.config(text="⚠️ Bitte Zahlen eingeben!")
-
+                
         ttk.Button(parent, text="Berechnen", command=calc, style="Accent.TButton").pack(fill="x", pady=10)
+
+    def toggle_ams_fixed_main(self):
+        self.settings["ams_fixed_top"] = self.var_ams_fixed_main.get()
+        self.data_manager.save_settings(self.settings)
+        if hasattr(self, 'shelf_visualizer') and self.shelf_visualizer and self.shelf_visualizer.winfo_exists():
+            self.shelf_visualizer.var_ams_fixed.set(self.var_ams_fixed_main.get())
+            self.shelf_visualizer.redraw()
+
+    def open_shelf_visualizer(self):
+        if hasattr(self, 'shelf_visualizer') and self.shelf_visualizer and self.shelf_visualizer.winfo_exists():
+            self.shelf_visualizer.focus_set()
+        else:
+            self.shelf_visualizer = ShelfVisualizer(self.root, self.inventory, self.settings, self.spools, self)
 
     def update_color_preview(self, event=None):
         cols = get_colors_from_text(self.combo_color.get())
@@ -3247,8 +3489,13 @@ class FilamentApp:
             def sort_key(i):
                 return [int(c) if c.isdigit() else c.lower() for c in re.split(r'(\d+)', get_sort_value(i))]
             
-            # 2. Wir sortieren beide Listen unabhängig voneinander
-            ams_list.sort(key=sort_key, reverse=reverse)
+            # 2. Wir sortieren beide Listen unabhängig voneinander.
+            # Die AMS-Spulen bleiben IMMER in ihrer physischen Slot-Reihenfolge (aufsteigend) fixiert!
+            def ams_sort_key(i):
+                val = f"{str(i.get('type', ''))} {str(i.get('loc_id', ''))}"
+                return [int(c) if c.isdigit() else c.lower() for c in re.split(r'(\d+)', val)]
+            
+            ams_list.sort(key=ams_sort_key)
             rest_list.sort(key=sort_key, reverse=reverse)
             
             # 3. Wir leeren die originale Liste und kleben sie neu zusammen: IMMER AMS ZUERST!

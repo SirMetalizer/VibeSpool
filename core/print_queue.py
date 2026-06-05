@@ -60,7 +60,11 @@ class JobDeductionDialog(tk.Toplevel):
             ent = ttk.Entry(row, width=10)
             # Pre-fill with planned spool weight if available
             sp_id_str = str(sp['id'])
-            planned_w = str(planned_weights.get(sp_id_str, planned_weights.get(int(sp_id_str), '0')))
+            planned_w_val = planned_weights.get(sp_id_str, planned_weights.get(int(sp_id_str)))
+            if planned_w_val is None:
+                planned_w = str(weight_per_spool) if weight_per_spool > 0 else '0'
+            else:
+                planned_w = str(planned_w_val)
             if planned_w.endswith(".0"):
                 planned_w = planned_w[:-2]
             ent.insert(0, planned_w)
@@ -167,6 +171,13 @@ class PrintQueueDialog(tk.Toplevel):
         self.jobs = self.app.data_manager.load_jobs()
         self.selected_spool_entries = {}  # maps spool_id -> (entry_widget, row_frame)
         
+        db_dir = os.path.dirname(os.path.abspath(self.app.data_manager.filename if hasattr(self.app.data_manager, "filename") else "inventory.json"))
+        self.images_dir = os.path.join(db_dir, "job_images")
+        if not os.path.exists(self.images_dir):
+            try: os.makedirs(self.images_dir)
+            except: pass
+        self.temp_image_path = None
+        
         self.build_ui()
 
     def build_ui(self):
@@ -241,6 +252,16 @@ class PrintQueueDialog(tk.Toplevel):
         frm_img_panel = ttk.Frame(frm_form_and_image, width=220)
         frm_img_panel.pack(side="right", fill="y", padx=(10, 0))
         frm_img_panel.pack_propagate(False)
+        
+        ttk.Label(frm_img_panel, text="Modell-Bild:", font=("Segoe UI", 10, "bold")).pack(anchor="w", pady=(0, 5))
+        self.lbl_img_preview = tk.Label(frm_img_panel, text="Kein Bild\nhinterlegt", relief="solid", borderwidth=1, bg="#222" if "dark" in str(self.cget('bg')) else "#eee")
+        self.lbl_img_preview.pack(fill="both", expand=True, pady=(0, 10))
+        
+        self.btn_select_img = ttk.Button(frm_img_panel, text="📷 Bild hochladen", command=self.select_image)
+        self.btn_select_img.pack(fill="x", pady=2)
+        
+        self.btn_delete_img = ttk.Button(frm_img_panel, text="🗑️ Bild löschen", command=self.delete_image)
+        self.btn_delete_img.pack(fill="x", pady=2)
         
         # Build form inputs inside frm_form
         ttk.Label(frm_form, text="Kunde / Titel:").pack(anchor="w")
@@ -412,45 +433,33 @@ class PrintQueueDialog(tk.Toplevel):
             self.add_spool_row(spid, 100.0)
         self.combo_add.current(0)
 
-    def calculate_estimated_price(self):
-        try:
-            w_str = self.ent_est_weight.get().replace(",", ".").strip()
-            t_str = self.ent_est_time.get().replace(",", ".").strip()
-            
-            weight = float(w_str) if w_str else 0.0
-            time = float(t_str) if t_str else 0.0
-            
-            spools_str = self.ent_spools.get().strip()
-            spool_price = 25.00
-            spool_capacity = 1000.0
-            
-            match = re.search(r'\d+', spools_str)
-            if match:
-                sp_id = match.group(0)
-                spool = next((i for i in self.app.inventory if str(i['id']) == sp_id), None)
-                if spool:
-                    try:
-                        spool_price = float(str(spool.get('price', '25.00')).replace(',', '.'))
-                        spool_capacity = float(str(spool.get('capacity', '1000')))
-                    except:
-                        pass
-            
-            kwh_price = float(self.app.settings.get("kwh_price", 0.30))
-            watts = int(self.app.settings.get("printer_watts", 150))
-            wear_price = float(self.app.settings.get("wear_per_hour", 0.20))
-            margin_percent = int(self.app.settings.get("profit_margin", 0))
-            
-            material_cost = weight * (spool_price / spool_capacity) if spool_capacity > 0 else 0.0
-            electricity_cost = time * (watts / 1000.0) * kwh_price
-            wear_cost = time * wear_price
-            
-            total_cost = material_cost + electricity_cost + wear_cost
-            vk_price = total_cost * (1 + (margin_percent / 100.0))
-            
-            self.ent_est_price.delete(0, tk.END)
-            self.ent_est_price.insert(0, f"{vk_price:.2f} €")
-        except Exception as e:
-            messagebox.showerror("Fehler", f"Kalkulation fehlgeschlagen: {e}", parent=self)
+    def select_image(self):
+        from tkinter import filedialog
+        path = filedialog.askopenfilename(filetypes=[("Bilddateien", "*.png;*.jpg;*.jpeg;*.gif;*.bmp")])
+        if path:
+            self.temp_image_path = path
+            self.load_and_display_image(path)
+
+    def delete_image(self):
+        self.temp_image_path = ""  # Mark image for deletion
+        self.load_and_display_image(None)
+
+    def load_and_display_image(self, img_path):
+        if img_path and os.path.exists(img_path):
+            try:
+                from PIL import Image, ImageTk
+                img = Image.open(img_path)
+                img.thumbnail((150, 150))
+                photo = ImageTk.PhotoImage(img)
+                self.lbl_img_preview.config(image=photo, text="")
+                self.lbl_img_preview.image = photo  # Keep reference
+                return
+            except Exception as e:
+                print(f"Fehler beim Laden des Bildes: {e}")
+        
+        bg_col = "#222" if "dark" in str(self.cget('bg')) else "#eee"
+        self.lbl_img_preview.config(image="", text="Kein Bild\nhinterlegt", bg=bg_col)
+        self.lbl_img_preview.image = None
 
     def on_job_select(self, event):
         trigger_tree = event.widget
@@ -503,6 +512,13 @@ class PrintQueueDialog(tk.Toplevel):
                     
             self.txt_notes.delete("1.0", tk.END); self.txt_notes.insert("1.0", job.get('notes', ''))
             self.recalculate_price()
+            
+            self.temp_image_path = None
+            img_name = job.get('image_name', '')
+            if img_name:
+                self.load_and_display_image(os.path.join(self.images_dir, img_name))
+            else:
+                self.load_and_display_image(None)
 
     def reset_form(self):
         self.selected_job_id = None
@@ -523,6 +539,7 @@ class PrintQueueDialog(tk.Toplevel):
         self.selected_spool_entries.clear()
         
         self.txt_notes.delete("1.0", tk.END)
+        self.load_and_display_image(None)
         self.tree.selection_remove(self.tree.selection())
         self.recalculate_price()
 
@@ -531,6 +548,30 @@ class PrintQueueDialog(tk.Toplevel):
         if not title:
             messagebox.showwarning("Fehler", "Titel fehlt!", parent=self)
             return
+
+        job_id = self.selected_job_id
+        if not job_id:
+            job_id = str(datetime.now().timestamp())
+
+        # Handle image save/delete
+        img_name_to_save = None
+        if self.temp_image_path == "":  # Image deleted
+            if self.selected_job_id:
+                job = next((j for j in self.jobs if j['id'] == self.selected_job_id), None)
+                if job and job.get('image_name'):
+                    try: os.remove(os.path.join(self.images_dir, job['image_name']))
+                    except: pass
+            img_name_to_save = ""
+        elif self.temp_image_path:  # New image selected
+            try:
+                from PIL import Image
+                img = Image.open(self.temp_image_path)
+                img.thumbnail((600, 600))
+                dest_filename = f"{job_id}.png"
+                img.save(os.path.join(self.images_dir, dest_filename), "PNG")
+                img_name_to_save = dest_filename
+            except Exception as e:
+                print(f"Fehler beim Speichern des Bildes: {e}")
 
         spool_weights = {}
         spools_list = []
@@ -548,6 +589,37 @@ class PrintQueueDialog(tk.Toplevel):
         except ValueError:
             print_time_val = 1.0
 
+        # Calculate estimated values for backward compatibility and Treeview display
+        est_weight_val = sum(spool_weights.values())
+        
+        kwh_price = float(self.app.settings.get("kwh_price", 0.30))
+        watts = int(self.app.settings.get("printer_watts", 150))
+        wear_price = float(self.app.settings.get("wear_per_hour", 0.20))
+        margin_percent = int(self.app.settings.get("profit_margin", 0))
+        
+        strom_gesamt = print_time_val * (watts / 1000.0) * kwh_price
+        wear_gesamt = print_time_val * wear_price
+        
+        total_cost = 0.0
+        for sp_id, w_val in spool_weights.items():
+            if w_val <= 0: continue
+            sp = next((i for i in self.app.inventory if str(i['id']) == sp_id), None)
+            if not sp: continue
+            
+            mat_cost = 0.0
+            try:
+                price = float(str(sp.get('price', '0')).replace(',', '.'))
+                cap = float(str(sp.get('capacity', '1000')))
+                if cap > 0: mat_cost = w_val * (price / cap)
+            except: pass
+            
+            share = w_val / est_weight_val if est_weight_val > 0 else 0.0
+            spool_share_cost = mat_cost + (strom_gesamt * share) + (wear_gesamt * share)
+            total_cost += spool_share_cost
+            
+        sell_price = total_cost * (1 + (margin_percent / 100.0))
+        est_price_str = f"{sell_price:.2f} €"
+
         if self.selected_job_id:
             job = next((j for j in self.jobs if j['id'] == self.selected_job_id), None)
             if job:
@@ -557,7 +629,10 @@ class PrintQueueDialog(tk.Toplevel):
                     "spools": spools_str,
                     "spool_weights": spool_weights,
                     "print_time": print_time_val,
-                    "notes": self.txt_notes.get("1.0", tk.END).strip()
+                    "notes": self.txt_notes.get("1.0", tk.END).strip(),
+                    "est_weight": f"{est_weight_val:.1f}".replace(".0", ""),
+                    "est_time": f"{print_time_val:.1f}".replace(".0", ""),
+                    "est_price": est_price_str
                 })
                 if img_name_to_save is not None:
                     job["image_name"] = img_name_to_save
@@ -572,9 +647,9 @@ class PrintQueueDialog(tk.Toplevel):
                 "print_time": print_time_val,
                 "notes": self.txt_notes.get("1.0", tk.END).strip(),
                 "status": "Geplant",
-                "est_weight": self.ent_est_weight.get().strip(),
-                "est_time": self.ent_est_time.get().strip(),
-                "est_price": self.ent_est_price.get().strip()
+                "est_weight": f"{est_weight_val:.1f}".replace(".0", ""),
+                "est_time": f"{print_time_val:.1f}".replace(".0", ""),
+                "est_price": est_price_str
             }
             if img_name_to_save:
                 new_job["image_name"] = img_name_to_save

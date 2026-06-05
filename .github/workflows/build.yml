@@ -20,7 +20,7 @@ jobs:
       uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
 
     - name: Python einrichten
-      uses: actions/setup-python@39cd14951b54a861877478d1033230a1b64a275b # v5.1.1
+      uses: actions/setup-python@39cd14951b08e74b54015e9e001cdefcf80e669f # v5.1.1
       with:
         python-version: '3.11'
 
@@ -89,12 +89,12 @@ jobs:
     # --- AUTO-UPLOAD INS RELEASE ---
     - name: Setup an Release anhängen (Windows)
       if: github.event_name == 'release' && matrix.os == 'windows-latest'
-      uses: softprops/action-gh-release@c95fe1489396fe8a2ec87ab4939a48f65552d22d # v2.0.6
+      uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2
       with:
         files: dist/VibeSpool_Setup_v2.1.0.exe
 
     - name: ZIP an Release anhängen (Mac)
       if: github.event_name == 'release' && matrix.os == 'macos-latest'
-      uses: softprops/action-gh-release@c95fe1489396fe8a2ec87ab4939a48f65552d22d # v2.0.6
+      uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2
       with:
         files: dist/VibeSpool_Mac_v2.1.0.zip

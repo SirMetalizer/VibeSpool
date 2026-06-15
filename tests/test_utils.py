@@ -54,3 +54,24 @@ def test_shelf_regex_compatibility():
     matches = re.findall(regex, multi_str)
     assert len(matches) == 2
     assert matches[1][0].strip() == "Regal B"
+
+def test_get_colors_from_text_modifiers():
+    # Jadeweiß should resolve to a single pale mint/jade white, not a split of jade and white
+    jw = get_colors_from_text("Jadeweiß")
+    assert len(jw) == 1
+    assert jw[0] != "#FFFFFF" # Should be modified (e.g. blended)
+    
+    # Dunkelblau should resolve to a single dark blue color, not a split of black/grey and blue
+    db = get_colors_from_text("Dunkelblau")
+    assert len(db) == 1
+    assert db[0] != "#0000FF" # Should be darker than pure blue
+    
+    # Hellgrün should resolve to a single light green color, not a split of white/light and green
+    hg = get_colors_from_text("Hellgrün")
+    assert len(hg) == 1
+    assert hg[0] != "#008000" # Should be lighter than pure green
+
+    # Silk rot should resolve to a single red color
+    sr = get_colors_from_text("Silk rot")
+    assert len(sr) == 1
+    assert sr[0] == "#FF0000"

@@ -69,8 +69,11 @@ def test_shelf_visualizer_zoom(monkeypatch):
     import tkinter as tk
     from unittest.mock import patch
     
-    root = tk.Tk()
-    root.withdraw()
+    try:
+        root = tk.Tk()
+        root.withdraw()
+    except tk.TclError:
+        pytest.skip("Tkinter/Tcl is not fully initialized or available in this environment")
     
     app = MagicMock()
     app.settings = {"shelf_zoom": "Mittel"}

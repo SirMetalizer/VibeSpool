@@ -164,7 +164,8 @@ class BambuCloudAPI:
                     "weight": float(weight) if weight else 0.0,
                     "date": date_end,
                     "duration_h": duration_hours,
-                    "mapping": job.get("amsDetailMapping", [])
+                    "mapping": job.get("amsDetailMapping", []),
+                    "deviceId": str(job.get("deviceId", ""))
                 })
                 
             return True, history_list

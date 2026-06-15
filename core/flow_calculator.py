@@ -4,13 +4,24 @@ from core.utils import center_window
 from core.constants import COLOR_ACCENT
 
 class FlowCalculatorDialog(tk.Toplevel):
-    def __init__(self, parent, current_flow_entry=None):
+    def __init__(self, parent, current_flow_entry=None, app_instance=None):
         super().__init__(parent)
+        self.app = app_instance
         self.title("🧪 Flow-Rechner (Kalibrierung)")
-        self.geometry("450x550")
         self.configure(bg=parent.cget('bg'))
-        center_window(self, parent)
         self.current_flow_entry = current_flow_entry
+        
+        geom = None
+        if self.app and hasattr(self.app, "settings"):
+            geom = self.app.settings.get("flow_calculator_geometry")
+            
+        if geom:
+            self.geometry(geom)
+        else:
+            self.geometry("450x550")
+            center_window(self, parent)
+            
+        self.protocol("WM_DELETE_WINDOW", self.on_close)
         
         ttk.Label(self, text="Flow Kalibrierung", font=("Segoe UI", 14, "bold")).pack(pady=10)
         ttk.Label(self, text="Gib hier deine Wandstärken-Messungen ein (eine pro Zeile):", font=("Segoe UI", 9)).pack(padx=20, anchor="w")
@@ -49,7 +60,7 @@ class FlowCalculatorDialog(tk.Toplevel):
         btn_frm = ttk.Frame(self)
         btn_frm.pack(pady=10, fill="x", padx=20)
         ttk.Button(btn_frm, text="Wert übernehmen", style="Accent.TButton", command=self.apply_value).pack(side="left", expand=True, fill="x", padx=5)
-        ttk.Button(btn_frm, text="Schließen", command=self.destroy).pack(side="left", expand=True, fill="x", padx=5)
+        ttk.Button(btn_frm, text="Schließen", command=self.on_close).pack(side="left", expand=True, fill="x", padx=5)
 
     def calculate(self):
         try:
@@ -77,3 +88,12 @@ class FlowCalculatorDialog(tk.Toplevel):
             self.current_flow_entry.delete(0, tk.END)
             self.current_flow_entry.insert(0, self.calculated_value)
             self.destroy()
+
+    def on_close(self):
+        try:
+            if self.app and hasattr(self.app, "settings"):
+                self.app.settings["flow_calculator_geometry"] = self.geometry()
+                self.app.data_manager.save_settings(self.app.settings)
+        except Exception:
+            pass
+        self.destroy()

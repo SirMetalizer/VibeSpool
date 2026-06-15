@@ -79,7 +79,8 @@ class BambuScanner:
 
 # --- NEU: DER MULTI-COLOR HINTERGRUND-MONITOR ---
 class BambuBackgroundMonitor:
-    def __init__(self, ip_address, access_code, serial_number, on_finish_callback):
+    def __init__(self, printer_id, ip_address, access_code, serial_number, on_finish_callback):
+        self.printer_id = printer_id
         self.ip, self.access_code, self.serial = ip_address, access_code, serial_number
         self.on_finish_callback = on_finish_callback
         self.client = mqtt.Client(CallbackAPIVersion.VERSION2)
@@ -91,7 +92,7 @@ class BambuBackgroundMonitor:
 
     def _on_connect(self, client, userdata, flags, reason_code, properties):
         if reason_code == 0:
-            print("🤖 Bambu Auto-Sync Monitor aktiv. Lausche auf Multi-Color Events...")
+            print(f"🤖 Bambu Auto-Sync Monitor aktiv für {self.printer_id}. Lausche auf Multi-Color Events...")
             client.subscribe(f"device/{self.serial}/report")
 
     def _on_message(self, client, userdata, msg):
@@ -103,7 +104,7 @@ class BambuBackgroundMonitor:
             # 1. Welcher Slot wird GERADE benutzt? Ab in den Sammelkorb!
             if "ams" in p and "tray_now" in p["ams"]:
                 t_now = int(p["ams"]["tray_now"])
-                if t_now != 255: # 255 ist die externe Rolle
+                if t_now != 255 or True: # Wir erlauben jetzt auch die externe Spule (255)!
                     self.used_trays.add(t_now)
 
             # 2. Geschätztes Gesamtgewicht
@@ -116,13 +117,13 @@ class BambuBackgroundMonitor:
                 
                 # NEU: Wir loggen jeden Statuswechsel in die Konsole!
                 if self.last_gcode_state != new_state and self.last_gcode_state is not None:
-                    print(f"📡 [Bambu Status] {self.last_gcode_state} ➡️ {new_state}")
+                    print(f"📡 [Bambu Status {self.printer_id}] {self.last_gcode_state} ➡️ {new_state}")
                 
                 # NEU: Wir reagieren jetzt auf FINISH (Erfolg) UND FAILED (Abbruch)
                 if self.last_gcode_state == "RUNNING" and new_state in ["FINISH", "FAILED"]:
                     print("🎯 Druck-Ende erkannt! Sende Daten an VibeSpool-Popup...")
                     if self.used_trays:
-                        self.on_finish_callback(list(self.used_trays), self.predicted_weight)
+                        self.on_finish_callback(self.printer_id, list(self.used_trays), self.predicted_weight)
                         self.used_trays.clear() # Korb leeren für den nächsten Druck
                         
                 self.last_gcode_state = new_state

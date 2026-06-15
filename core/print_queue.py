@@ -1,10 +1,49 @@
 import os
 import tkinter as tk
-from tkinter import ttk, messagebox
+from tkinter import ttk, messagebox, filedialog
 import webbrowser
 from datetime import datetime
-from core.utils import center_window
+from core.utils import center_window, ScrollableFrame
 import re
+
+def decimal_to_hm(decimal_hours):
+    try:
+        val = float(decimal_hours)
+    except:
+        val = 0.0
+    h = int(val)
+    m = int(round((val - h) * 60))
+    if m >= 60:
+        h += 1
+        m -= 60
+    return h, m
+
+def hm_to_decimal(h_str, m_str):
+    try:
+        h = int(h_str) if str(h_str).strip() else 0
+    except:
+        h = 0
+    try:
+        m = int(m_str) if str(m_str).strip() else 0
+    except:
+        m = 0
+    return h + (m / 60.0)
+
+def safe_float(value, default=0.0):
+    if value in (None, ""):
+        return default
+    try:
+        return float(str(value).replace(",", ".").strip())
+    except (ValueError, TypeError):
+        return default
+
+def safe_int(value, default=0):
+    if value in (None, ""):
+        return default
+    try:
+        return int(float(str(value).replace(",", ".").strip()))
+    except (ValueError, TypeError):
+        return default
 
 class JobDeductionDialog(tk.Toplevel):
     def __init__(self, parent, queue_dialog, job, matched_spools):
@@ -22,19 +61,29 @@ class JobDeductionDialog(tk.Toplevel):
         center_window(self, parent)
         
         self.build_ui()
-
+ 
     def build_ui(self):
         ttk.Label(self, text=f"Auftrag: {self.job.get('title', 'Unbekannt')}", font=("Segoe UI", 14, "bold")).pack(pady=15)
         
         frm = ttk.Frame(self, padding=20)
         frm.pack(fill="both", expand=True)
         
-        ttk.Label(frm, text="⏱️ Gesamte Druckzeit (in Stunden, z.B. 2.5):").pack(anchor="w")
-        self.ent_time = ttk.Entry(frm)
-        # Pre-fill with planned print time if available
-        planned_time = str(self.job.get('print_time', '1.0'))
-        self.ent_time.insert(0, planned_time)
-        self.ent_time.pack(fill="x", pady=(0, 15))
+        ttk.Label(frm, text="⏱️ Gesamte Druckzeit:").pack(anchor="w")
+        time_frm = ttk.Frame(frm)
+        time_frm.pack(fill="x", pady=(0, 15))
+        
+        self.ent_hours = ttk.Entry(time_frm, width=8)
+        self.ent_hours.pack(side="left")
+        ttk.Label(time_frm, text="Std").pack(side="left", padx=(2, 10))
+        
+        self.ent_mins = ttk.Entry(time_frm, width=8)
+        self.ent_mins.pack(side="left")
+        ttk.Label(time_frm, text="Min").pack(side="left", padx=2)
+        
+        planned_time = float(self.job.get('print_time', 1.0))
+        h, m = decimal_to_hm(planned_time)
+        self.ent_hours.insert(0, str(h))
+        self.ent_mins.insert(0, str(m))
         
         ttk.Label(frm, text="⚖️ Verbrauch pro Spule (in Gramm):", font=("Segoe UI", 10, "bold")).pack(anchor="w", pady=(10, 5))
         
@@ -81,7 +130,7 @@ class JobDeductionDialog(tk.Toplevel):
 
     def process_deduction(self):
         try:
-            duration = float(self.ent_time.get().replace(",", "."))
+            duration = hm_to_decimal(self.ent_hours.get(), self.ent_mins.get())
             
             weights = {}
             total_weight = 0.0
@@ -95,10 +144,26 @@ class JobDeductionDialog(tk.Toplevel):
                 return
                 
             # Kosten-Parameter aus Settings holen
-            kwh_price = float(self.app.settings.get("kwh_price", 0.30))
-            watts = int(self.app.settings.get("printer_watts", 150))
-            wear_price = float(self.app.settings.get("wear_per_hour", 0.20))
-            margin_percent = int(self.app.settings.get("profit_margin", 0))
+            kwh_price = safe_float(self.app.settings.get("kwh_price"), 0.30)
+            
+            # Drucker-spezifische Werte holen
+            printer_id = self.job.get("printer_id", "")
+            printers = self.app.settings.get("printers", [])
+            printer = next((p for p in printers if p.get("id") == printer_id), None)
+            
+            watts = 150
+            if printer and printer.get("printer_watts") not in (None, ""):
+                watts = safe_int(printer.get("printer_watts"), 150)
+            else:
+                watts = safe_int(self.app.settings.get("printer_watts"), 150)
+                
+            wear_price = 0.20
+            if printer and printer.get("wear_per_hour") not in (None, ""):
+                wear_price = safe_float(printer.get("wear_per_hour"), 0.20)
+            else:
+                wear_price = safe_float(self.app.settings.get("wear_per_hour"), 0.20)
+                
+            margin_percent = safe_int(self.app.settings.get("profit_margin"), 0)
             
             strom_gesamt = duration * (watts / 1000.0) * kwh_price
             wear_gesamt = duration * wear_price
@@ -160,12 +225,19 @@ class PrintQueueDialog(tk.Toplevel):
         super().__init__(parent)
         self.app = app
         self.title("📝 Auftrags-Planer (Print Queue)")
-        self.geometry("1150x700")  # Slightly wider for the side-by-side layout
         self.configure(bg=parent.cget('bg'))
         
         self.transient(parent)
         self.grab_set()
-        center_window(self, parent)
+        
+        geom = self.app.settings.get("print_queue_geometry")
+        if geom:
+            self.geometry(geom)
+        else:
+            self.geometry("1150x700")
+            center_window(self, parent)
+            
+        self.protocol("WM_DELETE_WINDOW", self.on_close)
 
         self.selected_job_id = None
         self.jobs = self.app.data_manager.load_jobs()
@@ -183,7 +255,7 @@ class PrintQueueDialog(tk.Toplevel):
     def build_ui(self):
         btn_frm_footer = ttk.Frame(self, padding=10)
         btn_frm_footer.pack(fill="x", side="bottom")
-        ttk.Button(btn_frm_footer, text="Schließen", command=self.destroy).pack(side="right")
+        ttk.Button(btn_frm_footer, text="Schließen", command=self.on_close).pack(side="right")
         
         main_paned = ttk.PanedWindow(self, orient="horizontal")
         main_paned.pack(fill="both", expand=True, padx=10, pady=10)
@@ -201,14 +273,16 @@ class PrintQueueDialog(tk.Toplevel):
         self.queue_notebook.add(tab_archive, text="📦 Archiv")
         
         # Treeview für Warteschlange
-        columns = ("date", "title", "price", "status")
+        columns = ("date", "title", "printer", "price", "status")
         self.tree = ttk.Treeview(tab_active, columns=columns, show="headings")
         self.tree.heading("date", text="Datum")
         self.tree.heading("title", text="Auftrag / Kunde")
+        self.tree.heading("printer", text="Drucker")
         self.tree.heading("price", text="Preis")
         self.tree.heading("status", text="Status")
         self.tree.column("date", width=90)
-        self.tree.column("title", width=180)
+        self.tree.column("title", width=150)
+        self.tree.column("printer", width=100)
         self.tree.column("price", width=70, anchor="e")
         self.tree.column("status", width=90)
         
@@ -222,10 +296,12 @@ class PrintQueueDialog(tk.Toplevel):
         self.tree_archive = ttk.Treeview(tab_archive, columns=columns, show="headings")
         self.tree_archive.heading("date", text="Datum")
         self.tree_archive.heading("title", text="Auftrag / Kunde")
+        self.tree_archive.heading("printer", text="Drucker")
         self.tree_archive.heading("price", text="Preis")
         self.tree_archive.heading("status", text="Status")
         self.tree_archive.column("date", width=90)
-        self.tree_archive.column("title", width=180)
+        self.tree_archive.column("title", width=150)
+        self.tree_archive.column("printer", width=100)
         self.tree_archive.column("price", width=70, anchor="e")
         self.tree_archive.column("status", width=90)
         
@@ -242,8 +318,33 @@ class PrintQueueDialog(tk.Toplevel):
         self.lbl_mode = ttk.Label(frm_right, text="✨ Neuen Auftrag anlegen", font=("Segoe UI", 12, "bold"))
         self.lbl_mode.pack(anchor="w", pady=(0, 15))
         
-        # Split into Form & Image side-by-side
-        frm_form_and_image = ttk.Frame(frm_right)
+        # --- ERLEDIGT BEREICH (Am unteren Rand fest angedockt) ---
+        frm_finish = ttk.Frame(frm_right)
+        frm_finish.pack(fill="x", side="bottom", pady=(5, 10))
+        
+        self.btn_finish = ttk.Button(frm_finish, text="✅ Erledigt & Abziehen", command=self.finish_job)
+        self.btn_finish.pack(side="left", fill="x", expand=True, padx=(0, 5))
+        
+        self.btn_finish_no = ttk.Button(frm_finish, text="✅ Ohne Abzug erledigen", command=self.finish_job_no_deduct)
+        self.btn_finish_no.pack(side="left", fill="x", expand=True)
+        
+        # --- ACTION BUTTONS (Direkt über dem Erledigt-Bereich angedockt) ---
+        frm_actions = ttk.Frame(frm_right)
+        frm_actions.pack(fill="x", side="bottom", pady=5)
+        
+        self.btn_save = ttk.Button(frm_actions, text="➕ Auftrag speichern", style="Accent.TButton", command=self.save_job)
+        self.btn_save.pack(side="left", fill="x", expand=True, padx=(0, 5))
+        
+        ttk.Button(frm_actions, text="🧹 Neu", command=self.reset_form).pack(side="left", padx=5)
+        self.btn_delete = ttk.Button(frm_actions, text="🗑️", style="Delete.TButton", command=self.delete_job, width=3)
+        self.btn_delete.pack(side="left")
+
+        # --- SCROLLBAR BEREICH (Füllt den verbleibenden Platz in der Mitte) ---
+        sf = ScrollableFrame(frm_right)
+        sf.pack(fill="both", expand=True)
+        
+        # Split into Form & Image side-by-side inside the scrollable container
+        frm_form_and_image = ttk.Frame(sf.inner)
         frm_form_and_image.pack(fill="both", expand=True)
         
         frm_form = ttk.Frame(frm_form_and_image)
@@ -268,6 +369,14 @@ class PrintQueueDialog(tk.Toplevel):
         self.ent_title = ttk.Entry(frm_form)
         self.ent_title.pack(fill="x", pady=(0, 10))
         
+        ttk.Label(frm_form, text="Drucker:").pack(anchor="w")
+        self.printers_list = self.app.settings.get("printers", [])
+        printer_values = ["- Globaler Standard -"] + [p.get("name", "Drucker") for p in self.printers_list]
+        self.combo_printer = ttk.Combobox(frm_form, values=printer_values, state="readonly")
+        self.combo_printer.current(0)
+        self.combo_printer.pack(fill="x", pady=(0, 10))
+        self.combo_printer.bind("<<ComboboxSelected>>", self.recalculate_price)
+        
         ttk.Label(frm_form, text="Modell-Link:").pack(anchor="w")
         frm_link = ttk.Frame(frm_form)
         frm_link.pack(fill="x", pady=(0, 10))
@@ -275,19 +384,34 @@ class PrintQueueDialog(tk.Toplevel):
         self.ent_link.pack(side="left", fill="x", expand=True)
         ttk.Button(frm_link, text="🌐", width=3, command=self.open_url).pack(side="left", padx=(5, 0))
         
-        # NEU: Druckzeit (Std)
-        ttk.Label(frm_right, text="Druckzeit (Stunden, z.B. 2.5):").pack(anchor="w")
-        self.ent_print_time = ttk.Entry(frm_right)
-        self.ent_print_time.insert(0, "1.0")
-        self.ent_print_time.pack(fill="x", pady=(0, 10))
-        self.ent_print_time.bind("<KeyRelease>", self.recalculate_price)
-
-        # NEU: Verwendete Spulen & Gewichte
-        ttk.Label(frm_right, text="Ausgewählte Spulen & Grammzahl:").pack(anchor="w")
-        self.spools_list_frame = ttk.Frame(frm_right)
+        # 3MF-Datei auslesen Button
+        self.btn_import_3mf = ttk.Button(frm_form, text="📄 3MF-Datei auslesen", command=self.import_3mf_file)
+        self.btn_import_3mf.pack(fill="x", pady=(0, 10))
+        
+        # NEU: Druckzeit (Std/Min) inside scrollable container
+        ttk.Label(sf.inner, text="Druckzeit:").pack(anchor="w")
+        time_frm = ttk.Frame(sf.inner)
+        time_frm.pack(fill="x", pady=(0, 10))
+        
+        self.ent_print_hours = ttk.Entry(time_frm, width=8)
+        self.ent_print_hours.insert(0, "1")
+        self.ent_print_hours.pack(side="left")
+        ttk.Label(time_frm, text="Std").pack(side="left", padx=(2, 10))
+        
+        self.ent_print_mins = ttk.Entry(time_frm, width=8)
+        self.ent_print_mins.insert(0, "0")
+        self.ent_print_mins.pack(side="left")
+        ttk.Label(time_frm, text="Min").pack(side="left", padx=2)
+        
+        self.ent_print_hours.bind("<KeyRelease>", self.recalculate_price)
+        self.ent_print_mins.bind("<KeyRelease>", self.recalculate_price)
+ 
+        # NEU: Verwendete Spulen & Gewichte inside scrollable container
+        ttk.Label(sf.inner, text="Ausgewählte Spulen & Grammzahl:").pack(anchor="w")
+        self.spools_list_frame = ttk.Frame(sf.inner)
         self.spools_list_frame.pack(fill="x", pady=(0, 10))
         
-        frm_spool_input = ttk.Frame(frm_right)
+        frm_spool_input = ttk.Frame(sf.inner)
         frm_spool_input.pack(fill="x", pady=(0, 10))
         
         spool_list = ["+ Spule hinzufügen..."]
@@ -301,38 +425,17 @@ class PrintQueueDialog(tk.Toplevel):
         self.combo_add.pack(side="left", fill="x", expand=True)
         self.combo_add.bind("<<ComboboxSelected>>", self.on_quick_add_spool)
         
-        # NEU: Errechneter Preis
-        self.lbl_calc_price = ttk.Label(frm_right, text="Errechneter Preis: 0.00 €", font=("Segoe UI", 11, "bold"), foreground="#0078d7")
+        # NEU: Errechneter Preis inside scrollable container
+        self.lbl_calc_price = ttk.Label(sf.inner, text="Errechneter Preis: 0.00 €", font=("Segoe UI", 11, "bold"), foreground="#0078d7")
         self.lbl_calc_price.pack(anchor="w", pady=(0, 10))
         
-        ttk.Label(frm_right, text="Notizen (Planung / Details):").pack(anchor="w")
-        self.txt_notes = tk.Text(frm_right, height=4, font=("Segoe UI", 10))
+        ttk.Label(sf.inner, text="Notizen (Planung / Details):").pack(anchor="w")
+        self.txt_notes = tk.Text(sf.inner, height=4, font=("Segoe UI", 10))
         self.txt_notes.pack(fill="x", pady=(0, 15))
         
-        # --- ACTION BUTTONS ---
-        frm_actions = ttk.Frame(frm_right)
-        frm_actions.pack(fill="x", pady=5)
-        
-        self.btn_save = ttk.Button(frm_actions, text="➕ Auftrag speichern", style="Accent.TButton", command=self.save_job)
-        self.btn_save.pack(side="left", fill="x", expand=True, padx=(0, 5))
-        
-        ttk.Button(frm_actions, text="🧹 Neu", command=self.reset_form).pack(side="left", padx=5)
-        self.btn_delete = ttk.Button(frm_actions, text="🗑️", style="Delete.TButton", command=self.delete_job, width=3)
-        self.btn_delete.pack(side="left")
-        
-        # --- ERLEDIGT BEREICH ---
-        frm_finish = ttk.Frame(frm_right)
-        frm_finish.pack(fill="x", pady=10)
-        
-        self.btn_finish = ttk.Button(frm_finish, text="✅ Erledigt & Abziehen", command=self.finish_job)
-        self.btn_finish.pack(side="left", fill="x", expand=True, padx=(0, 5))
-        
-        self.btn_finish_no = ttk.Button(frm_finish, text="✅ Ohne Abzug erledigen", command=self.finish_job_no_deduct)
-        self.btn_finish_no.pack(side="left", fill="x", expand=True)
-        
         self.btn_delete.state(['disabled'])
-        self.btn_finish.state(['disabled'])
-        self.btn_finish_no.state(['disabled'])
+        self.btn_finish.state(['!disabled'])
+        self.btn_finish_no.state(['!disabled'])
 
         self.refresh_list()
 
@@ -340,6 +443,10 @@ class PrintQueueDialog(tk.Toplevel):
         spool_id_str = str(spool_id)
         if spool_id_str in self.selected_spool_entries:
             return
+            
+        if hasattr(self, 'imported_weight') and self.imported_weight > 0 and weight == 100.0:
+            weight = self.imported_weight
+            self.imported_weight = 0.0
             
         sp = next((i for i in self.app.inventory if str(i['id']) == spool_id_str), None)
         
@@ -365,36 +472,60 @@ class PrintQueueDialog(tk.Toplevel):
         btn_del = ttk.Button(row_frm, text="❌", width=3, command=lambda: self.remove_spool_row(spool_id_str))
         btn_del.pack(side="right")
         
+        lbl_price = ttk.Label(row_frm, text="0.00 €", font=("Segoe UI", 9, "bold"), foreground="#28a745")
+        lbl_price.pack(side="right", padx=(0, 10))
+        
         ent.bind("<KeyRelease>", self.recalculate_price)
         
-        self.selected_spool_entries[spool_id_str] = (ent, row_frm)
+        self.selected_spool_entries[spool_id_str] = (ent, row_frm, lbl_price)
         self.recalculate_price()
 
     def remove_spool_row(self, spool_id_str):
         if spool_id_str in self.selected_spool_entries:
-            ent, row_frm = self.selected_spool_entries[spool_id_str]
+            ent, row_frm, lbl_price = self.selected_spool_entries[spool_id_str]
             row_frm.destroy()
             del self.selected_spool_entries[spool_id_str]
             self.recalculate_price()
 
     def recalculate_price(self, event=None):
         try:
-            print_time_val = self.ent_print_time.get().replace(",", ".")
-            duration = float(print_time_val) if print_time_val else 0.0
+            h_val = float(self.ent_print_hours.get().replace(",", ".")) if self.ent_print_hours.get() else 0.0
         except ValueError:
-            duration = 0.0
+            h_val = 0.0
+        try:
+            m_val = float(self.ent_print_mins.get().replace(",", ".")) if self.ent_print_mins.get() else 0.0
+        except ValueError:
+            m_val = 0.0
+        duration = h_val + (m_val / 60.0)
             
-        kwh_price = float(self.app.settings.get("kwh_price", 0.30))
-        watts = int(self.app.settings.get("printer_watts", 150))
-        wear_price = float(self.app.settings.get("wear_per_hour", 0.20))
-        margin_percent = int(self.app.settings.get("profit_margin", 0))
+        kwh_price = safe_float(self.app.settings.get("kwh_price"), 0.30)
+        
+        # Drucker-spezifische Werte holen
+        selected_printer_idx = self.combo_printer.current()
+        selected_printer = None
+        if selected_printer_idx > 0 and selected_printer_idx - 1 < len(self.printers_list):
+            selected_printer = self.printers_list[selected_printer_idx - 1]
+            
+        watts = 150
+        if selected_printer and selected_printer.get("printer_watts") not in (None, ""):
+            watts = safe_int(selected_printer.get("printer_watts"), 150)
+        else:
+            watts = safe_int(self.app.settings.get("printer_watts"), 150)
+            
+        wear_price = 0.20
+        if selected_printer and selected_printer.get("wear_per_hour") not in (None, ""):
+            wear_price = safe_float(selected_printer.get("wear_per_hour"), 0.20)
+        else:
+            wear_price = safe_float(self.app.settings.get("wear_per_hour"), 0.20)
+            
+        margin_percent = safe_int(self.app.settings.get("profit_margin"), 0)
         
         strom_gesamt = duration * (watts / 1000.0) * kwh_price
         wear_gesamt = duration * wear_price
         
         total_weight = 0.0
         weights = {}
-        for sp_id, (ent, _) in self.selected_spool_entries.items():
+        for sp_id, (ent, _, _) in self.selected_spool_entries.items():
             try:
                 w_val = float(ent.get().replace(",", "."))
             except ValueError:
@@ -404,9 +535,14 @@ class PrintQueueDialog(tk.Toplevel):
             
         total_cost = 0.0
         for sp_id, w_val in weights.items():
-            if w_val <= 0: continue
+            ent, _, lbl_price = self.selected_spool_entries[sp_id]
+            if w_val <= 0:
+                lbl_price.config(text="0.00 €")
+                continue
             sp = next((i for i in self.app.inventory if str(i['id']) == sp_id), None)
-            if not sp: continue
+            if not sp:
+                lbl_price.config(text="0.00 €")
+                continue
             
             mat_cost = 0.0
             try:
@@ -417,7 +553,13 @@ class PrintQueueDialog(tk.Toplevel):
             
             share = w_val / total_weight if total_weight > 0 else 0.0
             spool_share_cost = mat_cost + (strom_gesamt * share) + (wear_gesamt * share)
+            spool_sell_price = spool_share_cost * (1 + (margin_percent / 100.0))
             total_cost += spool_share_cost
+            
+            if margin_percent > 0:
+                lbl_price.config(text=f"{spool_sell_price:.2f} €")
+            else:
+                lbl_price.config(text=f"{spool_share_cost:.2f} €")
             
         sell_price = total_cost * (1 + (margin_percent / 100.0))
         
@@ -461,6 +603,77 @@ class PrintQueueDialog(tk.Toplevel):
         self.lbl_img_preview.config(image="", text="Kein Bild\nhinterlegt", bg=bg_col)
         self.lbl_img_preview.image = None
 
+    def import_3mf_file(self):
+        path = filedialog.askopenfilename(filetypes=[("3MF Projektdatei", "*.3mf")])
+        if not path:
+            return
+            
+        import zipfile
+        import xml.etree.ElementTree as ET
+        
+        total_time_s = 0.0
+        total_weight_g = 0.0
+        
+        try:
+            with zipfile.ZipFile(path, 'r') as z:
+                config_name = None
+                for name in z.namelist():
+                    if name.endswith("slice_info.config"):
+                        config_name = name
+                        break
+                
+                if config_name:
+                    with z.open(config_name) as f:
+                        content = f.read()
+                        root = ET.fromstring(content)
+                        for meta in root.iter('metadata'):
+                            key = meta.get('key')
+                            val = meta.get('value')
+                            if key == 'prediction':
+                                try: total_time_s += float(val)
+                                except: pass
+                            elif key in ('used_g', 'weight'):
+                                try: total_weight_g += float(val)
+                                except: pass
+                                
+                        for fil in root.iter('filament'):
+                            used_g = fil.get('used_g')
+                            if used_g:
+                                try: total_weight_g += float(used_g)
+                                except: pass
+                else:
+                    messagebox.showwarning("Fehler", "Keine 'slice_info.config' in der 3MF-Datei gefunden.\nWurde das Modell in Bambu Studio / OrcaSlicer gesliced?", parent=self)
+                    return
+        except Exception as e:
+            messagebox.showerror("Fehler", f"Fehler beim Lesen der 3MF-Datei:\n{e}", parent=self)
+            return
+            
+        if total_time_s > 0 or total_weight_g > 0:
+            h, m = decimal_to_hm(total_time_s / 3600.0)
+            self.ent_print_hours.delete(0, tk.END)
+            self.ent_print_hours.insert(0, str(h))
+            self.ent_print_mins.delete(0, tk.END)
+            self.ent_print_mins.insert(0, str(m))
+            
+            spool_count = len(self.selected_spool_entries)
+            if spool_count > 0:
+                share_w = round(total_weight_g / spool_count, 1)
+                for sp_id, (ent, _, _) in self.selected_spool_entries.items():
+                    ent.delete(0, tk.END)
+                    ent.insert(0, str(share_w))
+                self.recalculate_price()
+                messagebox.showinfo("3MF Import", f"Daten erfolgreich importiert:\n- Druckzeit: {h} Std {m} Min\n- Filament-Gewicht: {total_weight_g:.1f}g (aufgeteilt auf {spool_count} Spule(n))", parent=self)
+            else:
+                self.imported_weight = total_weight_g
+                messagebox.showinfo("3MF Import", f"Daten erfolgreich importiert:\n- Druckzeit: {h} Std {m} Min\n- Filament-Gewicht: {total_weight_g:.1f}g\n\nFüge nun eine Spule hinzu, um das Gewicht automatisch einzutragen.", parent=self)
+        else:
+            messagebox.showwarning(
+                "Fehler",
+                "Es konnten keine Druckzeit- oder Filamentdaten in der 3MF-Datei gefunden werden.\n\n"
+                "Hinweis: Bitte stelle sicher, dass das Modell vor dem Speichern der 3MF-Projektdatei in Bambu Studio / OrcaSlicer gesliced wurde (so dass G-Code generiert wurde). Unsliced Projektdateien enthalten noch keine Druckdaten.",
+                parent=self
+            )
+
     def on_job_select(self, event):
         trigger_tree = event.widget
         other_tree = self.tree_archive if trigger_tree == self.tree else self.tree
@@ -489,12 +702,24 @@ class PrintQueueDialog(tk.Toplevel):
             self.ent_title.delete(0, tk.END); self.ent_title.insert(0, job.get('title', ''))
             self.ent_link.delete(0, tk.END); self.ent_link.insert(0, job.get('link', ''))
             
+            p_id = job.get("printer_id", "")
+            found_idx = 0
+            for idx, p in enumerate(self.printers_list):
+                if p.get("id") == p_id:
+                    found_idx = idx + 1
+                    break
+            self.combo_printer.current(found_idx)
+            
             # Print time prefill
-            self.ent_print_time.delete(0, tk.END)
-            self.ent_print_time.insert(0, str(job.get('print_time', '1.0')))
+            print_time_val = float(job.get('print_time', 1.0))
+            h, m = decimal_to_hm(print_time_val)
+            self.ent_print_hours.delete(0, tk.END)
+            self.ent_print_hours.insert(0, str(h))
+            self.ent_print_mins.delete(0, tk.END)
+            self.ent_print_mins.insert(0, str(m))
             
             # Clear current spool rows
-            for _, (_, row_frm) in self.selected_spool_entries.items():
+            for _, (_, row_frm, _) in self.selected_spool_entries.items():
                 row_frm.destroy()
             self.selected_spool_entries.clear()
             
@@ -526,15 +751,18 @@ class PrintQueueDialog(tk.Toplevel):
         self.lbl_mode.config(text="✨ Neuen Auftrag anlegen")
         self.btn_save.config(text="➕ Auftrag speichern")
         self.btn_delete.state(['disabled'])
-        self.btn_finish.state(['disabled'])
-        self.btn_finish_no.state(['disabled'])
+        self.btn_finish.state(['!disabled'])
+        self.btn_finish_no.state(['!disabled'])
         self.ent_title.delete(0, tk.END)
         self.ent_link.delete(0, tk.END)
+        self.combo_printer.current(0)
         
-        self.ent_print_time.delete(0, tk.END)
-        self.ent_print_time.insert(0, "1.0")
+        self.ent_print_hours.delete(0, tk.END)
+        self.ent_print_hours.insert(0, "1")
+        self.ent_print_mins.delete(0, tk.END)
+        self.ent_print_mins.insert(0, "0")
         
-        for _, (_, row_frm) in self.selected_spool_entries.items():
+        for _, (_, row_frm, _) in self.selected_spool_entries.items():
             row_frm.destroy()
         self.selected_spool_entries.clear()
         
@@ -543,11 +771,11 @@ class PrintQueueDialog(tk.Toplevel):
         self.tree.selection_remove(self.tree.selection())
         self.recalculate_price()
 
-    def save_job(self):
+    def save_job(self, clear_after=True):
         title = self.ent_title.get().strip()
         if not title:
             messagebox.showwarning("Fehler", "Titel fehlt!", parent=self)
-            return
+            return False
 
         job_id = self.selected_job_id
         if not job_id:
@@ -575,7 +803,7 @@ class PrintQueueDialog(tk.Toplevel):
 
         spool_weights = {}
         spools_list = []
-        for sp_id, (ent, _) in self.selected_spool_entries.items():
+        for sp_id, (ent, _, _) in self.selected_spool_entries.items():
             try:
                 w = float(ent.get().replace(",", "."))
             except ValueError:
@@ -585,17 +813,39 @@ class PrintQueueDialog(tk.Toplevel):
         spools_str = ", ".join(spools_list)
         
         try:
-            print_time_val = float(self.ent_print_time.get().replace(",", "."))
+            h_val = float(self.ent_print_hours.get().replace(",", ".")) if self.ent_print_hours.get() else 0.0
         except ValueError:
-            print_time_val = 1.0
-
+            h_val = 0.0
+        try:
+            m_val = float(self.ent_print_mins.get().replace(",", ".")) if self.ent_print_mins.get() else 0.0
+        except ValueError:
+            m_val = 0.0
+        print_time_val = h_val + (m_val / 60.0)
         # Calculate estimated values for backward compatibility and Treeview display
         est_weight_val = sum(spool_weights.values())
         
-        kwh_price = float(self.app.settings.get("kwh_price", 0.30))
-        watts = int(self.app.settings.get("printer_watts", 150))
-        wear_price = float(self.app.settings.get("wear_per_hour", 0.20))
-        margin_percent = int(self.app.settings.get("profit_margin", 0))
+        kwh_price = safe_float(self.app.settings.get("kwh_price"), 0.30)
+        
+        selected_printer_idx = self.combo_printer.current()
+        printer_id = ""
+        selected_printer = None
+        if selected_printer_idx > 0 and selected_printer_idx - 1 < len(self.printers_list):
+            selected_printer = self.printers_list[selected_printer_idx - 1]
+            printer_id = selected_printer.get("id", "")
+            
+        watts = 150
+        if selected_printer and selected_printer.get("printer_watts") not in (None, ""):
+            watts = safe_int(selected_printer.get("printer_watts"), 150)
+        else:
+            watts = safe_int(self.app.settings.get("printer_watts"), 150)
+            
+        wear_price = 0.20
+        if selected_printer and selected_printer.get("wear_per_hour") not in (None, ""):
+            wear_price = safe_float(selected_printer.get("wear_per_hour"), 0.20)
+        else:
+            wear_price = safe_float(self.app.settings.get("wear_per_hour"), 0.20)
+            
+        margin_percent = safe_int(self.app.settings.get("profit_margin"), 0)
         
         strom_gesamt = print_time_val * (watts / 1000.0) * kwh_price
         wear_gesamt = print_time_val * wear_price
@@ -619,13 +869,14 @@ class PrintQueueDialog(tk.Toplevel):
             
         sell_price = total_cost * (1 + (margin_percent / 100.0))
         est_price_str = f"{sell_price:.2f} €"
-
+ 
         if self.selected_job_id:
             job = next((j for j in self.jobs if j['id'] == self.selected_job_id), None)
             if job:
                 job.update({
                     "title": title,
                     "link": self.ent_link.get().strip(),
+                    "printer_id": printer_id,
                     "spools": spools_str,
                     "spool_weights": spool_weights,
                     "print_time": print_time_val,
@@ -642,6 +893,7 @@ class PrintQueueDialog(tk.Toplevel):
                 "date": datetime.now().strftime("%Y-%m-%d"),
                 "title": title,
                 "link": self.ent_link.get().strip(),
+                "printer_id": printer_id,
                 "spools": spools_str,
                 "spool_weights": spool_weights,
                 "print_time": print_time_val,
@@ -657,10 +909,21 @@ class PrintQueueDialog(tk.Toplevel):
 
         self.app.data_manager.save_jobs(self.jobs)
         self.refresh_list()
-        self.reset_form()
+        if clear_after:
+            self.reset_form()
+        else:
+            self.selected_job_id = job_id
+            self.lbl_mode.config(text="📝 Auftrag bearbeiten")
+            self.btn_save.config(text="💾 Änderungen speichern")
+            self.btn_delete.state(['!disabled'])
+            self.btn_finish.state(['!disabled'])
+            self.btn_finish_no.state(['!disabled'])
+        return True
 
     def finish_job(self):
-        if not self.selected_job_id: return
+        if not self.selected_job_id:
+            if not self.save_job(clear_after=False):
+                return
         job = next((j for j in self.jobs if j['id'] == self.selected_job_id), None)
         if not job: return
         
@@ -685,7 +948,9 @@ class PrintQueueDialog(tk.Toplevel):
         JobDeductionDialog(self, self, job, matched_spools)
 
     def finish_job_no_deduct(self):
-        if not self.selected_job_id: return
+        if not self.selected_job_id:
+            if not self.save_job(clear_after=False):
+                return
         job = next((j for j in self.jobs if j['id'] == self.selected_job_id), None)
         if not job: return
         
@@ -719,7 +984,21 @@ class PrintQueueDialog(tk.Toplevel):
         for job in sorted_jobs:
             status = job.get('status', '')
             price = job.get('est_price', '-')
+            
+            printer_id = job.get('printer_id', '')
+            printers = self.app.settings.get("printers", [])
+            printer = next((p for p in printers if p.get("id") == printer_id), None)
+            printer_name = printer.get("name", "- Global -") if printer else "- Global -"
+            
             if "Erledigt" in status:
-                self.tree_archive.insert("", "end", iid=job['id'], values=(job.get('date', ''), job.get('title', ''), price, job.get('status', '')))
+                self.tree_archive.insert("", "end", iid=job['id'], values=(job.get('date', ''), job.get('title', ''), printer_name, price, job.get('status', '')))
             else:
-                self.tree.insert("", "end", iid=job['id'], values=(job.get('date', ''), job.get('title', ''), price, job.get('status', '')))
+                self.tree.insert("", "end", iid=job['id'], values=(job.get('date', ''), job.get('title', ''), printer_name, price, job.get('status', '')))
+
+    def on_close(self):
+        try:
+            self.app.settings["print_queue_geometry"] = self.geometry()
+            self.app.data_manager.save_settings(self.app.settings)
+        except:
+            pass
+        self.destroy()

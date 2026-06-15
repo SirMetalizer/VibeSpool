@@ -6,13 +6,24 @@ from qrcode.image.pil import PilImage
 from core.utils import center_window, get_colors_from_text
 
 class LabelCreatorDialog(tk.Toplevel):
-    def __init__(self, parent, inventory):
+    def __init__(self, parent, inventory, app_instance=None):
         super().__init__(parent)
+        self.app = app_instance
         self.inventory = [i for i in inventory if i.get('type') != 'VERBRAUCHT']
         self.title("🏷️ Label Creator")
-        self.geometry("850x500")
         self.configure(bg=parent.cget('bg'))
-        center_window(self, parent)
+        
+        geom = None
+        if self.app and hasattr(self.app, "settings"):
+            geom = self.app.settings.get("label_creator_geometry")
+            
+        if geom:
+            self.geometry(geom)
+        else:
+            self.geometry("850x500")
+            center_window(self, parent)
+            
+        self.protocol("WM_DELETE_WINDOW", self.on_close)
 
         frm_left = ttk.Frame(self, padding=10)
         frm_left.pack(side="left", fill="y")
@@ -103,7 +114,7 @@ class LabelCreatorDialog(tk.Toplevel):
             draw.text((400, 330), id_text, fill="black", font=use_font)
             
             # 3. Farb-Balken zur schnellen Erkennung
-            cols = get_colors_from_text(color)
+            cols = get_colors_from_text(color, self.app.settings.get('colors') if self.app else None)
             hex_col = cols[0] if cols else "#FFFFFF"
             draw.rectangle([400, 385, 760, 405], fill=hex_col, outline="black")
             
@@ -129,9 +140,19 @@ class LabelCreatorDialog(tk.Toplevel):
         # Ruft den neuen Smart Export Dialog auf
         PdfExportDialog(self, self.inventory, getattr(self, 'spools', []))
 
+    def on_close(self):
+        try:
+            if self.app and hasattr(self.app, "settings"):
+                self.app.settings["label_creator_geometry"] = self.geometry()
+                self.app.data_manager.save_settings(self.app.settings)
+        except Exception:
+            pass
+        self.destroy()
+
 class PdfExportDialog(tk.Toplevel):
     def __init__(self, parent, inventory, spools):
         super().__init__(parent)
+        self.parent = parent
         self.inventory = inventory
         self.spools = spools
         self.title("📑 PDF Smart Export")
@@ -206,7 +227,7 @@ class PdfExportDialog(tk.Toplevel):
                 use_font = font_title if len(id_text) < 14 else font_sub
                 draw.text((400, 330), id_text, fill="black", font=use_font)
                 
-                cols = get_colors_from_text(item.get('color', ''))
+                cols = get_colors_from_text(item.get('color', ''), self.parent.app.settings.get('colors') if self.parent and self.parent.app else None)
                 hex_col = cols[0] if cols else "#FFFFFF"
                 draw.rectangle([400, 385, 760, 405], fill=hex_col, outline="black")
                 return img

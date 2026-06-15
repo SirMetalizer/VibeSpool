@@ -12,9 +12,19 @@ class ShoppingListDialog(tk.Toplevel):
         self.app = app_instance
         self.inventory = inventory
         self.title("Einkaufsliste / Dashboard")
-        self.geometry("800x600")
         self.configure(bg=parent.cget('bg'))
-        center_window(self, parent)
+        
+        geom = None
+        if self.app and hasattr(self.app, "settings"):
+            geom = self.app.settings.get("shopping_list_geometry")
+            
+        if geom:
+            self.geometry(geom)
+        else:
+            self.geometry("800x600")
+            center_window(self, parent)
+            
+        self.protocol("WM_DELETE_WINDOW", self.on_close)
         
         ttk.Label(self, text="🛒 Nachzubestellende & Verbrauchte Filamente", font=("Segoe UI", 14, "bold")).pack(pady=15)
         
@@ -24,7 +34,7 @@ class ShoppingListDialog(tk.Toplevel):
         
         ttk.Button(btn_frm, text="🔗 Im Shop öffnen", command=self.open_shop_link, style="Accent.TButton").pack(side="left", padx=5)
         ttk.Button(btn_frm, text="Als CSV exportieren", command=self.export_csv).pack(side="left", padx=5)
-        ttk.Button(btn_frm, text="Schließen", command=self.destroy).pack(side="right", padx=5)
+        ttk.Button(btn_frm, text="Schließen", command=self.on_close).pack(side="right", padx=5)
 
         frm_list = ttk.Frame(self)
         frm_list.pack(fill="both", expand=True, padx=20, pady=(0, 10))
@@ -87,3 +97,12 @@ class ShoppingListDialog(tk.Toplevel):
                         csv.writer(f, delimiter=';').writerow([i.get('brand',''), i.get('color',''), i.get('material',''), i.get('supplier',''), i.get('sku',''), i.get('price',''), "MUSS KAUFEN" if i.get('reorder') else "Leer", i.get('link','')])
             messagebox.showinfo("Exportiert", "Liste erfolgreich gespeichert!", parent=self)
         except Exception as e: messagebox.showerror("Fehler", f"Export fehlgeschlagen: {e}", parent=self)
+
+    def on_close(self):
+        try:
+            if self.app and hasattr(self.app, "settings"):
+                self.app.settings["shopping_list_geometry"] = self.geometry()
+                self.app.data_manager.save_settings(self.app.settings)
+        except Exception:
+            pass
+        self.destroy()

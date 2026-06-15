@@ -42,9 +42,49 @@ def save_json(filename, data):
 
 import re
 
-def get_colors_from_text(text):
+def get_colors_from_text(text, custom_presets=None):
     if not text:
         return ["#FFFFFF"]
+
+    def hex_to_rgb(hex_str):
+        hex_str = hex_str.lstrip('#')
+        return tuple(int(hex_str[i:i+2], 16) for i in (0, 2, 4))
+
+    def rgb_to_hex(rgb):
+        return '#{:02X}{:02X}{:02X}'.format(*[max(0, min(255, int(c))) for c in rgb])
+
+    def make_darker(hex_val):
+        try:
+            r, g, b = hex_to_rgb(hex_val)
+            return rgb_to_hex((r * 0.6, g * 0.6, b * 0.6))
+        except:
+            return hex_val
+
+    def make_lighter(hex_val):
+        try:
+            r, g, b = hex_to_rgb(hex_val)
+            return rgb_to_hex((r * 0.6 + 255 * 0.4, g * 0.6 + 255 * 0.4, b * 0.6 + 255 * 0.4))
+        except:
+            return hex_val
+
+    def make_jade(hex_val):
+        try:
+            r, g, b = hex_to_rgb(hex_val)
+            jr, jg, jb = hex_to_rgb("#00A86B")
+            return rgb_to_hex((r * 0.8 + jr * 0.2, g * 0.8 + jg * 0.2, b * 0.8 + jb * 0.2))
+        except:
+            return hex_val
+
+    def make_neon(hex_val):
+        try:
+            r, g, b = hex_to_rgb(hex_val)
+            mx = max(r, g, b)
+            if mx == 0:
+                return "#39FF14"
+            scale = 255.0 / mx
+            return rgb_to_hex((r * scale, g * scale, b * scale))
+        except:
+            return hex_val
 
     # 🌍 STUFE 1: Echte, kräftige Farben
     color_map = {
@@ -53,6 +93,10 @@ def get_colors_from_text(text):
         "grau": "#808080", "silver": "#C0C0C0", "silber": "#C0C0C0", "anthrazit": "#333333",
         "dark": "#222222", "dunkel": "#222222", "ash": "#B2BEB5", "asche": "#B2BEB5",
         "graphit": "#41424C", "graphite": "#41424C", "slate": "#708090", "schiefer": "#708090",
+        
+        # Modifiers standalone fallbacks
+        "hell": "#E0E0E0", "light": "#E0E0E0", "pale": "#E0E0E0", "blass": "#E0E0E0", "soft": "#E0E0E0",
+        "deep": "#222222", "tief": "#222222",
         
         # Weiß, Natur & Beige
         "white": "#FFFFFF", "weiß": "#FFFFFF", "weiss": "#FFFFFF", "natural": "#F5F5DC", 
@@ -68,7 +112,7 @@ def get_colors_from_text(text):
         "peach": "#FFE5B4", "pfirsich": "#FFE5B4", "plum": "#8E4585", "pflaume": "#8E4585",
         
         # Gelb, Orange & Braun
-        "yellow": "#FFFF00", "gelb": "#FFFF00", "orange": "#FFA500", "gold": "#FFD700",
+        "yellow": "#FFFF00", "gelb": "#FFFF00", "dunkelgelb": "#CC9900", "darkyellow": "#CC9900", "orange": "#FFA500", "gold": "#FFD700",
         "terracotta": "#E2725B", "terrakotta": "#E2725B", "mustard": "#FFDB58", "senf": "#FFDB58",
         "lemon": "#FFF700", "zitrone": "#FFF700", "brown": "#A52A2A", "braun": "#A52A2A", 
         "copper": "#B87333", "kupfer": "#B87333", "bronze": "#CD7F32", "chocolate": "#7B3F00", 
@@ -95,12 +139,41 @@ def get_colors_from_text(text):
         "amethyst": "#9966CC", "aubergine": "#3D0C02",
     }
     
+    # Custom presets einlesen, falls vorhanden
+    if custom_presets:
+        for preset in custom_presets:
+            hex_match = re.search(r'#[0-9a-fA-F]{6}', preset)
+            if hex_match:
+                hex_code = hex_match.group(0).upper()
+                name_part = re.sub(r'\s*\(?#[0-9a-fA-F]{6}\)?', '', preset).strip().lower()
+                if name_part:
+                    color_map[name_part] = hex_code
+    
     # Fallback-Farben
     fallback_map = {
         "clear": "#E0E0E0", "klar": "#E0E0E0", "transparent": "#E0E0E0", "translucent": "#E0E0E0", 
         "glow": "#CCFFCC", "leucht": "#CCFFCC", "glass": "#E0E0E0", "glas": "#E0E0E0",
         "milky": "#F8F8FF", "milchig": "#F8F8FF", "frost": "#E0E0E0", "eis": "#E0E0E0",
         "marble": "#EAEAEA", "marmor": "#EAEAEA", "silk": "#F5F5F5", "seide": "#F5F5F5"
+    }
+
+    # Combined map for unified color parsing
+    unified_map = color_map.copy()
+    unified_map.update(fallback_map)
+
+    # Modifiers dictionary
+    modifiers = {
+        "dunkel": "dark", "dark": "dark", "deep": "dark", "tief": "dark",
+        "hell": "light", "light": "light", "pale": "light", "blass": "light", "soft": "light",
+        "jade": "jade",
+        "neon": "neon",
+        
+        # Finish/Texture modifiers (do not cause color splitting)
+        "silk": "finish", "seide": "finish", "seiden": "finish",
+        "clear": "finish", "klar": "finish", "transparent": "finish", "translucent": "finish",
+        "glow": "finish", "leucht": "finish", "glass": "finish", "glas": "finish",
+        "milky": "finish", "milchig": "finish", "frost": "finish", "eis": "finish",
+        "marble": "finish", "marmor": "finish"
     }
 
     result_colors = []
@@ -128,39 +201,50 @@ def get_colors_from_text(text):
         found_matches = []
         temp_text = part_lower
         
-        # Echte Farben
-        for name in sorted(color_map.keys(), key=len, reverse=True):
+        # Echte Farben und Fallbacks
+        for name in sorted(unified_map.keys(), key=len, reverse=True):
             start = 0
             while True:
                 idx = temp_text.find(name, start)
                 if idx == -1:
                     break
-                found_matches.append((idx, color_map[name]))
+                found_matches.append((idx, name, unified_map[name]))
                 temp_text = temp_text[:idx] + " " * len(name) + temp_text[idx + len(name):]
                 start = idx + len(name)
                 
-        # Wenn echte Farben gefunden wurden, übernehmen wir sie in Reihenfolge des Vorkommens
+        # Wenn Übereinstimmungen gefunden wurden, verarbeiten wir sie unter Berücksichtigung von Modifikatoren
         if found_matches:
             found_matches.sort()
-            for idx, color in found_matches:
-                result_colors.append(color)
-            continue
             
-        # Fallbacks
-        for name in sorted(fallback_map.keys(), key=len, reverse=True):
-            start = 0
-            while True:
-                idx = temp_text.find(name, start)
-                if idx == -1:
-                    break
-                found_matches.append((idx, fallback_map[name]))
-                temp_text = temp_text[:idx] + " " * len(name) + temp_text[idx + len(name):]
-                start = idx + len(name)
-                
-        if found_matches:
-            found_matches.sort()
-            for idx, color in found_matches:
-                result_colors.append(color)
+            part_modifiers = []
+            part_base_colors = []
+            for idx, name, hex_val in found_matches:
+                if name in modifiers:
+                    part_modifiers.append(modifiers[name])
+                else:
+                    part_base_colors.append(hex_val)
+                    
+            # Wenn wir nur Modifikatoren haben, behandeln wir den ersten Modifikator als Basisfarbe
+            if not part_base_colors and part_modifiers:
+                for idx, name, hex_val in found_matches:
+                    if name in modifiers:
+                        part_base_colors.append(hex_val)
+                        part_modifiers.remove(modifiers[name])
+                        break
+                        
+            # Modifikatoren auf alle Basisfarben in diesem Teil anwenden
+            for base_color in part_base_colors:
+                modified_color = base_color
+                for mod in part_modifiers:
+                    if mod == "dark":
+                        modified_color = make_darker(modified_color)
+                    elif mod == "light":
+                        modified_color = make_lighter(modified_color)
+                    elif mod == "jade":
+                        modified_color = make_jade(modified_color)
+                    elif mod == "neon":
+                        modified_color = make_neon(modified_color)
+                result_colors.append(modified_color)
             continue
             
         result_colors.append("#CCCCCC")

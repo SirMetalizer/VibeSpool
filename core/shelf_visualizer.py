@@ -14,9 +14,16 @@ class ShelfVisualizer(tk.Toplevel):
         self.spools = spools
         self.app = app_instance
         self.title("Regal & AMS Übersicht")
-        self.geometry("1200x850")
         self.configure(bg=parent.cget('bg'))
-        center_window(self, parent)
+        
+        geom = self.settings.get("shelf_visualizer_geometry")
+        if geom:
+            self.geometry(geom)
+        else:
+            self.geometry("1200x850")
+            center_window(self, parent)
+            
+        self.protocol("WM_DELETE_WINDOW", self.on_close)
         
         # --- Drag & Drop Variablen ---
         self.drag_source = None
@@ -53,7 +60,8 @@ class ShelfVisualizer(tk.Toplevel):
         self.canvas.pack(side="left", fill="both", expand=True)
         
         self.frame = ttk.Frame(self.canvas)
-        self.frame.bind("<Configure>", lambda e: self.canvas.configure(scrollregion=self.canvas.bbox("all")))
+        self.frame.bind("<Configure>", self.update_scrollregion)
+        self.canvas.bind("<Configure>", self.update_scrollregion)
         self.canvas.create_window((0, 0), window=self.frame, anchor="nw")
         
         self.redraw()
@@ -68,6 +76,19 @@ class ShelfVisualizer(tk.Toplevel):
         self.frame.bind("<MouseWheel>", _on_mousewheel)
         self.toolbar.bind("<MouseWheel>", _on_mousewheel)
         self.fixed_ams_container.bind("<MouseWheel>", _on_mousewheel)
+
+    def update_scrollregion(self, event=None):
+        self.canvas.update_idletasks()
+        bbox = self.canvas.bbox("all")
+        if bbox:
+            x1, y1, x2, y2 = bbox
+            canvas_width = self.canvas.winfo_width()
+            canvas_height = self.canvas.winfo_height()
+            
+            width = max(x2 - x1, canvas_width)
+            height = max(y2 - y1, canvas_height)
+            
+            self.canvas.configure(scrollregion=(x1, y1, x1 + width, y1 + height))
 
     def toggle_ams_fixed(self):
         self.settings["ams_fixed_top"] = self.var_ams_fixed.get()
@@ -106,6 +127,10 @@ class ShelfVisualizer(tk.Toplevel):
         self.shelf_data = {}
         self.ams_data = {}
         self.other_data = {"LAGER": []}
+        if self.settings.get("custom_locs", ""):
+            for c in self.settings.get("custom_locs", "").split(","):
+                if c.strip():
+                    self.other_data[c.strip()] = []
         
         for item in self.inventory:
             try:
@@ -194,8 +219,9 @@ class ShelfVisualizer(tk.Toplevel):
         if self.other_data:
             ttk.Separator(pad, orient="horizontal").pack(fill="x", pady=20)
             ttk.Label(pad, text="📦 Weitere Lagerorte (Drag & Drop ins Regal & Lager möglich!)", font=("Segoe UI", 16, "bold")).pack(anchor="w", pady=(10, 5))
+            custom_list = [x.strip() for x in self.settings.get("custom_locs", "").split(",") if x.strip()]
             for loc_name, items in self.other_data.items():
-                if not items and loc_name != "LAGER": 
+                if not items and loc_name != "LAGER" and loc_name not in custom_list: 
                     continue
                     
                 ttk.Label(pad, text=loc_name, font=("Segoe UI", 12, "bold")).pack(anchor="w", pady=(10, 2))
@@ -223,7 +249,7 @@ class ShelfVisualizer(tk.Toplevel):
     def draw_slot(self, parent, label, item, is_ams, w=90, h=80, loc_type=None, loc_id=None):
         bg_colors, fg_col, txt, tooltip = ["#D2B48C"] if not is_ams else ["#666666"], "#555" if not is_ams else "#CCC", f"{label}\nLEER", "Leer"
         if item:
-            cols = get_colors_from_text(item.get('color', ''))
+            cols = get_colors_from_text(item.get('color', ''), self.settings.get('colors'))
             bg_colors = cols or ["#FFFFFF"]
             if bg_colors[0].startswith("#"):
                 r, g, b = int(bg_colors[0][1:3], 16), int(bg_colors[0][3:5], 16), int(bg_colors[0][5:7], 16)
@@ -257,6 +283,9 @@ class ShelfVisualizer(tk.Toplevel):
             lbl.bind("<B1-Motion>", self.on_drag_motion)
             lbl.bind("<ButtonRelease-1>", self.on_drag_release)
             
+            if item:
+                lbl.bind("<Button-3>", lambda event, i=item: self.show_context_menu(event, i))
+            
         lbl.bind("<Enter>", lambda e: self.show_tip(e, tooltip), add="+")
         lbl.bind("<Leave>", self.hide_tip, add="+")
 
@@ -264,21 +293,28 @@ class ShelfVisualizer(tk.Toplevel):
         if not getattr(self, 'drag_source', None):
             return
         try:
-            mx = self.winfo_pointerx() - self.canvas.winfo_rootx()
-            my = self.winfo_pointery() - self.canvas.winfo_rooty()
-            cw = self.canvas.winfo_width()
-            ch = self.canvas.winfo_height()
-            
-            margin = 50
-            if my < margin:
-                self.canvas.yview_scroll(-1, "units")
-            elif my > ch - margin:
-                self.canvas.yview_scroll(1, "units")
+            last_x = getattr(self, 'last_mx_root', None)
+            last_y = getattr(self, 'last_my_root', None)
+            if last_x is not None and last_y is not None:
+                mx = last_x - self.canvas.winfo_rootx()
+                my = last_y - self.canvas.winfo_rooty()
+                cw = self.canvas.winfo_width()
+                ch = self.canvas.winfo_height()
                 
-            if mx < margin:
-                self.canvas.xview_scroll(-1, "units")
-            elif mx > cw - margin:
-                self.canvas.xview_scroll(1, "units")
+                margin = 50
+                # Nur scrollen, wenn die Maus horizontal innerhalb des Canvas-Bereichs liegt (mit 20px Toleranz links/rechts)
+                if -20 <= mx <= cw + 20:
+                    # Y-Scrollen: Nur scrollen, wenn Maus tatsächlich in den Randbereichen des Canvas ist
+                    if 0 <= my < margin:
+                        self.canvas.yview_scroll(-1, "units")
+                    elif ch - margin < my <= ch:
+                        self.canvas.yview_scroll(1, "units")
+                    
+                    # X-Scrollen: Nur scrollen, wenn Maus tatsächlich in den Randbereichen des Canvas ist
+                    if 0 <= mx < margin:
+                        self.canvas.xview_scroll(-1, "units")
+                    elif cw - margin < mx <= cw:
+                        self.canvas.xview_scroll(1, "units")
         except Exception:
             pass
         self.after(50, self.check_auto_scroll)
@@ -289,6 +325,8 @@ class ShelfVisualizer(tk.Toplevel):
         if not data or not data["item"]: return
         
         self.drag_source = widget
+        self.last_mx_root = event.x_root
+        self.last_my_root = event.y_root
         
         self.drag_window = tk.Toplevel(self)
         self.drag_window.wm_overrideredirect(True)
@@ -299,6 +337,8 @@ class ShelfVisualizer(tk.Toplevel):
         self.check_auto_scroll()
 
     def on_drag_motion(self, event):
+        self.last_mx_root = event.x_root
+        self.last_my_root = event.y_root
         drag_win = getattr(self, 'drag_window', None)
         if drag_win:
             drag_win.geometry(f"+{event.x_root + 15}+{event.y_root + 15}")
@@ -306,6 +346,7 @@ class ShelfVisualizer(tk.Toplevel):
     def on_drag_release(self, event):
         drag_win = getattr(self, 'drag_window', None)
         if drag_win:
+            drag_win.withdraw()
             drag_win.destroy()
             self.drag_window = None
             
@@ -354,3 +395,44 @@ class ShelfVisualizer(tk.Toplevel):
         
     def hide_tip(self, event):
         if hasattr(self, 'tip'): self.tip.destroy()
+
+    def on_close(self):
+        try:
+            self.settings["shelf_visualizer_geometry"] = self.geometry()
+            app_inst = getattr(self, 'app', None)
+            if app_inst:
+                app_inst.data_manager.save_settings(app_inst.settings)
+        except:
+            pass
+        self.destroy()
+
+    def show_context_menu(self, event, item):
+        if not self.app:
+            return
+            
+        spool_id_str = str(item['id'])
+        if not self.app.tree.exists(spool_id_str):
+            try:
+                self.app.reset_filters()
+            except Exception:
+                pass
+                
+        if self.app.tree.exists(spool_id_str):
+            self.app.tree.selection_set(spool_id_str)
+            self.app.on_select(None)
+            
+            menu = tk.Menu(self, tearoff=0)
+            menu.add_command(label="🛒 Im Shop öffnen", command=self.app.quick_open_shop)
+            menu.add_command(label="📜 Spulen-Logbuch öffnen", command=lambda: self.app.show_spool_history(spool_id=spool_id_str))
+            menu.add_separator()
+            menu.add_command(label="🔄 Quick-Swap (verschieben/tauschen)", command=self.app.quick_swap_dialog)
+            menu.add_command(label="🐑 Spule klonen", command=self.app.clone_filament)
+            menu.add_separator()
+            menu.add_command(label="📦 Ins Lager verschieben", command=self.app.send_to_storage)
+            menu.add_command(label="🚮 Als LEER markieren", command=self.app.quick_mark_empty)
+            menu.add_command(label="🛒 Auf Einkaufsliste setzen/entfernen", command=self.app.quick_toggle_reorder)
+            menu.add_separator()
+            menu.add_command(label="📝 Etikett-Vorschau öffnen", command=self.app.quick_open_label)
+            menu.add_command(label="❌ Spule löschen", command=self.app.delete_filament)
+            
+            menu.tk_popup(event.x_root, event.y_root)

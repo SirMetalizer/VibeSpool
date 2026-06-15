@@ -7,14 +7,25 @@ from core.spool_presets import SPOOL_PRESETS
 from core.constants import DEFAULT_SETTINGS, FONT_BOLD, FONT_MAIN, COLOR_ACCENT
 
 class SpoolManager(tk.Toplevel):
-    def __init__(self, parent, data_manager, on_close_callback):
+    def __init__(self, parent, data_manager, on_close_callback, app_instance=None):
         super().__init__(parent)
         self.data_manager = data_manager
         self.on_close_callback = on_close_callback
+        self.app = app_instance
         self.title("Spulen Datenbank")
-        self.geometry("600x700")
         self.configure(bg=parent.cget('bg'))
-        center_window(self, parent)
+        
+        geom = None
+        if self.app and hasattr(self.app, "settings"):
+            geom = self.app.settings.get("spool_manager_geometry")
+            
+        if geom:
+            self.geometry(geom)
+        else:
+            self.geometry("600x700")
+            center_window(self, parent)
+            
+        self.protocol("WM_DELETE_WINDOW", self.on_close)
         
         _, _, self.spools = self.data_manager.load_all(DEFAULT_SETTINGS)
         ttk.Label(self, text="Verfügbare Leerspulen", font=("Segoe UI", 10, "bold")).pack(pady=10)
@@ -154,6 +165,15 @@ class SpoolManager(tk.Toplevel):
         self.spools = [s for s in self.spools if s['id'] != int(sel[0])]
         self.data_manager.save_spools(self.spools)
         self.refresh_list()
+
+    def on_close(self):
+        try:
+            if self.app and hasattr(self.app, "settings"):
+                self.app.settings["spool_manager_geometry"] = self.geometry()
+                self.app.data_manager.save_settings(self.app.settings)
+        except Exception:
+            pass
+        self.destroy()
 
     def destroy(self): 
         self.on_close_callback()

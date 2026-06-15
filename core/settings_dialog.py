@@ -20,10 +20,17 @@ class SettingsDialog(tk.Toplevel):
         self.app = app_instance
         _, self.settings, _ = self.data_manager.load_all(DEFAULT_SETTINGS)
         self.title("VibeSpool Einstellungen") 
-        self.geometry("950x650") 
         self.transient(parent)
         self.grab_set()
-        center_window(self, parent)
+        
+        geom = self.settings.get("settings_dialog_geometry")
+        if geom:
+            self.geometry(geom)
+        else:
+            self.geometry("950x650") 
+            center_window(self, parent)
+            
+        self.protocol("WM_DELETE_WINDOW", self.on_close)
 
         # --- NEU: PanedWindow für die Einstellungen ---
         self.main_paned = ttk.PanedWindow(self, orient="horizontal")
@@ -35,7 +42,7 @@ class SettingsDialog(tk.Toplevel):
 
         footer_frm = ttk.Frame(self.notebook_frame)
         footer_frm.pack(side="bottom", fill="x", pady=(0, 10), padx=10)
-        ttk.Button(footer_frm, text="Abbrechen", command=self.destroy).pack(side="right", padx=5)
+        ttk.Button(footer_frm, text="Abbrechen", command=self.on_close).pack(side="right", padx=5)
         ttk.Button(footer_frm, text="💾 Änderungen Speichern", command=self.do_save, style="Accent.TButton").pack(side="right", padx=5)
 
         self.nb = ttk.Notebook(self.notebook_frame)
@@ -122,39 +129,42 @@ class SettingsDialog(tk.Toplevel):
         tab_prn = ttk.Frame(self.nb, padding=15)
         self.nb.add(tab_prn, text="🤖 Drucker")
         
-        # Moonraker Bereich
-        ttk.Label(tab_prn, text="Klipper / Moonraker", font=FONT_BOLD).pack(anchor="w")
-        self.var_moonraker = tk.BooleanVar(value=self.settings.get("use_moonraker", False))
-        ttk.Checkbutton(tab_prn, text="Moonraker-Sync im Hauptfenster anzeigen", variable=self.var_moonraker).pack(anchor="w", pady=(5, 5))
-        self.ent_prn_url = ttk.Entry(tab_prn)
-        self.ent_prn_url.insert(0, self.settings.get("printer_url", ""))
-        self.ent_prn_url.pack(fill="x", pady=2)
-        
-        ttk.Separator(tab_prn, orient="horizontal").pack(fill="x", pady=15)
-        
-        # NEU: AMS Anzahl im Drucker-Tab
-        ttk.Label(tab_prn, text="Anzahl AMS Einheiten:", font=FONT_BOLD).pack(anchor="w")
+        # Globale AMS Anzahl
+        ttk.Label(tab_prn, text="Globale AMS Einheiten (Gesamtzahl im System):", font=FONT_BOLD).pack(anchor="w")
         self.ent_ams = ttk.Entry(tab_prn, width=10)
         self.ent_ams.insert(0, str(self.settings.get("num_ams", 1)))
         self.ent_ams.pack(anchor="w", pady=(2, 10))
         
-        # NEU: Bambu Lab Bereich
-        ttk.Label(tab_prn, text="Bambu Lab AMS (via MQTT)", font=FONT_BOLD).pack(anchor="w")
-        self.var_bambu = tk.BooleanVar(value=self.settings.get("use_bambu", False))
-        ttk.Checkbutton(tab_prn, text="Bambu AMS Live-Sync aktivieren", variable=self.var_bambu).pack(anchor="w", pady=(5, 5))
+        ttk.Separator(tab_prn, orient="horizontal").pack(fill="x", pady=10)
         
-        ttk.Label(tab_prn, text="Drucker IP-Adresse:").pack(anchor="w", pady=(5,0))
-        self.ent_bambu_ip = ttk.Entry(tab_prn)
-        self.ent_bambu_ip.insert(0, self.settings.get("bambu_ip", ""))
-        self.ent_bambu_ip.pack(fill="x", pady=2)
-        ttk.Label(tab_prn, text="Access Code (LAN):").pack(anchor="w", pady=(5,0))
-        self.ent_bambu_acc = ttk.Entry(tab_prn)
-        self.ent_bambu_acc.insert(0, self.settings.get("bambu_access", ""))
-        self.ent_bambu_acc.pack(fill="x", pady=2)
-        ttk.Label(tab_prn, text="Seriennummer:").pack(anchor="w", pady=(5,0))
-        self.ent_bambu_ser = ttk.Entry(tab_prn)
-        self.ent_bambu_ser.insert(0, self.settings.get("bambu_serial", ""))
-        self.ent_bambu_ser.pack(fill="x", pady=2)
+        ttk.Label(tab_prn, text="Drucker-Liste", font=FONT_BOLD).pack(anchor="w", pady=(0, 5))
+        
+        # Treeview für Drucker
+        columns = ("name", "type", "ip", "serial", "sync")
+        self.printer_tree = ttk.Treeview(tab_prn, columns=columns, show="headings", height=5)
+        self.printer_tree.heading("name", text="Name")
+        self.printer_tree.heading("type", text="Typ / Hersteller")
+        self.printer_tree.heading("ip", text="IP / Host")
+        self.printer_tree.heading("serial", text="Seriennummer")
+        self.printer_tree.heading("sync", text="Live-Sync")
+        
+        self.printer_tree.column("name", width=120)
+        self.printer_tree.column("type", width=80, anchor="center")
+        self.printer_tree.column("ip", width=130)
+        self.printer_tree.column("serial", width=150)
+        self.printer_tree.column("sync", width=80, anchor="center")
+        
+        self.printer_tree.pack(fill="x", pady=5)
+        
+        # Buttons für Drucker-Liste
+        btn_frm = ttk.Frame(tab_prn)
+        btn_frm.pack(fill="x", pady=5)
+        
+        ttk.Button(btn_frm, text="🗑️ Löschen", command=self.delete_printer).pack(side="left", padx=5)
+        ttk.Button(btn_frm, text="➕ Hinzufügen", command=self.add_printer).pack(side="right", padx=5)
+        ttk.Button(btn_frm, text="✏️ Bearbeiten", command=self.edit_printer).pack(side="right", padx=5)
+        
+        self.refresh_printer_tree()
         
         # --- NEU: Bambu Cloud API Block ---
         ttk.Separator(tab_prn, orient="horizontal").pack(fill="x", pady=15)
@@ -641,6 +651,19 @@ class SettingsDialog(tk.Toplevel):
             try: margin_val = int(self.ent_margin.get())
             except: margin_val = 0
 
+            # Kompatibilitätswerte für alten Code ermitteln
+            printers = self.settings.get("printers", [])
+            first_bambu = next((p for p in printers if p.get("type") == "bambu"), None)
+            first_moonraker = next((p for p in printers if p.get("type") == "moonraker"), None)
+            
+            bambu_ip = first_bambu.get("ip", "") if first_bambu else ""
+            bambu_acc = first_bambu.get("access_code", "") if first_bambu else ""
+            bambu_ser = first_bambu.get("serial", "") if first_bambu else ""
+            use_bambu = first_bambu.get("use_mqtt", False) if first_bambu else False
+            
+            use_moonraker = first_moonraker.get("use_mqtt", False) if first_moonraker else False
+            printer_url = first_moonraker.get("ip", "") if first_moonraker else ""
+
             self.settings.update({
                 "ams_fixed_top": self.var_ams_fixed.get(),
                 "kwh_price": kwh_val,         
@@ -656,14 +679,15 @@ class SettingsDialog(tk.Toplevel):
                 "custom_locs": self.ent_custom.get().strip(),
                 "use_affiliate": self.var_affiliate.get(),
                 "rfid_mode": self.var_rfid.get(),
-                "use_moonraker": self.var_moonraker.get(),
-                "printer_url": self.ent_prn_url.get().strip(),
+                "use_moonraker": use_moonraker,
+                "printer_url": printer_url,
                 "printer_api_key": self.settings.get("printer_api_key", ""), 
-                "use_bambu": self.var_bambu.get(),
+                "use_bambu": use_bambu,
                 "use_bambu_cloud": self.var_cloud.get(),
-                "bambu_ip": self.ent_bambu_ip.get().strip(),
-                "bambu_access": self.ent_bambu_acc.get().strip(),
-                "bambu_serial": self.ent_bambu_ser.get().strip(),
+                "bambu_ip": bambu_ip,
+                "bambu_access": bambu_acc,
+                "bambu_serial": bambu_ser,
+                "printers": printers,
                 "mqtt_enable": self.var_mqtt.get(),
                 "mqtt_host": self.ent_mqtt_host.get().strip(),
                 "mqtt_port": self.ent_mqtt_port.get().strip(),
@@ -675,6 +699,7 @@ class SettingsDialog(tk.Toplevel):
                 "brands": self.list_vars["brands"]
             })
             
+            self.settings["settings_dialog_geometry"] = self.geometry()
             self.on_save(self.settings)
             
             if app_inst:
@@ -696,3 +721,267 @@ class SettingsDialog(tk.Toplevel):
             messagebox.showerror("Fehler", "AMS Anzahl muss eine Zahl sein.", parent=self)
         except Exception as e:
             messagebox.showerror("Fehler", f"Ein unerwarteter Fehler ist aufgetreten:\n{e}", parent=self)
+
+    def on_close(self):
+        try:
+            self.settings["settings_dialog_geometry"] = self.geometry()
+            self.on_save(self.settings)
+        except:
+            pass
+        self.destroy()
+
+    def refresh_printer_tree(self):
+        self.printer_tree.delete(*self.printer_tree.get_children())
+        printers = self.settings.get("printers", [])
+        for p in printers:
+            p_conn = p.get("type", "bambu")
+            if p_conn == "bambu":
+                conn_disp = "Bambu Lab"
+                sync_status = "Aktiv" if p.get("use_mqtt", False) else "Aus"
+            elif p_conn == "moonraker":
+                conn_disp = "Klipper"
+                sync_status = "-"
+            else:
+                conn_disp = "Manuell"
+                sync_status = "-"
+                
+            default_manufacturer = "Bambu Lab" if p_conn == "bambu" else "Klipper"
+            m_val = p.get("manufacturer", default_manufacturer)
+            type_disp = f"{m_val} ({conn_disp})"
+            
+            self.printer_tree.insert("", "end", iid=p.get("id"), values=(
+                p.get("name", "Unbekannt"),
+                type_disp,
+                p.get("ip", ""),
+                p.get("serial", ""),
+                sync_status
+            ))
+
+    def delete_printer(self):
+        sel = self.printer_tree.selection()
+        if not sel:
+            messagebox.showinfo("Info", "Bitte wähle erst einen Drucker aus!", parent=self)
+            return
+        if messagebox.askyesno("Löschen", "Soll dieser Drucker wirklich gelöscht werden?", parent=self):
+            printers = self.settings.get("printers", [])
+            self.settings["printers"] = [p for p in printers if p.get("id") != sel[0]]
+            self.data_manager.save_settings(self.settings)
+            if hasattr(self, 'on_save') and self.on_save:
+                self.on_save(self.settings)
+            self.refresh_printer_tree()
+            self.toggle_side_panel(force_close=True)
+
+    def add_printer(self):
+        if self.printer_tree.selection():
+            self.printer_tree.selection_remove(self.printer_tree.selection())
+        self.toggle_side_panel("Drucker hinzufügen", self.build_printer_editor_ui)
+
+    def edit_printer(self):
+        sel = self.printer_tree.selection()
+        if not sel:
+            messagebox.showinfo("Info", "Bitte wähle erst einen Drucker aus!", parent=self)
+            return
+        self.toggle_side_panel("Drucker bearbeiten", self.build_printer_editor_ui)
+
+    def build_printer_editor_ui(self, parent):
+        sel = self.printer_tree.selection()
+        printers = self.settings.get("printers", [])
+        edit_idx = next((i for i, p in enumerate(printers) if p.get("id") == sel[0]), None) if sel else None
+        
+        import uuid
+        existing_data = printers[edit_idx] if edit_idx is not None else {
+            "id": str(uuid.uuid4())[:8],
+            "name": "",
+            "manufacturer": "Bambu Lab",
+            "type": "bambu",
+            "ip": "",
+            "access_code": "",
+            "serial": "",
+            "ams_ids": [],
+            "external_loc": "",
+            "use_mqtt": True
+        }
+        
+        sf = ScrollableFrame(parent)
+        sf.pack(fill="both", expand=True, pady=5)
+        
+        ttk.Label(sf.inner, text="Name (Anzeige):").pack(anchor="w")
+        ent_name = ttk.Entry(sf.inner)
+        ent_name.insert(0, existing_data.get("name", ""))
+        ent_name.pack(fill="x", pady=(0, 10))
+        
+        ttk.Label(sf.inner, text="Hersteller / Modell:").pack(anchor="w")
+        combo_manufacturer = ttk.Combobox(sf.inner, values=["Bambu Lab", "Creality", "Prusa", "Elegoo", "Anycubic", "Voron", "Phrozen", "UltiMaker", "Qidi Tech"])
+        default_manufacturer = "Bambu Lab" if existing_data.get("type") == "bambu" else "Klipper / Moonraker"
+        combo_manufacturer.set(existing_data.get("manufacturer", default_manufacturer))
+        combo_manufacturer.pack(fill="x", pady=(0, 10))
+        
+        ttk.Label(sf.inner, text="Verbindung / Schnittstelle:").pack(anchor="w")
+        combo_type = ttk.Combobox(sf.inner, values=["Bambu Lab MQTT", "Klipper / Moonraker API", "Manuell (Kein Live-Sync)"], state="readonly")
+        
+        p_type_init = existing_data.get("type", "bambu")
+        if p_type_init == "bambu":
+            combo_type.set("Bambu Lab MQTT")
+        elif p_type_init == "moonraker":
+            combo_type.set("Klipper / Moonraker API")
+        else:
+            combo_type.set("Manuell (Kein Live-Sync)")
+        combo_type.pack(fill="x", pady=(0, 10))
+        
+        lbl_ip = ttk.Label(sf.inner, text="IP-Adresse / Host:")
+        ent_ip = ttk.Entry(sf.inner)
+        ent_ip.insert(0, existing_data.get("ip", ""))
+        
+        lbl_acc = ttk.Label(sf.inner, text="Access Code (LAN):")
+        ent_acc = ttk.Entry(sf.inner)
+        ent_acc.insert(0, existing_data.get("access_code", ""))
+        
+        lbl_ser = ttk.Label(sf.inner, text="Seriennummer:")
+        ent_ser = ttk.Entry(sf.inner)
+        ent_ser.insert(0, existing_data.get("serial", ""))
+        
+        lbl_ams = ttk.Label(sf.inner, text="Zugeordnete AMS Einheiten:", font=FONT_BOLD)
+        ams_frame = ttk.Frame(sf.inner)
+        
+        try: num_ams_global = int(self.ent_ams.get())
+        except: num_ams_global = 1
+        
+        ams_vars = {}
+        for a in range(1, num_ams_global + 1):
+            var = tk.BooleanVar(value=a in existing_data.get("ams_ids", []))
+            chk = ttk.Checkbutton(ams_frame, text=f"AMS {a}", variable=var)
+            chk.pack(anchor="w", pady=2)
+            ams_vars[a] = var
+            
+        var_sync = tk.BooleanVar(value=existing_data.get("use_mqtt", True))
+        chk_sync = ttk.Checkbutton(sf.inner, text="Live-Sync (MQTT) aktivieren", variable=var_sync)
+        
+        def toggle_fields(event=None):
+            sel_type = combo_type.get()
+            if sel_type == "Bambu Lab MQTT":
+                lbl_ip.pack(anchor="w")
+                ent_ip.pack(fill="x", pady=(0, 10))
+                lbl_acc.pack(anchor="w")
+                ent_acc.pack(fill="x", pady=(0, 10))
+                lbl_ser.pack(anchor="w")
+                ent_ser.pack(fill="x", pady=(0, 10))
+                lbl_ams.pack(anchor="w", pady=(5, 2))
+                ams_frame.pack(fill="x", pady=(0, 10))
+                chk_sync.pack(anchor="w", pady=(5, 15))
+            elif sel_type == "Klipper / Moonraker API":
+                lbl_ip.pack(anchor="w")
+                ent_ip.pack(fill="x", pady=(0, 10))
+                lbl_acc.pack_forget()
+                ent_acc.pack_forget()
+                lbl_ser.pack_forget()
+                ent_ser.pack_forget()
+                lbl_ams.pack_forget()
+                ams_frame.pack_forget()
+                chk_sync.pack_forget()
+            else: # Manuell
+                lbl_ip.pack_forget()
+                ent_ip.pack_forget()
+                lbl_acc.pack_forget()
+                ent_acc.pack_forget()
+                lbl_ser.pack_forget()
+                ent_ser.pack_forget()
+                lbl_ams.pack_forget()
+                ams_frame.pack_forget()
+                chk_sync.pack_forget()
+                
+        combo_type.bind("<<ComboboxSelected>>", toggle_fields)
+        toggle_fields()
+        
+        ttk.Label(sf.inner, text="Lagerort für externe Spule:", font=FONT_BOLD).pack(anchor="w", pady=(5, 2))
+        
+        loc_options = ["-", "LAGER"]
+        if self.ent_custom.get().strip():
+            loc_options.extend([x.strip() for x in self.ent_custom.get().split(",") if x.strip()])
+            
+        combo_ext_loc = ttk.Combobox(sf.inner, values=loc_options, state="readonly")
+        combo_ext_loc.set(existing_data.get("external_loc", "-"))
+        combo_ext_loc.pack(fill="x", pady=(0, 10))
+        
+        ttk.Label(sf.inner, text="Stromverbrauch (Watt):", font=FONT_BOLD).pack(anchor="w", pady=(5, 2))
+        ent_watts = ttk.Entry(sf.inner)
+        w_val = existing_data.get("printer_watts")
+        ent_watts.insert(0, str(w_val) if w_val is not None else "")
+        ent_watts.pack(fill="x", pady=(0, 2))
+        ttk.Label(sf.inner, text="(Leer lassen für globalen Standard)", font=("Segoe UI", 8), foreground="gray").pack(anchor="w", pady=(0, 10))
+        
+        ttk.Label(sf.inner, text="Maschinenverschleiß (€/h):", font=FONT_BOLD).pack(anchor="w", pady=(5, 2))
+        ent_wear = ttk.Entry(sf.inner)
+        wear_val = existing_data.get("wear_per_hour")
+        ent_wear.insert(0, str(wear_val).replace('.', ',') if wear_val is not None else "")
+        ent_wear.pack(fill="x", pady=(0, 2))
+        ttk.Label(sf.inner, text="(Leer lassen für globalen Standard)", font=("Segoe UI", 8), foreground="gray").pack(anchor="w", pady=(0, 10))
+        
+        def save_printer():
+            name = ent_name.get().strip() or "Drucker"
+            manufacturer = combo_manufacturer.get().strip() or "Anderer"
+            
+            sel_type = combo_type.get()
+            if sel_type == "Bambu Lab MQTT":
+                p_type = "bambu"
+            elif sel_type == "Klipper / Moonraker API":
+                p_type = "moonraker"
+            else:
+                p_type = "custom"
+                
+            ip = ent_ip.get().strip() if p_type != "custom" else ""
+            acc = ent_acc.get().strip() if p_type == "bambu" else ""
+            ser = ent_ser.get().strip() if p_type == "bambu" else ""
+            ext_loc = combo_ext_loc.get()
+            if ext_loc == "-": ext_loc = ""
+            
+            watts_str = ent_watts.get().strip()
+            watts_val = None
+            if watts_str:
+                try:
+                    watts_val = int(watts_str)
+                except ValueError:
+                    messagebox.showerror("Fehler", "Stromverbrauch muss eine Ganzzahl sein.", parent=self)
+                    return
+            
+            wear_str = ent_wear.get().strip().replace(',', '.')
+            wear_val = None
+            if wear_str:
+                try:
+                    wear_val = float(wear_str)
+                except ValueError:
+                    messagebox.showerror("Fehler", "Verschleiß muss eine Dezimalzahl sein.", parent=self)
+                    return
+            
+            sel_ams = [a for a, var in ams_vars.items() if var.get()] if p_type == "bambu" else []
+            
+            printer_data = {
+                "id": existing_data["id"],
+                "name": name,
+                "manufacturer": manufacturer,
+                "type": p_type,
+                "ip": ip,
+                "access_code": acc,
+                "serial": ser,
+                "ams_ids": sel_ams,
+                "external_loc": ext_loc,
+                "use_mqtt": var_sync.get() if p_type == "bambu" else False,
+                "printer_watts": watts_val,
+                "wear_per_hour": wear_val
+            }
+            
+            if edit_idx is not None:
+                printers[edit_idx] = printer_data
+            else:
+                printers.append(printer_data)
+                
+            self.settings["printers"] = printers
+            
+            # Save settings back to file immediately
+            if hasattr(self, 'on_save') and self.on_save:
+                self.on_save(self.settings)
+                
+            self.refresh_printer_tree()
+            messagebox.showinfo("Erfolg", "Drucker gespeichert!", parent=self)
+            self.toggle_side_panel(force_close=True)
+            
+        ttk.Button(parent, text="💾 Drucker Speichern", style="Accent.TButton", command=save_printer).pack(fill="x", side="bottom", pady=10)

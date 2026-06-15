@@ -46,6 +46,28 @@ class DataManager:
 
     def load_all(self, default_settings):
         settings = load_json(self.settings_file, default_settings)
+        
+        # Migrations-Logik für Multi-Drucker
+        if "printers" not in settings or not isinstance(settings["printers"], list):
+            settings["printers"] = []
+            
+        # Falls ein alter Bambu- oder Moonraker-Drucker konfiguriert war, migrieren wir ihn
+        if not settings["printers"] and (settings.get("bambu_ip") or settings.get("bambu_serial") or settings.get("printer_url")):
+            import uuid
+            old_printer = {
+                "id": str(uuid.uuid4())[:8],
+                "name": "Drucker 1",
+                "type": "bambu" if settings.get("use_bambu") or settings.get("bambu_ip") else "moonraker",
+                "ip": settings.get("bambu_ip") if (settings.get("use_bambu") or settings.get("bambu_ip")) else settings.get("printer_url", ""),
+                "access_code": settings.get("bambu_access", ""),
+                "serial": settings.get("bambu_serial", ""),
+                "ams_ids": list(range(1, settings.get("num_ams", 1) + 1)),
+                "external_loc": "P1S 2 Extern" if "P1S 2 Extern" in settings.get("custom_locs", "") else "",
+                "use_mqtt": settings.get("use_bambu", False)
+            }
+            settings["printers"].append(old_printer)
+            self.save_settings(settings)
+            
         spools = load_json(self.spools_file, [])
         inventory = load_json(self.data_file, [])
         return inventory, settings, spools

@@ -150,6 +150,7 @@ class FilamentApp:
         self.btn_opts.pack(side="right", padx=5)
         
         ttk.Button(top_bar, text="🛒 Einkaufsliste", command=lambda: ShoppingListDialog(self.root, self.inventory, self)).pack(side="right", padx=5)
+        ttk.Button(top_bar, text="📄 PDF Export", command=self.export_pdf).pack(side="right", padx=5)
         
         # --- NEU: Spenden-Button mit echtem goldenem Verlauf! ---
         def make_gradient(w, h, c1, c2):
@@ -185,10 +186,10 @@ class FilamentApp:
             return btn
 
         add_nav_btn("Regal", self.open_shelf_visualizer, "📦")
-        add_nav_btn("Spulen", lambda: SpoolManager(self.root, self.data_manager, self.update_spool_dropdown), "🧵")
+        add_nav_btn("Spulen", lambda: SpoolManager(self.root, self.data_manager, self.update_spool_dropdown, self), "🧵")
         
         # FIX: Ein Leerzeichen vor dem Emoji schiebt es optisch genau in die Mitte!
-        add_nav_btn("Label", lambda: LabelCreatorDialog(self.root, self.inventory), "   🏷️")
+        add_nav_btn("Label", lambda: LabelCreatorDialog(self.root, self.inventory, self), "   🏷️")
 
         # --- NEU: Dashboard-Referenz speichern für Live-Updates (Pylance-sicher!) ---
         def open_statistics():
@@ -201,7 +202,7 @@ class FilamentApp:
 
         add_nav_btn("Finanzen", lambda: StatisticsDialog(self.root, self.inventory, self), "📊")
         add_nav_btn("Swap", self.quick_swap_dialog, "🔄")
-        add_nav_btn("Flow", lambda: FlowCalculatorDialog(self.root, self.entry_flow), "🧪")
+        add_nav_btn("Flow", lambda: FlowCalculatorDialog(self.root, self.entry_flow, self), "🧪")
         add_nav_btn("Kalkulator", lambda: self.toggle_side_panel("🧮 Quick-Cost Rechner", self.build_quick_cost_calculator), "🧮") # <-- NEU!
         if self.settings.get("use_bambu", False):
             add_nav_btn("AMS", self.run_ams_sync, "🤖")
@@ -302,7 +303,12 @@ class FilamentApp:
         frm_col = ttk.Frame(tab_basis)
         frm_col.pack(fill="x", pady=2)
         
-        self.combo_color = ttk.Combobox(frm_col, values=self.settings.get("colors", COMMON_COLORS), font=FONT_MAIN)
+        clean_colors = []
+        for c in self.settings.get("colors", COMMON_COLORS):
+            clean_name = re.sub(r'\s*\(?#[0-9a-fA-F]{6}\)?', '', c).strip()
+            if clean_name and clean_name not in clean_colors:
+                clean_colors.append(clean_name)
+        self.combo_color = ttk.Combobox(frm_col, values=clean_colors, font=FONT_MAIN)
         self.combo_color.pack(side="left", fill="x", expand=True)
         self.combo_color.bind("<KeyRelease>", self.update_color_preview)
         self.combo_color.bind("<<ComboboxSelected>>", self.update_color_preview)
@@ -333,7 +339,7 @@ class FilamentApp:
                         matched_name = get_color_name_from_hex(hex_code)
 
                     if matched_name:
-                        new_parts.append(f"{matched_name} ({hex_code})")
+                        new_parts.append(matched_name)
                     else:
                         # Wenn wir gar keinen Namen kennen, behalten wir exakt das, was der User getippt hat
                         new_parts.append(part)
@@ -370,7 +376,7 @@ class FilamentApp:
             if not matched_name:
                 matched_name = get_color_name_from_hex(color_code)
 
-            new_entry = f"{matched_name} ({color_code})" if matched_name else color_code
+            new_entry = matched_name if matched_name else color_code
 
             if not current_text:
                 self.combo_color.set(new_entry)
@@ -564,7 +570,7 @@ class FilamentApp:
         
         # --- 4. Ansichten & Verwaltung ---
         ttk.Button(btn_frame, text="📦 Regal & AMS Ansicht", command=self.open_shelf_visualizer).pack(fill="x", pady=2)
-        ttk.Button(btn_frame, text="🧵 Leerspulen verwalten", command=lambda: SpoolManager(self.root, self.data_manager, self.update_spool_dropdown)).pack(fill="x", pady=2)
+        ttk.Button(btn_frame, text="🧵 Leerspulen verwalten", command=lambda: SpoolManager(self.root, self.data_manager, self.update_spool_dropdown, self)).pack(fill="x", pady=2)
         
         ttk.Separator(btn_frame, orient="horizontal").pack(fill="x", pady=4)
         
@@ -638,22 +644,28 @@ class FilamentApp:
                 self.root.after(0, lambda: self.show_update_prompt(latest, url))
         threading.Thread(target=run_update_check, daemon=True).start()
 
-        # --- NEU: Bambu Auto-Sync Monitor starten ---
-        if self.settings.get("use_bambu", False):
-            try:
-                from core.bambu_sync import BambuBackgroundMonitor
-                ip = self.settings.get("bambu_ip", "")
-                code = self.settings.get("bambu_access", "")
-                serial = self.settings.get("bambu_serial", "")
-                
-                if ip and code and serial:
-                    self.bambu_monitor = BambuBackgroundMonitor(
-                        ip, code, serial, 
-                        on_finish_callback=self.on_bambu_print_finish
-                    )
-                    self.bambu_monitor.start()
-            except Exception as e:
-                print(f"Bambu Monitor konnte nicht gestartet werden: {e}")
+        # --- NEU: Bambu Auto-Sync Monitore starten ---
+        self.bambu_monitors = []
+        printers = self.settings.get("printers", [])
+        for p in printers:
+            if p.get("type") == "bambu" and p.get("use_mqtt", False):
+                try:
+                    from core.bambu_sync import BambuBackgroundMonitor
+                    ip = p.get("ip", "")
+                    code = p.get("access_code", "")
+                    serial = p.get("serial", "")
+                    p_id = p.get("id")
+                    
+                    if ip and code and serial:
+                        monitor = BambuBackgroundMonitor(
+                            p_id, ip, code, serial, 
+                            on_finish_callback=self.on_bambu_print_finish
+                        )
+                        monitor.start()
+                        self.bambu_monitors.append(monitor)
+                        print(f"🤖 Monitor für '{p.get('name')}' erfolgreich gestartet.")
+                except Exception as e:
+                    print(f"Bambu Monitor für '{p.get('name')}' konnte nicht gestartet werden: {e}")
 
         self.apply_theme()
         
@@ -780,6 +792,13 @@ class FilamentApp:
         btn_add = ttk.Button(parent, text="➕ Spule hinzufügen", command=lambda: add_row())
         btn_add.pack(fill="x", pady=(0, 15))
         
+        ttk.Label(parent, text="Drucker:", font=("Segoe UI", 10, "bold")).pack(anchor="w")
+        printers_list = self.settings.get("printers", [])
+        printer_values = ["- Globaler Standard -"] + [p.get("name", "Drucker") for p in printers_list]
+        combo_printer = ttk.Combobox(parent, values=printer_values, state="readonly", font=("Segoe UI", 9))
+        combo_printer.current(0)
+        combo_printer.pack(fill="x", pady=(0, 15))
+        
         ttk.Label(parent, text="Druckzeit (Stunden):", font=("Segoe UI", 10, "bold")).pack(anchor="w")
         ent_time = ttk.Entry(parent)
         ent_time.insert(0, "5")
@@ -800,10 +819,29 @@ class FilamentApp:
                     mat += w * (p / 1000.0)
                     total_w += w
                     
+                selected_printer_idx = combo_printer.current()
+                selected_printer = None
+                if selected_printer_idx > 0 and selected_printer_idx - 1 < len(printers_list):
+                    selected_printer = printers_list[selected_printer_idx - 1]
+                    
                 kwh = float(self.settings.get("kwh_price", 0.30))
-                watt = int(self.settings.get("printer_watts", 150))
+                
+                watt = 150
+                if selected_printer and selected_printer.get("printer_watts") not in (None, ""):
+                    try: watt = int(selected_printer.get("printer_watts"))
+                    except: pass
+                else:
+                    watt = int(self.settings.get("printer_watts", 150))
+                    
+                wear_val = 0.20
+                if selected_printer and selected_printer.get("wear_per_hour") not in (None, ""):
+                    try: wear_val = float(selected_printer.get("wear_per_hour"))
+                    except: pass
+                else:
+                    wear_val = float(self.settings.get("wear_per_hour", 0.20))
+                    
                 elec = t * (watt / 1000.0) * kwh
-                wear = t * float(self.settings.get("wear_per_hour", 0.20))
+                wear = t * wear_val
                 total = mat + elec + wear
                 margin = int(self.settings.get("profit_margin", 0))
                 sell = total * (1 + (margin/100.0))
@@ -816,6 +854,7 @@ class FilamentApp:
             except:
                 lbl_res.config(text="⚠️ Bitte Zahlen eingeben!")
                 
+        combo_printer.bind("<<ComboboxSelected>>", lambda e: calc())
         ttk.Button(parent, text="Berechnen", command=calc, style="Accent.TButton").pack(fill="x", pady=10)
 
     def toggle_ams_fixed_main(self):
@@ -832,7 +871,7 @@ class FilamentApp:
             self.shelf_visualizer = ShelfVisualizer(self.root, self.inventory, self.settings, self.spools, self)
 
     def update_color_preview(self, event=None):
-        cols = get_colors_from_text(self.combo_color.get())
+        cols = get_colors_from_text(self.combo_color.get(), self.settings.get("colors", COMMON_COLORS))
         img = create_color_icon(cols, (30, 20), "#888888")
         self.lbl_color_preview.config(image=img); setattr(self.lbl_color_preview, 'image', img) # type: ignore
 
@@ -1032,6 +1071,11 @@ class FilamentApp:
             threading.Thread(target=self.tray_icon.run, daemon=True).start()
 
         def do_exit():
+            try:
+                self.settings["geometry"] = self.root.winfo_geometry()
+                self.data_manager.save_settings(self.settings)
+            except:
+                pass
             dialog.destroy()
             self.root.destroy() # Beendet VibeSpool komplett
             import sys; sys.exit(0)
@@ -1079,13 +1123,15 @@ class FilamentApp:
         # Das ECHTE Beenden der App
         if self.tray_icon: self.tray_icon.stop()
         
-        # Hintergrund-Monitor stoppen
-        if hasattr(self, 'bambu_monitor'):
-            try: self.bambu_monitor.stop()
-            except: pass
+        # Hintergrund-Monitore stoppen
+        if hasattr(self, 'bambu_monitors') and self.bambu_monitors:
+            for monitor in self.bambu_monitors:
+                try: monitor.stop()
+                except: pass
             
         # Einstellungen speichern und App zerstören
         try:
+            self.settings["geometry"] = self.root.winfo_geometry()
             self.data_manager.save_settings(self.settings)
         except: pass
         
@@ -1356,7 +1402,12 @@ class FilamentApp:
             self.settings = s
             self.data_manager.save_settings(s)
             self.combo_material['values'] = s.get("materials", MATERIALS)
-            self.combo_color['values'] = s.get("colors", COMMON_COLORS)
+            clean_colors = []
+            for c in s.get("colors", COMMON_COLORS):
+                clean_name = re.sub(r'\s*\(?#[0-9a-fA-F]{6}\)?', '', c).strip()
+                if clean_name and clean_name not in clean_colors:
+                    clean_colors.append(clean_name)
+            self.combo_color['values'] = clean_colors
             self.combo_subtype['values'] = s.get("subtypes", SUBTYPES)
             self.entry_brand['values'] = sorted(s.get("brands", []), key=str.lower)
             self.update_locations_dropdown()
@@ -1575,6 +1626,12 @@ class FilamentApp:
 
         if hasattr(self, 'stats_dialog') and self.stats_dialog and self.stats_dialog.winfo_exists():
             self.stats_dialog.build_ui()
+            
+        # --- NEU: Live-Update für ein offenes Regal-Fenster ---
+        vis = getattr(self, 'shelf_visualizer', None)
+        if vis is not None and vis.winfo_exists():
+            try: vis.redraw()
+            except: pass
     
     def get_input_data(self):
         try:
@@ -1648,7 +1705,12 @@ class FilamentApp:
         if changed:
             self.data_manager.save_settings(self.settings)
             self.combo_material['values'] = self.settings.get("materials", MATERIALS)
-            self.combo_color['values'] = self.settings.get("colors", COMMON_COLORS)
+            clean_colors = []
+            for c in self.settings.get("colors", COMMON_COLORS):
+                clean_name = re.sub(r'\s*\(?#[0-9a-fA-F]{6}\)?', '', c).strip()
+                if clean_name and clean_name not in clean_colors:
+                    clean_colors.append(clean_name)
+            self.combo_color['values'] = clean_colors
             self.combo_subtype['values'] = self.settings.get("subtypes", SUBTYPES)
             self.entry_brand['values'] = sorted(self.settings.get("brands", []), key=str.lower)
             self.update_filter_dropdowns()
@@ -1916,15 +1978,16 @@ class FilamentApp:
 
         win = tk.Toplevel(self.root)
         win.title("🔄 Quick-Swap")
-        win.geometry("480x220")
+        win.geometry("480x240")
         win.configure(bg=self.root.cget('bg'))
         win.attributes('-topmost', True)
         center_window(win, self.root)
         
-        ttk.Label(win, text="Spule ins AMS tauschen:", font=("Segoe UI", 12, "bold")).pack(pady=(15, 5))
+        ttk.Label(win, text="Spule an neuen Ort verschieben/tauschen:", font=("Segoe UI", 12, "bold")).pack(pady=(15, 5))
         ttk.Label(win, text=f"{s_a.get('brand', '')} {s_a.get('color', '')}", font=("Segoe UI", 10)).pack(pady=5)
         
         ams_map = {}
+        # 1. AMS-Slots
         for a in range(1, self.settings.get("num_ams", 1) + 1):
             am_n = f"AMS {a}"
             for s in range(1, 5):
@@ -1936,6 +1999,27 @@ class FilamentApp:
                     
                 d_t = f"{am_n} | Slot {s}  -->  {label_text}"
                 ams_map[d_t] = (am_n, str(s))
+
+        # 2. Externe Spule / Custom Locations
+        custom_str = self.settings.get("custom_locs", "")
+        if custom_str:
+            custom_list = [x.strip() for x in custom_str.split(",") if x.strip()]
+            for loc in custom_list:
+                spools_at_loc = [i for i in self.inventory if i.get('type') == loc]
+                if spools_at_loc:
+                    names = ", ".join(f"{i.get('brand', '')} {i.get('color', '')}" for i in spools_at_loc[:2])
+                    if len(spools_at_loc) > 2:
+                        names += " ..."
+                    label_text = f"Belegt: {names}"
+                else:
+                    label_text = "(LEER)"
+                d_t = f"{loc}  -->  {label_text}"
+                ams_map[d_t] = (loc, "-")
+
+        # 3. Das globale LAGER
+        spools_at_lager = [i for i in self.inventory if i.get('type') == "LAGER"]
+        d_t = f"LAGER (Hauptlager)  -->  ({len(spools_at_lager)} Spulen vor Ort)"
+        ams_map[d_t] = ("LAGER", "-")
                 
         combo = ttk.Combobox(win, values=list(ams_map.keys()), state="readonly", font=FONT_MAIN, width=45)
         combo.pack(pady=10)
@@ -1944,7 +2028,10 @@ class FilamentApp:
         def do_swap():
             t_am, t_sl = ams_map[combo.get()]
             o_t, o_l = s_a.get('type', 'LAGER'), s_a.get('loc_id', '-')
-            s_b = next((i for i in self.inventory if i.get('type') == t_am and str(i.get('loc_id')) == t_sl), None)
+            
+            s_b = None
+            if t_sl != "-":
+                s_b = next((i for i in self.inventory if i.get('type') == t_am and str(i.get('loc_id')) == t_sl), None)
                      
             s_a['type'] = t_am
             s_a['loc_id'] = t_sl
@@ -1961,7 +2048,8 @@ class FilamentApp:
             self.on_select(None)
             win.destroy()
             
-            messagebox.showinfo("Quick-Swap Erfolgreich", f"{s_a.get('brand', '')} ist im {t_am} (Slot {t_sl}).{msg_extra}", parent=self.root)
+            loc_disp = f"{t_am} (Slot {t_sl})" if t_sl != "-" else t_am
+            messagebox.showinfo("Quick-Swap Erfolgreich", f"{s_a.get('brand', '')} ist in {loc_disp}.{msg_extra}", parent=self.root)
             
         ttk.Button(win, text="🔄 Tauschen", command=do_swap, style="Accent.TButton").pack(pady=15)
 
@@ -2163,21 +2251,168 @@ class FilamentApp:
         self.apply_theme(); self.update_locations_dropdown(); self.refresh_table()
 
     
-    def on_bambu_print_finish(self, tray_ids, weight_g):
+    def on_bambu_print_finish(self, printer_id, tray_ids, weight_g):
         """Wird vom Hintergrund-Thread aufgerufen, wenn der Druck fertig ist."""
-        # Wir brechen nur noch ab, wenn gar kein AMS-Slot erkannt wurde (z.B. externe Spule)
+        # Suche den Drucker in den Einstellungen
+        printers = self.settings.get("printers", [])
+        printer = next((p for p in printers if p.get("id") == printer_id), None)
+        if not printer: return
+        
         if not tray_ids: return
         
-        # Wir springen in den Haupt-Thread von Tkinter für das UI-Update
+        # Springe in den Haupt-Thread
+        self.root.after(0, lambda: self._process_bambu_finish_ui(printer, tray_ids, weight_g))
+
+    def _process_bambu_finish_ui(self, printer, tray_ids, weight_g):
+        ams_ids = printer.get("ams_ids", [])
+        
         if len(tray_ids) == 1 and weight_g > 0:
-            # SZENARIO A: Single-Color UND der Drucker kennt das Gewicht -> Vollautomatisch!
-            ams_id = (tray_ids[0] // 4) + 1
-            slot = (tray_ids[0] % 4) + 1
-            self.root.after(0, lambda: self._apply_automatic_deduction(f"AMS {ams_id}", str(slot), weight_g))
+            raw_slot = tray_ids[0]
+            
+            if raw_slot == 255:
+                # Druck von externer Spule!
+                ext_loc = printer.get("external_loc", "")
+                if ext_loc:
+                    matching_items = [i for i in self.inventory if i.get("type") == ext_loc and i.get("type") != "VERBRAUCHT"]
+                    if len(matching_items) == 1:
+                        # Eindeutige Zuweisung möglich! -> Automatisch abziehen
+                        self._apply_automatic_deduction_item(matching_items[0], weight_g)
+                        return
+                
+                # Wenn nicht eindeutig, fragen wir den User per Dialog
+                self._show_multicolor_dialog_v2(printer, tray_ids, weight_g)
+            else:
+                # Druck aus dem AMS
+                local_ams_idx = raw_slot // 4
+                if local_ams_idx < len(ams_ids):
+                    global_ams_id = ams_ids[local_ams_idx]
+                    slot = (raw_slot % 4) + 1
+                    self._apply_automatic_deduction(f"AMS {global_ams_id}", str(slot), weight_g)
+                else:
+                    # Fallback falls Zuordnung fehlt
+                    self._show_multicolor_dialog_v2(printer, tray_ids, weight_g)
         else:
-            # SZENARIO B: Entweder Multi-Color ODER der Drucker weiß das Gewicht nicht (0g)
-            # In beiden Fällen fragen wir den User einfach per Dialog!
-            self.root.after(0, lambda: self._show_multicolor_dialog(tray_ids, weight_g))
+            self._show_multicolor_dialog_v2(printer, tray_ids, weight_g)
+
+    def _apply_automatic_deduction_item(self, item, weight_g, silent=False):
+        """Führt den Abzug direkt von einem bestimmten Spulen-Item aus."""
+        if item:
+            try:
+                old_gross = float(str(item.get('weight_gross', '0')).replace(',', '.'))
+                new_gross = max(0, old_gross - weight_g)
+                item['weight_gross'] = new_gross
+                
+                if "history" not in item: item["history"] = []
+                
+                mat_cost = 0.0
+                try:
+                    sp_price = float(str(item.get('price', '0')).replace(',', '.')) or 0.0
+                    sp_cap = float(str(item.get('capacity', '1000'))) or 1000.0
+                    if sp_cap > 0: mat_cost = weight_g * (sp_price / sp_cap)
+                except: pass
+                
+                from datetime import datetime
+                item["history"].append({
+                    "date": datetime.now().strftime("%Y-%m-%d %H:%M"),
+                    "action": "Bambu Live-Sync",
+                    "change": f"-{weight_g:.1f}g",
+                    "cost": f"{mat_cost:.2f} €",
+                    "sell_price": "-"
+                })
+                
+                self.log_consumption(weight_g)
+                self.data_manager.save_inventory(self.inventory)
+                self.refresh_table()
+                self.broadcast_mqtt()
+                
+                sel = self.tree.selection()
+                if sel and str(sel[0]) == str(item['id']):
+                    self.on_select(None)
+                
+                if not silent:
+                    msg = f"Es wurden {weight_g:.1f}g von Spule #{item['id']} abgezogen.\n({item.get('brand')} {item.get('color')})"
+                    self.show_custom_toast("🎨 Druck beendet!", msg)
+            except Exception as e:
+                print(f"Fehler bei automatischer Zuweisung: {e}")
+
+    def _show_multicolor_dialog_v2(self, printer, tray_ids, total_weight_g):
+        """Öffnet einen Dialog, wenn mehrere AMS-Slots benutzt wurden oder eine manuelle Zuweisung nötig ist."""
+        win = tk.Toplevel(self.root)
+        win.title("🎨 Filament-Zuweisung nach Druck")
+        win.geometry("550x450")
+        win.configure(bg=self.root.cget('bg'))
+        win.attributes('-topmost', True)
+        from core.utils import center_window
+        center_window(win, self.root)
+        
+        ttk.Label(win, text=f"Druck beendet auf '{printer.get('name')}'", font=("Segoe UI", 14, "bold"), foreground="#0078d7").pack(pady=(15, 5))
+        ttk.Label(win, text=f"Gesamtverbrauch (laut Slicer): {total_weight_g:.1f} g\nWelches Filament hat wie viel verbraucht?", justify="center").pack(pady=5)
+        
+        frm = ttk.Frame(win, padding=15)
+        frm.pack(fill="both", expand=True)
+        
+        entries = []
+        ams_ids = printer.get("ams_ids", [])
+        
+        for t_id in tray_ids:
+            row = ttk.Frame(frm)
+            row.pack(fill="x", pady=5)
+            
+            item = None
+            if t_id == 255:
+                # Externe Spule
+                ext_loc = printer.get("external_loc", "")
+                lbl_text = f"Externer Halter:"
+                if ext_loc:
+                    item = next((i for i in self.inventory if i.get('type') == ext_loc and i.get('type') != 'VERBRAUCHT'), None)
+                    if item:
+                        lbl_text = f"Extern ({ext_loc}): {item.get('brand')} {item.get('color')}"
+                    else:
+                        lbl_text = f"Extern ({ext_loc}): Keine Spule dort"
+            else:
+                local_ams_idx = t_id // 4
+                if local_ams_idx < len(ams_ids):
+                    global_ams_id = ams_ids[local_ams_idx]
+                    slot = (t_id % 4) + 1
+                    ams_name = f"AMS {global_ams_id}"
+                    item = next((i for i in self.inventory if i.get('type') == ams_name and str(i.get('loc_id')) == str(slot)), None)
+                    if item:
+                        lbl_text = f"{ams_name} Slot {slot}: {item.get('brand')} {item.get('color')}"
+                    else:
+                        lbl_text = f"{ams_name} Slot {slot}: Keine Spule dort"
+                else:
+                    lbl_text = f"AMS Slot {t_id + 1}: Unbekanntes AMS"
+                    
+            ttk.Label(row, text=lbl_text, width=35, anchor="w").pack(side="left")
+            
+            ent = ttk.Entry(row, width=10, justify="right")
+            ent.pack(side="right")
+            ttk.Label(row, text=" g").pack(side="right")
+            
+            if len(tray_ids) == 1:
+                ent.insert(0, f"{total_weight_g:.1f}")
+                
+            entries.append({"item": item, "entry": ent})
+            
+        def apply_split():
+            total_entered = 0
+            for e in entries:
+                val = e["entry"].get().strip().replace(',', '.')
+                if val:
+                    try:
+                        weight = float(val)
+                        if weight > 0 and e["item"]:
+                            total_entered += weight
+                            self._apply_automatic_deduction_item(e["item"], weight, silent=True)
+                    except Exception as ex: 
+                        print(f"Fehler bei Aufteilung: {ex}")
+                    
+            if total_entered > 0:
+                messagebox.showinfo("Erfolg", f"Es wurden insgesamt {total_entered:.1f}g auf die Spulen aufgeteilt und abgezogen!", parent=self.root)
+            win.destroy()
+            
+        ttk.Separator(win, orient="horizontal").pack(fill="x", pady=10)
+        ttk.Button(win, text="💾 Gewichte abziehen & Speichern", command=apply_split, style="Accent.TButton").pack(pady=10)
 
     def _apply_automatic_deduction(self, ams_name, slot_in_ams, weight_g, silent=False):
         """Führt die tatsächliche Gewichtsänderung in der Datenbank aus."""
@@ -2290,39 +2525,77 @@ class FilamentApp:
         ttk.Button(win, text="💾 Gewichte abziehen & Speichern", command=apply_split, style="Accent.TButton").pack(pady=10)
 
     def run_ams_sync(self):
-        ip = self.settings.get("bambu_ip", "")
-        code = self.settings.get("bambu_access", "")
-        serial = self.settings.get("bambu_serial", "")
+        bambu_printers = [p for p in self.settings.get("printers", []) if p.get("type") == "bambu"]
+        if not bambu_printers:
+            # Fallback falls jemand noch die alten globalen Einstellungen hat aber keine Druckerliste
+            ip = self.settings.get("bambu_ip", "")
+            code = self.settings.get("bambu_access", "")
+            serial = self.settings.get("bambu_serial", "")
+            if ip and code and serial:
+                bambu_printers = [{
+                    "name": "Bambu Lab Drucker",
+                    "ip": ip,
+                    "access_code": code,
+                    "serial": serial,
+                    "ams_ids": list(range(1, self.settings.get("num_ams", 1) + 1))
+                }]
+            else:
+                return messagebox.showerror("Fehler", "Kein Bambu Lab Drucker konfiguriert! Bitte erst in den Optionen eintragen.", parent=self.root)
+
+        if len(bambu_printers) == 1:
+            self.perform_ams_sync_for_printer(bambu_printers[0])
+        else:
+            win = tk.Toplevel(self.root)
+            win.title("Drucker auswählen")
+            win.geometry("380x165")
+            win.configure(bg=self.root.cget('bg'))
+            win.attributes('-topmost', True)
+            center_window(win, self.root)
+            
+            ttk.Label(win, text="Wähle den Drucker für den AMS-Abruf:", font=FONT_BOLD).pack(pady=(15, 10))
+            
+            printer_names = [p.get("name", "Unbekannt") for p in bambu_printers]
+            combo = ttk.Combobox(win, values=printer_names, state="readonly", font=FONT_MAIN, width=30)
+            combo.pack(pady=10)
+            combo.current(0)
+            
+            def on_confirm():
+                idx = combo.current()
+                win.destroy()
+                self.perform_ams_sync_for_printer(bambu_printers[idx])
+                
+            ttk.Button(win, text="Abrufen", style="Accent.TButton", command=on_confirm).pack(pady=10)
+
+    def perform_ams_sync_for_printer(self, printer):
+        ip = printer.get("ip", "")
+        code = printer.get("access_code", "")
+        serial = printer.get("serial", "")
 
         if not ip or not code or not serial:
-            return messagebox.showerror("Fehler", "Bambu Zugangsdaten fehlen! Bitte erst in den Optionen eintragen.")
+            return messagebox.showerror("Fehler", f"Bambu Zugangsdaten für '{printer.get('name')}' unvollständig! Bitte in den Optionen ergänzen.", parent=self.root)
 
-        # Lade-Fenster blockiert die GUI, damit der User nicht wild rumklickt
         self.sync_win = tk.Toplevel(self.root)
         self.sync_win.title("AMS Sync")
         self.sync_win.geometry("350x120")
         self.sync_win.configure(bg=self.root.cget('bg'))
         center_window(self.sync_win, self.root)
-        ttk.Label(self.sync_win, text="Verbinde mit Bambu Drucker...\nLese AMS Daten aus.\n\nBitte warten (ca. 5-10 Sekunden).", font=FONT_BOLD, justify="center").pack(expand=True)
+        ttk.Label(self.sync_win, text=f"Verbinde mit {printer.get('name')}...\nLese AMS Daten aus.\n\nBitte warten (ca. 5-10 Sekunden).", font=FONT_BOLD, justify="center").pack(expand=True)
         self.sync_win.grab_set()
 
-        # Import hier, damit das Programm nicht abstürzt, falls Paho-MQTT fehlt
         try:
             from core.bambu_sync import BambuScanner # type: ignore
         except ImportError:
             self.sync_win.destroy()
-            return messagebox.showerror("Fehler", "Das Modul 'paho-mqtt' fehlt. Bitte über pip installieren.")
+            return messagebox.showerror("Fehler", "Das Modul 'paho-mqtt' fehlt. Bitte über pip installieren.", parent=self.root)
 
-        # Threading: Der Scanner läuft im Hintergrund, die GUI friert NICHT ein!
         def worker():
             scanner = BambuScanner(ip, code, serial)
             result = scanner.fetch_ams_inventory(timeout=10)
-            # Zurück in den Haupt-Thread für das UI-Update
-            self.root.after(0, lambda: self._process_ams_result(result))
+            self.root.after(0, lambda: self._process_ams_result(result, printer))
 
         threading.Thread(target=worker, daemon=True).start()
 
-    def _process_ams_result(self, result):
+    def _process_ams_result(self, result, printer=None):
         if hasattr(self, 'sync_win') and self.sync_win.winfo_exists():
             self.sync_win.destroy()
 
@@ -2408,7 +2681,12 @@ class FilamentApp:
             
             # NEU: Wir berechnen dynamisch das AMS und den Slot (0-3 = AMS 1, 4-7 = AMS 2)
             raw_slot = int(r.get('slot', 0))
-            ams_num = r.get('ams', (raw_slot // 4)) + 1
+            ams_idx = int(r.get('ams', (raw_slot // 4)))
+            ams_ids = printer.get("ams_ids", []) if printer else []
+            if ams_idx < len(ams_ids):
+                ams_num = ams_ids[ams_idx]
+            else:
+                ams_num = ams_idx + 1
             slot_num = (raw_slot % 4) + 1
             ams_name = f"AMS {ams_num}"
             
@@ -2629,6 +2907,180 @@ class FilamentApp:
             
         win.destroy()
     
+    def get_filtered_items_for_export(self):
+        filters = {
+            "material": self.filter_mat_var.get(),
+            "color": self.filter_color_var.get(),
+            "location": self.filter_loc_var.get()
+        }
+        search_term = self.search_var.get().lower().strip()
+        search_words = search_term.split() if search_term else []
+        
+        filtered_items = []
+        for i in self.data_manager.get_filtered_inventory(self.inventory, "", filters):
+            if self.filter_brand_var.get() != "Alle Hersteller" and i.get('brand') != self.filter_brand_var.get():
+                continue
+                
+            if search_words:
+                all_values = " ".join(str(v) for v in i.values() if v is not None).lower()
+                if not all(word in all_values for word in search_words):
+                    continue
+            filtered_items.append(i)
+        return filtered_items
+
+    def export_pdf(self):
+        items = self.get_filtered_items_for_export()
+        if not items:
+            messagebox.showwarning("PDF Export", "Keine Filamente zum Exportieren vorhanden (Filter aktiv?)", parent=self.root)
+            return
+
+        fp = filedialog.asksaveasfilename(
+            defaultextension=".pdf",
+            filetypes=[("PDF-Dokument", "*.pdf")],
+            initialfile="VibeSpool_Bestand.pdf",
+            title="Filament-Bestand als PDF speichern"
+        )
+        if not fp:
+            return
+
+        try:
+            from PIL import Image, ImageDraw, ImageFont
+            
+            try:
+                font_title = ImageFont.truetype("arialbd.ttf", 60)
+                font_subtitle = ImageFont.truetype("arial.ttf", 36)
+                font_header = ImageFont.truetype("arialbd.ttf", 40)
+                font_body = ImageFont.truetype("arial.ttf", 34)
+                font_body_bold = ImageFont.truetype("arialbd.ttf", 34)
+                font_footer = ImageFont.truetype("arial.ttf", 28)
+            except:
+                font_title = font_subtitle = font_header = font_body = font_body_bold = font_footer = ImageFont.load_default()
+
+            pages = []
+            
+            def draw_color_swatch(draw_obj, x, y, colors):
+                swatch_w, swatch_h = 60, 40
+                rect = [x, y, x + swatch_w, y + swatch_h]
+                if not colors:
+                    draw_obj.rectangle(rect, fill="white", outline="gray", width=2)
+                    return
+                
+                num_cols = len(colors)
+                col_w = swatch_w / num_cols
+                for idx, col in enumerate(colors):
+                    cx1 = x + idx * col_w
+                    cx2 = x + (idx + 1) * col_w
+                    draw_obj.rectangle([cx1, y, cx2, y + swatch_h], fill=col)
+                draw_obj.rectangle(rect, fill=None, outline="black", width=2)
+
+            def start_new_page(is_first):
+                pg = Image.new('RGB', (2480, 3508), 'white')
+                d = ImageDraw.Draw(pg)
+                
+                if is_first:
+                    d.text((100, 100), "VibeSpool Filament-Bestand", fill="#111111", font=font_title)
+                    
+                    total_spools = len(items)
+                    total_net_weight_kg = sum(calculate_net_weight(i.get('weight_gross', '0'), i.get('spool_id', -1), self.spools, i.get('empty_weight')) for i in items) / 1000.0
+                    stats_text = f"Spulen: {total_spools}   |   Bestand: {total_net_weight_kg:.2f} kg"
+                    d.text((2380, 120), stats_text, fill="#555555", font=font_subtitle, anchor="rt")
+                    
+                    d.rectangle([100, 190, 2380, 196], fill="#0078d7")
+                    
+                    filter_text = f"Erstellt am: {datetime.now().strftime('%d.%m.%Y %H:%M')}"
+                    active_filters = []
+                    if self.filter_mat_var.get() != "Alle Materialien": active_filters.append(self.filter_mat_var.get())
+                    if self.filter_color_var.get() != "Alle Farben": active_filters.append(self.filter_color_var.get())
+                    if self.filter_loc_var.get() != "Alle Orte": active_filters.append(self.filter_loc_var.get())
+                    if self.filter_brand_var.get() != "Alle Hersteller": active_filters.append(self.filter_brand_var.get())
+                    if self.search_var.get().strip(): active_filters.append(f"Suche: '{self.search_var.get().strip()}'")
+                    
+                    if active_filters:
+                        filter_text += f"   |   Filter: {', '.join(active_filters)}"
+                    d.text((100, 220), filter_text, fill="#777777", font=font_subtitle)
+                    
+                    header_y = 300
+                else:
+                    d.text((100, 80), "VibeSpool Filament-Bestand", fill="#333333", font=font_subtitle)
+                    d.text((2380, 80), f"Erstellt am: {datetime.now().strftime('%d.%m.%Y')}", fill="#777777", font=font_subtitle, anchor="rt")
+                    d.line([100, 140, 2380, 140], fill="#e0e0e0", width=2)
+                    header_y = 160
+                    
+                d.rectangle([100, header_y, 2380, header_y + 80], fill="#0078d7")
+                
+                th_y = header_y + 20
+                d.text((175, th_y), "ID", fill="white", font=font_header, anchor="mt")
+                d.text((270, th_y), "Hersteller", fill="white", font=font_header, anchor="lt")
+                d.text((770, th_y), "Material", fill="white", font=font_header, anchor="lt")
+                d.text((1070, th_y), "Farbe", fill="white", font=font_header, anchor="lt")
+                d.text((1670, th_y), "Spulentyp", fill="white", font=font_header, anchor="lt")
+                d.text((2360, th_y), "Gewicht (Netto)", fill="white", font=font_header, anchor="rt")
+                
+                return pg, d, header_y + 80
+
+            pg, d, page_y = start_new_page(is_first=True)
+            
+            for idx, item in enumerate(items):
+                if page_y + 80 > 3300:
+                    pages.append(pg)
+                    pg, d, page_y = start_new_page(is_first=False)
+                
+                if idx % 2 == 1:
+                    d.rectangle([100, page_y, 2380, page_y + 80], fill="#f8fafc")
+                    
+                d.line([100, page_y + 80, 2380, page_y + 80], fill="#e2e8f0", width=1)
+                
+                d.text((175, page_y + 20), str(item['id']), fill="#334155", font=font_body_bold, anchor="mt")
+                d.text((270, page_y + 20), item.get('brand', '-'), fill="#1e293b", font=font_body, anchor="lt")
+                
+                mat = item.get('material', '-')
+                subtype = item.get('subtype', 'Standard')
+                mat_display = f"{mat} ({subtype})" if subtype and subtype != "Standard" else mat
+                d.text((770, page_y + 20), mat_display, fill="#1e293b", font=font_body, anchor="lt")
+                
+                display_color = re.sub(r'\s*\(\s*#[0-9a-fA-F]{6}\s*\)', '', item.get('color', '')).strip()
+                cols = get_colors_from_text(item.get('color', ''), self.settings.get('colors') if hasattr(self, 'settings') else None)
+                draw_color_swatch(d, 1070, page_y + 20, cols)
+                d.text((1150, page_y + 20), display_color, fill="#1e293b", font=font_body, anchor="lt")
+                
+                sp_id = item.get('spool_id', -1)
+                empty_weight = item.get('empty_weight')
+                sp_preset = next((s for s in self.spools if s['id'] == sp_id), None)
+                if sp_preset:
+                    spool_name = f"{sp_preset.get('name', 'Standard')} ({sp_preset.get('weight', 0)}g)"
+                elif empty_weight is not None:
+                    spool_name = f"Custom ({empty_weight}g)"
+                else:
+                    spool_name = "-"
+                d.text((1670, page_y + 20), spool_name, fill="#475569", font=font_body, anchor="lt")
+                
+                net = calculate_net_weight(item.get('weight_gross', '0'), item.get('spool_id', -1), self.spools, item.get('empty_weight'))
+                capacity = float(item.get('capacity', 1000))
+                pct = int(round((net / capacity) * 100)) if capacity > 0 else 0
+                weight_text = f"{net}g ({pct}%)"
+                d.text((2360, page_y + 20), weight_text, fill="#1e293b", font=font_body_bold, anchor="rt")
+                
+                page_y += 80
+                
+            pages.append(pg)
+            
+            total_pages = len(pages)
+            for p_idx, page in enumerate(pages):
+                p_draw = ImageDraw.Draw(page)
+                footer_text = f"Seite {p_idx + 1} von {total_pages}   |   Erstellt mit VibeSpool"
+                p_draw.text((1240, 3400), footer_text, fill="#94a3b8", font=font_footer, anchor="mt")
+                
+            pages[0].save(fp, "PDF", resolution=300.0, save_all=True, append_images=pages[1:])
+            
+            if messagebox.askyesno("Export erfolgreich", f"Die PDF-Datei wurde erfolgreich gespeichert unter:\n{fp}\n\nMöchtest du die Datei jetzt öffnen?", parent=self.root):
+                try:
+                    os.startfile(fp)
+                except Exception as ex:
+                    messagebox.showerror("Fehler", f"Datei konnte nicht geöffnet werden:\n{ex}", parent=self.root)
+                    
+        except Exception as e:
+            messagebox.showerror("Fehler beim PDF-Export", f"Es gab ein Problem beim Generieren der PDF-Datei:\n{e}", parent=self.root)
+
     def import_csv(self):
         filepath = filedialog.askopenfilename(filetypes=[("CSV Dateien", "*.csv")], title="CSV Inventar importieren")
         if not filepath: return
@@ -3294,11 +3746,33 @@ class FilamentApp:
 
         ttk.Label(content_frm, text=f"{model}", font=("Segoe UI", 11, "bold"), wraplength=400, justify="center").pack(pady=(5, 5))
         
+        # Drucker anhand deviceId ermitteln
+        job_dev_id = job.get("deviceId", "")
+        printers = self.settings.get("printers", [])
+        printer = next((p for p in printers if p.get("serial") == job_dev_id), None)
+        ams_ids = printer.get("ams_ids", []) if printer else []
+        ext_loc = printer.get("external_loc", "") if printer else ""
+
         try: duration = float(job.get('duration_h', 0.0) or 0.0)
         except: duration = 0.0
         
         kwh_price = float(self.settings.get("kwh_price", 0.30))
-        watts = int(self.settings.get("printer_watts", 150))
+        
+        # Drucker-spezifische Werte mit globalem Fallback
+        watts = 150
+        if printer and printer.get("printer_watts") not in (None, ""):
+            try: watts = int(printer.get("printer_watts"))
+            except: pass
+        else:
+            watts = int(self.settings.get("printer_watts", 150))
+            
+        wear_price = 0.20
+        if printer and printer.get("wear_per_hour") not in (None, ""):
+            try: wear_price = float(printer.get("wear_per_hour"))
+            except: pass
+        else:
+            wear_price = float(self.settings.get("wear_per_hour", 0.20))
+            
         strom_kosten = duration * (watts / 1000.0) * kwh_price
         
         info_str = f"Verbrauch: {total_weight}g"
@@ -3329,12 +3803,15 @@ class FilamentApp:
             raw_ams = m.get('ams', -1)
             weight = round(m.get('weight', 0.0), 1)
             best_match = None
-            lbl_text = "Unbekannt:"
             
-            if raw_ams >= 0:
-                ams_num = (raw_ams // 4) + 1
+            if raw_ams >= 0 and raw_ams != 255:
+                local_ams_idx = raw_ams // 4
+                if printer and local_ams_idx < len(ams_ids):
+                    global_ams_id = ams_ids[local_ams_idx]
+                else:
+                    global_ams_id = local_ams_idx + 1
                 slot_num = (raw_ams % 4) + 1
-                ams_name = f"AMS {ams_num}"
+                ams_name = f"AMS {global_ams_id}"
                 lbl_text = f"{ams_name} Slot {slot_num}:"
                 
                 # --- NEU: DIE ZEITMASCHINE (SMART AMS MEMORY) ---
@@ -3374,6 +3851,10 @@ class FilamentApp:
                 if not best_match:
                     best_match = next((s for s in self.inventory if s.get('type') == ams_name and str(s.get('loc_id')) == str(slot_num)), None)
                 # --- ENDE ZEITMASCHINE ---
+            else:
+                lbl_text = f"Extern ({ext_loc}):" if ext_loc else "Extern/Spule:"
+                if ext_loc:
+                    best_match = next((s for s in self.inventory if s.get('type') == ext_loc and s.get('type') != 'VERBRAUCHT'), None)
 
             ttk.Label(row, text=lbl_text, width=12, font=("Segoe UI", 9, "bold")).pack(side="left")
             
@@ -3418,7 +3899,6 @@ class FilamentApp:
                         except: pass
 
                         anteil = w_val / total_weight if total_weight > 0 else 1.0
-                        wear_price = float(self.settings.get("wear_per_hour", 0.20))
                         
                         echte_kosten = mat_cost + (strom_kosten * anteil) + ((duration * wear_price) * anteil)
                         margin_percent = int(self.settings.get("profit_margin", 0))
@@ -3453,7 +3933,7 @@ class FilamentApp:
                 anteil = total_deducted / total_weight if total_weight > 0 else 1.0
                 
                 if hasattr(self, "show_custom_toast"):
-                    self.show_custom_toast("💰 Filament verrechnet", f"Verbrauch: {total_deducted:.1f}g\nGesamtkosten: {mat_cost + (strom_kosten * anteil):.2f} €")
+                    self.show_custom_toast("💰 Filament verrechnet", f"Verbrauch: {total_deducted:.1f}g\nGesamtkosten: {mat_cost + (strom_kosten * anteil) + ((duration * wear_price) * anteil):.2f} €")
             else:
                 from tkinter import messagebox
                 messagebox.showerror("Fehler", "Es wurden keine gültigen Gewichte eingetragen.", parent=parent_win)
@@ -3468,12 +3948,34 @@ class FilamentApp:
         mappings = job.get('mapping', [])
         job_id = str(job.get('id', ''))
 
+        # Drucker anhand deviceId ermitteln
+        job_dev_id = job.get("deviceId", "")
+        printers = self.settings.get("printers", [])
+        printer = next((p for p in printers if p.get("serial") == job_dev_id), None)
+        ams_ids = printer.get("ams_ids", []) if printer else []
+        ext_loc = printer.get("external_loc", "") if printer else ""
+
         ttk.Label(content, text=f"Druck: {model}", font=("Segoe UI", 12, "bold"), wraplength=350, justify="center").pack(pady=(10, 5))
         
         # --- NEU: Stromkosten berechnen ---
         duration = job.get('duration_h', 0.0)
         kwh_price = float(self.settings.get("kwh_price", 0.30))
-        watts = int(self.settings.get("printer_watts", 150))
+        
+        # Drucker-spezifische Werte mit globalem Fallback
+        watts = 150
+        if printer and printer.get("printer_watts") not in (None, ""):
+            try: watts = int(printer.get("printer_watts"))
+            except: pass
+        else:
+            watts = int(self.settings.get("printer_watts", 150))
+            
+        wear_price = 0.20
+        if printer and printer.get("wear_per_hour") not in (None, ""):
+            try: wear_price = float(printer.get("wear_per_hour"))
+            except: pass
+        else:
+            wear_price = float(self.settings.get("wear_per_hour", 0.20))
+            
         strom_kosten = duration * (watts / 1000.0) * kwh_price
         
         info_str = f"Verbrauch: {total_weight}g"
@@ -3511,17 +4013,23 @@ class FilamentApp:
             weight = round(m.get('weight', 0.0), 1)
             
             best_match = None
-            lbl_text = "Unbekannt:"
             
-            if raw_ams >= 0:
-                # Bambu API: 0-3 = AMS 1, 4-7 = AMS 2 usw.
-                ams_num = (raw_ams // 4) + 1
+            if raw_ams >= 0 and raw_ams != 255:
+                local_ams_idx = raw_ams // 4
+                if printer and local_ams_idx < len(ams_ids):
+                    global_ams_id = ams_ids[local_ams_idx]
+                else:
+                    global_ams_id = local_ams_idx + 1
                 slot_num = (raw_ams % 4) + 1
-                ams_name = f"AMS {ams_num}"
+                ams_name = f"AMS {global_ams_id}"
                 lbl_text = f"{ams_name} Slot {slot_num}:"
                 
                 # Wir suchen direkt, was aktuell in VibeSpool auf diesem Slot liegt!
                 best_match = next((s for s in self.inventory if s.get('type') == ams_name and str(s.get('loc_id')) == str(slot_num)), None)
+            else:
+                lbl_text = f"Extern ({ext_loc}):" if ext_loc else "Extern/Spule:"
+                if ext_loc:
+                    best_match = next((s for s in self.inventory if s.get('type') == ext_loc and s.get('type') != 'VERBRAUCHT'), None)
 
             ttk.Label(row, text=lbl_text, width=12, font=("Segoe UI", 9, "bold")).pack(side="left")
             
@@ -3581,7 +4089,6 @@ class FilamentApp:
                         anteil = w_val / total_weight if total_weight > 0 else 1.0
                         strom_anteil = strom_kosten * anteil
                         
-                        wear_price = float(self.settings.get("wear_per_hour", 0.20))
                         wear_anteil = (duration * wear_price) * anteil
                         
                         echte_kosten = spool_mat_cost + strom_anteil + wear_anteil
@@ -3623,8 +4130,8 @@ class FilamentApp:
                 self.toggle_side_panel(force_close=True)
                 
                 anteil = total_deducted / total_weight if total_weight > 0 else 1.0
-                gesamt_kosten = mat_cost + (strom_kosten * anteil)
-                self.show_custom_toast("💰 Filament verrechnet", f"Verbrauch: {total_deducted:.1f}g\nGesamtkosten (Material + Strom): {gesamt_kosten:.2f} €")
+                gesamt_kosten = mat_cost + (strom_kosten * anteil) + ((duration * wear_price) * anteil)
+                self.show_custom_toast("💰 Filament verrechnet", f"Verbrauch: {total_deducted:.1f}g\nGesamtkosten (Material + Strom + Verschleiß): {gesamt_kosten:.2f} €")
             else:
                 from tkinter import messagebox
                 messagebox.showerror("Fehler", "Es wurden keine gültigen Gewichte eingetragen.", parent=self.root)

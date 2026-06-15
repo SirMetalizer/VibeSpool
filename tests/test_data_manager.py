@@ -69,3 +69,62 @@ def test_get_filtered_inventory_ams_logic():
     results = dm.get_filtered_inventory(inventory, "", {"location": "AMS 1"})
     assert len(results) == 1
     assert results[0]["type"] == "AMS 1"
+
+def test_data_manager_printer_migration():
+    dm = DataManager({})
+    
+    old_settings = {
+        "bambu_ip": "192.168.1.100",
+        "bambu_access": "123456",
+        "bambu_serial": "00M123",
+        "use_bambu": True,
+        "num_ams": 2,
+        "custom_locs": "Filamenttrockner, P1S 2 Extern"
+    }
+    
+    with patch("core.data_manager.load_json") as mock_load:
+        mock_load.side_effect = [old_settings.copy(), [], []]
+        dm.save_settings = MagicMock()
+        
+        inventory, settings, spools = dm.load_all(old_settings)
+        
+        assert "printers" in settings
+        assert len(settings["printers"]) == 1
+        
+        printer = settings["printers"][0]
+        assert printer["name"] == "Drucker 1"
+        assert printer["ip"] == "192.168.1.100"
+        assert printer["access_code"] == "123456"
+        assert printer["serial"] == "00M123"
+        assert printer["ams_ids"] == [1, 2]
+        assert printer["external_loc"] == "P1S 2 Extern"
+        assert printer["use_mqtt"] is True
+
+def test_data_manager_printer_costs():
+    dm = DataManager({})
+    settings = {
+        "printers": [
+            {
+                "id": "abc",
+                "name": "P1S 1",
+                "type": "bambu",
+                "ip": "192.168.1.10",
+                "access_code": "code",
+                "serial": "SN123",
+                "ams_ids": [1],
+                "external_loc": "P1S 1 Extern",
+                "use_mqtt": True,
+                "printer_watts": 250,
+                "wear_per_hour": 0.45
+            }
+        ]
+    }
+    
+    with patch("core.data_manager.load_json") as mock_load:
+        mock_load.side_effect = [settings.copy(), [], []]
+        inventory, loaded_settings, spools = dm.load_all(settings)
+        
+        assert len(loaded_settings["printers"]) == 1
+        printer = loaded_settings["printers"][0]
+        assert printer["printer_watts"] == 250
+        assert printer["wear_per_hour"] == 0.45

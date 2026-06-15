@@ -1,27 +1,29 @@
 # 🧵 VibeSpool - Das smarte Filament-Management-System
 
-![Version](https://img.shields.io/badge/version-2.1.1-blue.svg)
+![Version](https://img.shields.io/badge/version-2.2.0-blue.svg)
 ![Python](https://img.shields.io/badge/python-3.10%2B-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
 **Die smarte Schaltzentrale für dein 3D-Druck Filament-Lager.** VibeSpool ist ein lokales Desktop-Tool (Python/Tkinter), das dir die volle visuelle, mobile und kaufmännische Kontrolle über deine Spulen gibt.
 
 <img width="1924" height="1044" alt="VibeSpool Main Dashboard" src="https://github.com/user-attachments/assets/7234891c-0458-478b-8c5a-7d9e6cd184cb" />
-
 ---
 
-## 🆕 Was ist neu in Version 2.1.1? ("The Planner, Quick Cost & Visualizer Customization Update")
-Dieses Update erweitert die Funktionen des Auftragsplaners, des Quick-Cost Rechners und bringt vollständige Personalisierungsmöglichkeiten für die visuelle Regalübersicht!
+## 🆕 Was ist neu in Version 2.2.0? ("The Multi-Printer, Custom Location & Smart-Match Update")
+Dieses Update führt die Unterstützung für beliebig viele 3D-Drucker ein, verbessert das Smart-Match & die Kostenkalkulation erheblich, bringt Geometrie-Speicherung für alle Dialogfenster und optimiert die Regalansicht inklusive neuem Rechtsklick-Kontextmenü!
 
 ### ✨ Die Highlights:
 
-* **📝 Flexiblerer Auftragsplaner:** Weise anstehenden Druckaufträgen mehrere Spulen mit individueller Grammvorgabe und geplanter Druckzeit zu. Die Live-Preisanzeige kalkuliert automatisch Materialkosten, Strom und Verschleiß. Beim Abschließen des Auftrags werden alle Werte direkt in den Abbuchungsdialog übernommen!
-* **🧮 Quick-Cost Rechner V2:** Füge beliebig viele Spulenreihen hinzu und wähle Spulen direkt aus deinem Lagerbestand über ein Dropdown-Menü aus. Der Preis pro Kilogramm wird auf Basis von Kapazität und Kaufpreis automatisch errechnet.
-* **🔍 Symbolgröße & Zoom in der Regalansicht:** Wähle in der Toolbar zwischen **Klein**, **Mittel** und **Groß**. Die Symbole, Layout-Abstände und Schriftgrößen skalieren dynamisch mit. Die Einstellung wird in deinen Einstellungen persistiert.
-* **📌 Verbessertes AMS-Pinning:** Fixierte AMS-Einheiten werden in einem optisch abgegrenzten Bereich (`📌 Angeheftete AMS-Einheiten`) oberhalb des Regals dargestellt und können über die Toolbar oder das Hauptmenü an- und abgeheftet werden.
-* **🔒 Stabile AMS-Sortierung:** AMS-Spulen bleiben im Hauptfenster auch beim Sortieren der Tabelle (z. B. nach Marke oder Restgewicht) in ihrer physischen Slot-Reihenfolge (1, 2, 3, 4) fixiert und werden nicht mehr umgekehrt oder durcheinandergewürfelt.
-* **📊 Kombinierte Finanz-Gruppierung:** Analysiere deine Spulen nach kombinierten Werten wie z. B. "Hersteller & Farbe" oder "Material & Farbe" im Bestands-Dashboard.
-* **🔧 Bugfixes & Stabilität:** Behebt den `bad window path name` Absturz beim Speichern der Einstellungen bei geschlossener Regalansicht. 32/32 Unit-Tests sichern nun die Stabilität der Kernfunktionen ab.
+* **🤖 Multi-Drucker-Verwaltung:** Dynamische Liste von Druckern (Bambu Lab, Klipper/Moonraker oder Manuell) in den Einstellungen erstellen, bearbeiten und löschen.
+* **🔌 AMS- & Spulen-Zuordnung pro Drucker:** Weise AMS-Einheiten und externe Spulenplätze (z. B. `P1S 2 Extern`) bestimmten Druckern zu, um deinen Filamentbestand optimal zu strukturieren.
+* **🧠 Intelligenteres Smart-Match & Aggregation:** Cloud- und Live-Syncs ordnen Verbräuche exakt den druckerspezifischen Slots zu. Die globale Druckhistorie aggregiert Kosten und Verbräuche über alle Drucker hinweg.
+* **⚡ Druckerspezifische Strom- & Verschleißkosten:** Konfiguriere Leistung (Watt) und Verschleiß (pro Stunde) individuell pro Drucker für eine centgenaue Kalkulation bei Aufträgen und im Quick-Cost Rechner.
+* **📐 Fenstergröße- & Positions-Speicherung:** Alle Dialogfenster (Hauptfenster, Aufträge, Finanzen, Spulendatenbank, Labels, Einkaufsliste und Flussrechner) merken sich nun ihre Größe und Position – sowohl beim Schließen über das "X" als auch über Buttons im Dialog.
+* **📦 Regal-Optimierungen & Rechtsklick-Menü:**
+  * **Neues Kontextmenü:** Rechtsklick auf Spulen im Regal ermöglicht Quick-Swap, Löschen, Klonen, Öffnen des Spulen-Logbuchs und mehr (inklusive automatischem Filter-Reset).
+  * **Leere Zusatz-Orte:** Freie, benutzerdefinierte Standorte werden nun im Regal visualisiert, um leere Slots als Drag & Drop-Ziele anzubieten.
+  * **Scrollbar-Intelligenz:** Der horizontale Scrollbalken sperrt sich automatisch, wenn der Inhalt komplett sichtbar ist, und schaltet sich erst bei Überlauf aktiv.
+  * **37 Kerntests:** 37 Unit-Tests sichern nun die Stabilität der Kernfunktionen dauerhaft ab.
 
 ---
 
@@ -114,6 +116,14 @@ Starten:
 ---
 
 ## ⏳ Release-Historie
+
+### 🆕 Was ist neu in Version 2.1.1? ("The Planner, Quick Cost & Visualizer Customization Update")
+* **📝 Flexiblerer Auftragsplaner:** Zuweisung mehrerer Spulen mit individueller Grammvorgabe und automatischer Preiskalkulation pro geplanter Druckzeit.
+* **🧮 Quick-Cost Rechner V2:** Beliebig viele Spulenreihen und direkte Spulenauswahl aus dem Lagerbestand per Dropdown.
+* **🔍 Symbolgröße & Zoom in der Regalansicht:** Dynamisches Skalieren (Klein, Mittel, Groß) inklusive Layout-Abständen und Schriftgrößen.
+* **📌 Verbessertes AMS-Pinning:** Separater, abgegrenzter Bereich für fixierte AMS-Einheiten.
+* **🔒 Stabile AMS-Sortierung:** Fixierung der AMS-Spulen in ihrer physischen Slot-Reihenfolge beim Sortieren der Tabelle.
+* **📊 Kombinierte Finanz-Gruppierung:** Kombinationen wie "Hersteller & Farbe" im Dashboard.
 
 ### 🆕 Was ist neu in Version 2.1.0? ("The Finance, Archive & Scroll Update")
 * **📊 Finanzen nach Hersteller & Farbe:** Im Analytics-Dashboard gibt es ein neues Register für die detaillierte Aufteilung nach Marke (Hersteller) und bereinigter Farbe. Sämtliche Tabellenspalten im Dashboard lassen sich jetzt per Klick interaktiv sortieren!

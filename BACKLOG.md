@@ -11,6 +11,8 @@
 - [x] **📋 Drucker-Auswahl & Kalkulation bei Aufträgen:** Auswahl des Druckers in der Warteschlange zur präzisen Kostenschätzung und zum verbrauchsabhängigen Abzug.
 - [x] **🧮 Drucker-Auswahl im Quick-Cost Rechner:** Live-Kalkulation der Kosten basierend auf druckerspezifischen Parametern direkt im Schnellrechner.
 - [x] **📊 Globale Druckhistorie-Aggregation:** Automatische Zusammenführung und Berechnung der tatsächlichen Druckkosten über alle Drucker hinweg.
+- [x] **🧮 Quick-Cost Spulenpreis-Fix:** Zuverlässige Übernahme des Spulenpreises bei String-ID-Spulen.
+- [x] **📋 Job-Abzug Layout-Fix:** Scrollbare Ansicht und sichtbare Buttons im Dialog "Erledigt & Abziehen".
 
 ## ✅ Abgeschlossen (v2.1.2 - "The Slicer, Time Split & Dashboard Filter Update")
 - [x] **⏱️ Stunden/Minuten-Eingabe:** Präzise Eingabe von Stunden und Minuten bei Druckzeiten im Auftragsplaner und Job-Abzug (keine reinen Dezimalzahlen mehr).

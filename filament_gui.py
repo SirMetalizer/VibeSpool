@@ -755,7 +755,7 @@ class FilamentApp:
                     match = re.match(r'^\[(\d+)\]', val)
                     if match:
                         sp_id = int(match.group(1))
-                        sp = next((i for i in self.inventory if i.get('id') == sp_id), None)
+                        sp = next((i for i in self.inventory if str(i.get('id')) == str(sp_id)), None)
                         if sp:
                             try:
                                 sp_price = float(str(sp.get('price', '0')).replace(',', '.'))

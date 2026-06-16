@@ -65,7 +65,18 @@ class JobDeductionDialog(tk.Toplevel):
     def build_ui(self):
         ttk.Label(self, text=f"Auftrag: {self.job.get('title', 'Unbekannt')}", font=("Segoe UI", 14, "bold")).pack(pady=15)
         
-        frm = ttk.Frame(self, padding=20)
+        # Pack footer (buttons) first at the bottom so they are always visible
+        btn_frm = ttk.Frame(self, padding=10)
+        btn_frm.pack(fill="x", side="bottom")
+        
+        ttk.Button(btn_frm, text="Abbrechen", command=self.destroy).pack(side="right", padx=5)
+        ttk.Button(btn_frm, text="💾 Speichern & Abziehen", style="Accent.TButton", command=self.process_deduction).pack(side="right", padx=5)
+
+        # Pack scrollable content frame to fill the remaining space in the middle
+        sf = ScrollableFrame(self)
+        sf.pack(fill="both", expand=True, padx=20, pady=5)
+        
+        frm = ttk.Frame(sf.inner)
         frm.pack(fill="both", expand=True)
         
         ttk.Label(frm, text="⏱️ Gesamte Druckzeit:").pack(anchor="w")
@@ -80,7 +91,7 @@ class JobDeductionDialog(tk.Toplevel):
         self.ent_mins.pack(side="left")
         ttk.Label(time_frm, text="Min").pack(side="left", padx=2)
         
-        planned_time = float(self.job.get('print_time', 1.0))
+        planned_time = safe_float(self.job.get('print_time'), 1.0)
         h, m = decimal_to_hm(planned_time)
         self.ent_hours.insert(0, str(h))
         self.ent_mins.insert(0, str(m))
@@ -109,7 +120,14 @@ class JobDeductionDialog(tk.Toplevel):
             ent = ttk.Entry(row, width=10)
             # Pre-fill with planned spool weight if available
             sp_id_str = str(sp['id'])
-            planned_w_val = planned_weights.get(sp_id_str, planned_weights.get(int(sp_id_str)))
+            planned_w_val = None
+            if planned_weights:
+                planned_w_val = planned_weights.get(sp_id_str)
+                if planned_w_val is None:
+                    try:
+                        planned_w_val = planned_weights.get(int(sp_id_str))
+                    except (ValueError, TypeError):
+                        pass
             if planned_w_val is None:
                 planned_w = str(weight_per_spool) if weight_per_spool > 0 else '0'
             else:
@@ -120,13 +138,6 @@ class JobDeductionDialog(tk.Toplevel):
             ent.pack(side="right")
             ttk.Label(row, text="g").pack(side="right", padx=5)
             self.spool_entries[sp['id']] = ent
-
-        # --- FOOTER ---
-        btn_frm = ttk.Frame(self, padding=10)
-        btn_frm.pack(fill="x", side="bottom")
-        
-        ttk.Button(btn_frm, text="Abbrechen", command=self.destroy).pack(side="right", padx=5)
-        ttk.Button(btn_frm, text="💾 Speichern & Abziehen", style="Accent.TButton", command=self.process_deduction).pack(side="right", padx=5)
 
     def process_deduction(self):
         try:

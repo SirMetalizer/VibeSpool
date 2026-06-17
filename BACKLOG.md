@@ -1,5 +1,10 @@
 # 📋 VibeSpool Development Backlog
 
+## ✅ Abgeschlossen (v2.2.2 - "The Search & Custom ID Patch")
+- [x] **🧮 Quick-Cost Alphanumeric-ID-Fix:** Die Preisermittlung funktioniert nun auch bei selbst angelegten, alphanumerischen Spulen-IDs (z. B. `PLA-01`) fehlerfrei durch Umstellung der Regex-Filterung auf einen flexiblen Split-Mechanismus.
+- [x] **🔍 Suchfunktion im Quick-Cost Rechner:** Spulenauswahl über ein neues, integriertes Suchfeld oberhalb des Dropdowns filtern, statt durch lange Listen scrollen zu müssen.
+- [x] **🔍 Suchfunktion im Auftragsplaner:** Spulen in der Spulen-Auswahl für neue Aufträge über ein Suchfeld filtern und per Enter-Taste direkt zum Auftrag hinzufügen.
+
 ## ✅ Abgeschlossen (v2.2.0 - "The Multi-Printer, Custom Location & Smart-Match Update")
 - [x] **🤖 Multi-Drucker-Verwaltung:** Dynamische Liste von Druckern (Bambu Lab & Klipper) in den Einstellungen anlegen, bearbeiten und löschen.
 - [x] **🔌 AMS- & Spulen-Zuordnung pro Drucker:** Zuweisung von globalen AMS-Einheiten an bestimmte Drucker sowie Definition eines standardmäßigen Lagerorts (z. B. `P1S 2 Extern`) für die externe Spule.

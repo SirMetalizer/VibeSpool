@@ -725,12 +725,20 @@ class FilamentApp:
             row_container = ttk.Frame(spools_frame)
             row_container.pack(fill="x", pady=5)
             
-            # Line 1: Combobox
+            # Line 1: Search Entry
+            search_frm = ttk.Frame(row_container)
+            search_frm.pack(fill="x", pady=(0, 2))
+            
+            ttk.Label(search_frm, text="🔍", font=("Segoe UI", 9)).pack(side="left", padx=(0, 2))
+            ent_search = ttk.Entry(search_frm, font=("Segoe UI", 9))
+            ent_search.pack(side="left", fill="x", expand=True)
+            
+            # Line 2: Combobox
             combo_spool = ttk.Combobox(row_container, values=spool_list, state="readonly", font=("Segoe UI", 9))
             combo_spool.current(0)
             combo_spool.pack(fill="x", pady=(0, 2))
             
-            # Line 2: Fields and delete button
+            # Line 3: Fields and delete button
             fields_frm = ttk.Frame(row_container)
             fields_frm.pack(fill="x")
             
@@ -752,9 +760,8 @@ class FilamentApp:
                 if val == "[ Manueller Eintrag ]":
                     pass
                 else:
-                    match = re.match(r'^\[(\d+)\]', val)
-                    if match:
-                        sp_id = int(match.group(1))
+                    if val.startswith("[") and "]" in val:
+                        sp_id = val.split("]")[0][1:]
                         sp = next((i for i in self.inventory if str(i.get('id')) == str(sp_id)), None)
                         if sp:
                             try:
@@ -767,7 +774,21 @@ class FilamentApp:
                                     calc()  # Recalculate live
                             except: pass
                             
+            def filter_spools(event):
+                q = ent_search.get().lower().strip()
+                if not q:
+                    combo_spool['values'] = spool_list
+                else:
+                    filtered = [spool_list[0]] + [s for s in spool_list[1:] if q in s.lower()]
+                    combo_spool['values'] = filtered
+                    if len(filtered) > 1:
+                        combo_spool.current(1)
+                        on_spool_select(None)
+                    else:
+                        combo_spool.current(0)
+                            
             combo_spool.bind("<<ComboboxSelected>>", on_spool_select)
+            ent_search.bind("<KeyRelease>", filter_spools)
             
             rows.append((row_container, ent_p, ent_w, btn_del))
             if len(rows) == 1:

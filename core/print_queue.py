@@ -425,16 +425,44 @@ class PrintQueueDialog(tk.Toplevel):
         frm_spool_input = ttk.Frame(sf.inner)
         frm_spool_input.pack(fill="x", pady=(0, 10))
         
-        spool_list = ["+ Spule hinzufügen..."]
+        self.spool_list = ["+ Spule hinzufügen..."]
         for i in self.app.inventory:
             if i.get('type') != 'VERBRAUCHT':
                 color_clean = str(i.get('color', '')).split('(')[0].strip()
-                spool_list.append(f"[{i['id']}] {i.get('brand','')} {color_clean}")
+                self.spool_list.append(f"[{i['id']}] {i.get('brand','')} {color_clean}")
         
-        self.combo_add = ttk.Combobox(frm_spool_input, values=spool_list, state="readonly")
+        # Subframe for search entry (with search icon)
+        search_subfrm = ttk.Frame(frm_spool_input)
+        search_subfrm.pack(fill="x", pady=(0, 2))
+        
+        ttk.Label(search_subfrm, text="🔍").pack(side="left", padx=(0, 5))
+        self.ent_search_spool = ttk.Entry(search_subfrm)
+        self.ent_search_spool.pack(side="left", fill="x", expand=True)
+        
+        self.combo_add = ttk.Combobox(frm_spool_input, values=self.spool_list, state="readonly")
         self.combo_add.current(0)
-        self.combo_add.pack(side="left", fill="x", expand=True)
+        self.combo_add.pack(fill="x")
         self.combo_add.bind("<<ComboboxSelected>>", self.on_quick_add_spool)
+        
+        def filter_add_spools(event):
+            q = self.ent_search_spool.get().lower().strip()
+            if not q:
+                self.combo_add['values'] = self.spool_list
+                self.combo_add.current(0)
+            else:
+                filtered = [self.spool_list[0]] + [s for s in self.spool_list[1:] if q in s.lower()]
+                self.combo_add['values'] = filtered
+                if len(filtered) > 1:
+                    self.combo_add.current(1)
+                else:
+                    self.combo_add.current(0)
+                    
+        def on_search_enter(event):
+            if self.combo_add.current() > 0:
+                self.on_quick_add_spool(None)
+                
+        self.ent_search_spool.bind("<KeyRelease>", filter_add_spools)
+        self.ent_search_spool.bind("<Return>", on_search_enter)
         
         # NEU: Errechneter Preis inside scrollable container
         self.lbl_calc_price = ttk.Label(sf.inner, text="Errechneter Preis: 0.00 €", font=("Segoe UI", 11, "bold"), foreground="#0078d7")
@@ -584,6 +612,13 @@ class PrintQueueDialog(tk.Toplevel):
         if sel.startswith("["):
             spid = sel.split("]")[0].replace("[", "")
             self.add_spool_row(spid, 100.0)
+            
+        # Clean search input if it exists
+        if hasattr(self, 'ent_search_spool') and self.ent_search_spool.winfo_exists():
+            self.ent_search_spool.delete(0, tk.END)
+            if hasattr(self, 'spool_list'):
+                self.combo_add['values'] = self.spool_list
+                
         self.combo_add.current(0)
 
     def select_image(self):

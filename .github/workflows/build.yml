@@ -41,24 +41,7 @@ jobs:
     # --- NEU: ECHTER WINDOWS INSTALLER (Inno Setup) ---
     - name: Inno Setup Skript generieren (Windows)
       if: matrix.os == 'windows-latest'
-      run: |
-        echo "[Setup]" > setup.iss
-        echo "AppName=VibeSpool" >> setup.iss
-        echo "DefaultDirName={autopf}\VibeSpool" >> setup.iss
-        echo "DefaultGroupName=VibeSpool" >> setup.iss
-        echo "OutputDir=dist" >> setup.iss
-        echo "OutputBaseFilename=VibeSpool_Setup" >> setup.iss
-        echo "SetupIconFile=core\vibespool-icon.ico" >> setup.iss
-        echo "Compression=lzma2" >> setup.iss
-        echo "SolidCompression=yes" >> setup.iss
-        echo "PrivilegesRequired=lowest" >> setup.iss
-        echo "[Files]" >> setup.iss
-        echo "Source: ""dist\VibeSpool_Win.exe""; DestDir: ""{app}""; Flags: ignoreversion" >> setup.iss
-        echo "[Icons]" >> setup.iss
-        echo "Name: ""{group}\VibeSpool""; Filename: ""{app}\VibeSpool_Win.exe""" >> setup.iss
-        echo "Name: ""{autodesktop}\VibeSpool""; Filename: ""{app}\VibeSpool_Win.exe""; Tasks: desktopicon" >> setup.iss
-        echo "[Tasks]" >> setup.iss
-        echo "Name: ""desktopicon""; Description: ""Desktop-Symbol erstellen""; GroupDescription: ""Zusatzliche Symbole:""" >> setup.iss
+      run: python generate_setup.py
 
     - name: Installer kompilieren (Windows)
       if: matrix.os == 'windows-latest'

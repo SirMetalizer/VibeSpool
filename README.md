@@ -1,6 +1,6 @@
 # 🧵 VibeSpool - Das smarte Filament-Management-System
 
-![Version](https://img.shields.io/badge/version-2.2.0-blue.svg)
+![Version](https://img.shields.io/badge/version-2.3.0-blue.svg)
 ![Python](https://img.shields.io/badge/python-3.10%2B-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
@@ -9,8 +9,8 @@
 <img width="1924" height="1044" alt="VibeSpool Main Dashboard" src="https://github.com/user-attachments/assets/7234891c-0458-478b-8c5a-7d9e6cd184cb" />
 ---
 
-## 🆕 Was ist neu in Version 2.2.0? ("The Multi-Printer, Custom Location & Smart-Match Update")
-Dieses Update führt die Unterstützung für beliebig viele 3D-Drucker ein, verbessert das Smart-Match & die Kostenkalkulation erheblich, bringt Geometrie-Speicherung für alle Dialogfenster und optimiert die Regalansicht inklusive neuem Rechtsklick-Kontextmenü!
+## 🆕 Was ist neu in Version 2.3.0? ("The Custom Label & Project Module Update")
+Dieses Update bringt maximale Freiheit beim Etikettendruck durch frei konfigurierbare Label-Größen mit proportionaler Skalierung, eine direkte System-Vorschau und DPI-genauen PDF-Export sowie eine mächtige, modular aktivierbare Projektverwaltung zur strukturierten Organisation und Kosten-Aggregation deiner Druckaufträge!
 
 ### ✨ Die Highlights:
 
@@ -24,6 +24,13 @@ Dieses Update führt die Unterstützung für beliebig viele 3D-Drucker ein, verb
   * **Leere Zusatz-Orte:** Freie, benutzerdefinierte Standorte werden nun im Regal visualisiert, um leere Slots als Drag & Drop-Ziele anzubieten.
   * **Scrollbar-Intelligenz:** Der horizontale Scrollbalken sperrt sich automatisch, wenn der Inhalt komplett sichtbar ist, und schaltet sich erst bei Überlauf aktiv.
   * **37 Kerntests:** 37 Unit-Tests sichern nun die Stabilität der Kernfunktionen dauerhaft ab.
+
+* **🏷️ Eigene Label-Größe & dynamische Skalierung:** Breite und Höhe sind im Label Creator in mm konfigurierbar. Alle Texte und der QR-Code skalieren proportional mit. Je nach Seitenverhältnis passt sich die Orientierung (Horizontal/Vertikal) automatisch an.
+* **👁️ System-Vorschau für Labels:** Öffne den hochauflösenden Label-Entwurf mit nur einem Klick direkt im Standard-Bildbetrachter deines Betriebssystems vor dem eigentlichen Druck.
+* **📄 DPI-korrekter PDF-Export:** Skaliert Labelraster im DIN A4-Export auf 300 DPI und Rollen-Labels im 1-Label-pro-Seite Modus auf exakte Millimeter-Abmessungen via 254.0 DPI (10px/mm) zur Vermeidung von Verzerrungen.
+* **📂 Globaler Druckverlauf & Projektverwaltung:** Organisiere Druckaufträge in Gruppen, Ordnern und Unterordnern (z. B. `Litophane / runde`). Das Projektmodul lässt sich in den Einstellungen flexibel aktivieren und ist standardmäßig deaktiviert.
+* **📊 Aggregierte Projekt-Statistiken:** Rekursive Aufsummierung von Auftragsanzahl, verbrauchtem Filamentgewicht, Druckzeit sowie Kosten und Umsätzen direkt im Projekt-Fenster und in einem neuen "Projekte"-Tab innerhalb des Finanz-Dashboards.
+
 
 ---
 
@@ -116,6 +123,18 @@ Starten:
 ---
 
 ## ⏳ Release-Historie
+
+### 🆕 Was ist neu in Version 2.2.0? ("The Multi-Printer, Custom Location & Smart-Match Update")
+* **🤖 Multi-Drucker-Verwaltung:** Dynamische Liste von Druckern (Bambu Lab & Klipper) in den Einstellungen anlegen, bearbeiten und löschen.
+* **🔌 AMS- & Spulen-Zuordnung pro Drucker:** Zuweisung von globalen AMS-Einheiten an bestimmte Drucker sowie Definition eines standardmäßigen Lagerorts (z. B. `P1S 2 Extern`) für die externe Spule.
+* **🧠 Intelligenteres Smart-Match:** Automatische Zuweisung von Druckjobs zu dem jeweiligen Drucker und seinen Slots.
+* **🏠 Visualisierung leerer Zusatz-Orte:** Custom Lagerorte werden im Regal-Visualisierer nun immer angezeigt, um Drag & Drop dorthin zu ermöglichen.
+* **🔄 Quick-Swap-Erweiterung:** Quick-Swap-Dialog um alle benutzerdefinierten Orte und das globale LAGER erweitert.
+* **⚡ Druckerspezifische Strom- & Verschleißkosten:** Konfiguration von Watt und Verschleiß pro Drucker im Settings-Editor zur prioritären Verwendung im Smart-Match-Abzug.
+* **📐 Fenstergröße- & Positions-Speicherung:** Alle Dialogfenster merken sich nun ihre Geometrie.
+* **📋 Drucker-Auswahl & Kalkulation bei Aufträgen:** Auswahl des Druckers in der Warteschlange zur präzisen Kostenschätzung und zum verbrauchsabhängigen Abzug.
+* **🧮 Drucker-Auswahl im Quick-Cost Rechner:** Live-Kalkulation der Kosten basierend auf druckerspezifischen Parametern direkt im Schnellrechner.
+* **📊 Globale Druckhistorie-Aggregation:** Zusammenführung und Berechnung der tatsächlichen Druckkosten über alle Drucker hinweg.
 
 ### 🆕 Was ist neu in Version 2.1.1? ("The Planner, Quick Cost & Visualizer Customization Update")
 * **📝 Flexiblerer Auftragsplaner:** Zuweisung mehrerer Spulen mit individueller Grammvorgabe und automatischer Preiskalkulation pro geplanter Druckzeit.

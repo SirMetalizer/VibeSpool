@@ -220,7 +220,7 @@ class JobDeductionDialog(tk.Toplevel):
             
             # Job als Erledigt markieren
             self.job['status'] = "Erledigt ✅"
-            self.app.data_manager.save_jobs(self.queue_dialog.jobs)
+            self.queue_dialog.save_jobs_and_sync()
             self.queue_dialog.refresh_list()
             self.queue_dialog.reset_form()
             
@@ -252,6 +252,8 @@ class PrintQueueDialog(tk.Toplevel):
 
         self.selected_job_id = None
         self.jobs = self.app.data_manager.load_jobs()
+        self.projects = self.app.data_manager.load_projects()
+        self.project_path_to_id = {}
         self.selected_spool_entries = {}  # maps spool_id -> (entry_widget, row_frame)
         
         db_dir = os.path.dirname(os.path.abspath(self.app.data_manager.filename if hasattr(self.app.data_manager, "filename") else "inventory.json"))
@@ -387,6 +389,11 @@ class PrintQueueDialog(tk.Toplevel):
         self.combo_printer.current(0)
         self.combo_printer.pack(fill="x", pady=(0, 10))
         self.combo_printer.bind("<<ComboboxSelected>>", self.recalculate_price)
+        
+        ttk.Label(frm_form, text="Projekt / Ordner:").pack(anchor="w")
+        self.combo_project = ttk.Combobox(frm_form, state="readonly")
+        self.combo_project.pack(fill="x", pady=(0, 10))
+        self.update_project_combobox_values()
         
         ttk.Label(frm_form, text="Modell-Link:").pack(anchor="w")
         frm_link = ttk.Frame(frm_form)
@@ -784,6 +791,18 @@ class PrintQueueDialog(tk.Toplevel):
             self.txt_notes.delete("1.0", tk.END); self.txt_notes.insert("1.0", job.get('notes', ''))
             self.recalculate_price()
             
+            # Load project ID
+            proj_id = job.get("project_id", "")
+            found = False
+            if proj_id:
+                for path, fid in self.project_path_to_id.items():
+                    if fid == proj_id:
+                        self.combo_project.set(path)
+                        found = True
+                        break
+            if not found:
+                self.combo_project.current(0)
+                
             self.temp_image_path = None
             img_name = job.get('image_name', '')
             if img_name:
@@ -802,6 +821,7 @@ class PrintQueueDialog(tk.Toplevel):
         self.ent_title.delete(0, tk.END)
         self.ent_link.delete(0, tk.END)
         self.combo_printer.current(0)
+        self.combo_project.current(0)
         
         self.ent_print_hours.delete(0, tk.END)
         self.ent_print_hours.insert(0, "1")
@@ -816,6 +836,43 @@ class PrintQueueDialog(tk.Toplevel):
         self.load_and_display_image(None)
         self.tree.selection_remove(self.tree.selection())
         self.recalculate_price()
+
+    def update_project_combobox_values(self):
+        self.projects = self.app.data_manager.load_projects()
+        folders_dict = {f["id"]: f for f in self.projects if f.get("type", "folder") == "folder"}
+        
+        def get_folder_path(folder_id):
+            path_parts = []
+            curr_id = folder_id
+            visited = set()
+            while curr_id and curr_id not in visited:
+                visited.add(curr_id)
+                f = folders_dict.get(curr_id)
+                if f:
+                    path_parts.insert(0, f["name"])
+                    curr_id = f.get("parent_id")
+                else:
+                    break
+            return " / ".join(path_parts)
+            
+        self.project_path_to_id = {}
+        combobox_values = ["- Kein Projekt -"]
+        
+        for folder_id in folders_dict:
+            path = get_folder_path(folder_id)
+            if path:
+                self.project_path_to_id[path] = folder_id
+                combobox_values.append(path)
+                
+        # Sort values alphabetically (except the first option)
+        combobox_values[1:] = sorted(combobox_values[1:])
+        self.combo_project["values"] = combobox_values
+        self.combo_project.current(0)
+
+    def save_jobs_and_sync(self):
+        self.app.data_manager.save_jobs(self.jobs)
+        if hasattr(self.app, 'projects_dialog') and self.app.projects_dialog and self.app.projects_dialog.winfo_exists():
+            self.app.projects_dialog.refresh_tree()
 
     def save_job(self, clear_after=True):
         title = self.ent_title.get().strip()
@@ -916,6 +973,10 @@ class PrintQueueDialog(tk.Toplevel):
         sell_price = total_cost * (1 + (margin_percent / 100.0))
         est_price_str = f"{sell_price:.2f} €"
  
+        # Get selected project_id
+        selected_path = self.combo_project.get()
+        proj_id = self.project_path_to_id.get(selected_path, "")
+
         if self.selected_job_id:
             job = next((j for j in self.jobs if j['id'] == self.selected_job_id), None)
             if job:
@@ -923,6 +984,7 @@ class PrintQueueDialog(tk.Toplevel):
                     "title": title,
                     "link": self.ent_link.get().strip(),
                     "printer_id": printer_id,
+                    "project_id": proj_id,
                     "spools": spools_str,
                     "spool_weights": spool_weights,
                     "print_time": print_time_val,
@@ -940,6 +1002,7 @@ class PrintQueueDialog(tk.Toplevel):
                 "title": title,
                 "link": self.ent_link.get().strip(),
                 "printer_id": printer_id,
+                "project_id": proj_id,
                 "spools": spools_str,
                 "spool_weights": spool_weights,
                 "print_time": print_time_val,
@@ -953,7 +1016,7 @@ class PrintQueueDialog(tk.Toplevel):
                 new_job["image_name"] = img_name_to_save
             self.jobs.append(new_job)
 
-        self.app.data_manager.save_jobs(self.jobs)
+        self.save_jobs_and_sync()
         self.refresh_list()
         if clear_after:
             self.reset_form()
@@ -986,7 +1049,7 @@ class PrintQueueDialog(tk.Toplevel):
         if not matched_spools:
             if messagebox.askyesno("Auftrag abschließen", "In diesem Auftrag sind keine bekannten Spulen-IDs hinterlegt.\nSoll der Auftrag einfach als 'Erledigt' markiert werden?", parent=self):
                 job['status'] = "Erledigt ✅"
-                self.app.data_manager.save_jobs(self.jobs)
+                self.save_jobs_and_sync()
                 self.refresh_list()
                 self.reset_form()
             return
@@ -1002,7 +1065,7 @@ class PrintQueueDialog(tk.Toplevel):
         
         if messagebox.askyesno("Auftrag abschließen", "Soll der Auftrag als 'Erledigt' markiert werden, OHNE Filament abzuziehen?", parent=self):
             job['status'] = "Erledigt ✅"
-            self.app.data_manager.save_jobs(self.jobs)
+            self.save_jobs_and_sync()
             self.refresh_list()
             self.reset_form()
 
@@ -1014,7 +1077,7 @@ class PrintQueueDialog(tk.Toplevel):
                 try: os.remove(os.path.join(self.images_dir, job['image_name']))
                 except: pass
             self.jobs = [j for j in self.jobs if j['id'] != self.selected_job_id]
-            self.app.data_manager.save_jobs(self.jobs)
+            self.save_jobs_and_sync()
             self.refresh_list()
             self.reset_form()
 

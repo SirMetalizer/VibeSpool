@@ -27,6 +27,7 @@ from core.colors import get_color_name_from_hex
 from core.mobile_server import start_mobile_server, get_local_ip
 from core.label_creator import LabelCreatorDialog
 from core.print_queue import PrintQueueDialog
+from core.projects import ProjectsDialog
 
 # --- EXTRACTED DIALOGS IMPORT ---
 from core.spool_manager import SpoolManager
@@ -185,11 +186,11 @@ class FilamentApp:
             btn.bind("<Leave>", lambda e: self.on_nav_btn_hover(btn, False))
             return btn
 
-        add_nav_btn("Regal", self.open_shelf_visualizer, "📦")
-        add_nav_btn("Spulen", lambda: SpoolManager(self.root, self.data_manager, self.update_spool_dropdown, self), "🧵")
+        self.btn_shelf = add_nav_btn("Regal", self.open_shelf_visualizer, "📦")
+        self.btn_spools = add_nav_btn("Spulen", lambda: SpoolManager(self.root, self.data_manager, self.update_spool_dropdown, self), "🧵")
         
         # FIX: Ein Leerzeichen vor dem Emoji schiebt es optisch genau in die Mitte!
-        add_nav_btn("Label", lambda: LabelCreatorDialog(self.root, self.inventory, self), "   🏷️")
+        self.btn_labels = add_nav_btn("Label", lambda: LabelCreatorDialog(self.root, self.inventory, self), "   🏷️")
 
         # --- NEU: Dashboard-Referenz speichern für Live-Updates (Pylance-sicher!) ---
         def open_statistics():
@@ -200,22 +201,21 @@ class FilamentApp:
             else:
                 self.stats_dialog = StatisticsDialog(self.root, self.inventory, self)
 
-        add_nav_btn("Finanzen", lambda: StatisticsDialog(self.root, self.inventory, self), "📊")
-        add_nav_btn("Swap", self.quick_swap_dialog, "🔄")
-        add_nav_btn("Flow", lambda: FlowCalculatorDialog(self.root, self.entry_flow, self), "🧪")
-        add_nav_btn("Kalkulator", lambda: self.toggle_side_panel("🧮 Quick-Cost Rechner", self.build_quick_cost_calculator), "🧮") # <-- NEU!
-        if self.settings.get("use_bambu", False):
-            add_nav_btn("AMS", self.run_ams_sync, "🤖")
+        self.btn_stats = add_nav_btn("Finanzen", open_statistics, "📊")
+        self.btn_swap = add_nav_btn("Swap", self.quick_swap_dialog, "🔄")
+        self.btn_flow = add_nav_btn("Flow", lambda: FlowCalculatorDialog(self.root, self.entry_flow, self), "🧪")
+        self.btn_calc = add_nav_btn("Kalkulator", lambda: self.toggle_side_panel("🧮 Quick-Cost Rechner", self.build_quick_cost_calculator), "🧮") # <-- NEU!
+        self.btn_ams = add_nav_btn("AMS", self.run_ams_sync, "🤖")
         # --- NEU: Cloud Sync im linken Menü ---
         self.btn_cloud = add_nav_btn("Cloud", self.open_bambu_cloud_sync, "☁️")
-        if not self.settings.get("use_bambu_cloud", True):
-            self.btn_cloud.pack_forget()
-        add_nav_btn("Aufträge", lambda: PrintQueueDialog(self.root, self), "📝")
+        self.btn_queue = add_nav_btn("Aufträge", lambda: PrintQueueDialog(self.root, self), "📝")
+        self.btn_projects = add_nav_btn("Projekte", self.open_projects_dialog, "📂")
             
         self.nav_sep = tk.Label(self.nav_sidebar, height=1)
-        self.nav_sep.pack(fill="x", pady=10)
-        add_nav_btn("Neu", self.clear_inputs, "➕")
-        add_nav_btn("Hilfe", self.show_howto, "❓") # NEU: Hilfe/Wiki Button
+        self.btn_new = add_nav_btn("Neu", self.clear_inputs, "➕")
+        self.btn_help = add_nav_btn("Hilfe", self.show_howto, "❓") # NEU: Hilfe/Wiki Button
+        
+        self.refresh_sidebar()
         
         # (NACH der Nav-Sidebar-Definition)
         main_frame = ttk.Frame(root, padding=10); main_frame.pack(fill="both", expand=True)
@@ -891,6 +891,47 @@ class FilamentApp:
         else:
             self.shelf_visualizer = ShelfVisualizer(self.root, self.inventory, self.settings, self.spools, self)
 
+    def open_projects_dialog(self):
+        if hasattr(self, 'projects_dialog') and self.projects_dialog and self.projects_dialog.winfo_exists():
+            self.projects_dialog.focus_set()
+        else:
+            self.projects_dialog = ProjectsDialog(self.root, self)
+
+    def refresh_sidebar(self):
+        for btn in self.nav_btns:
+            btn.pack_forget()
+        self.nav_sep.pack_forget()
+        
+        self.btn_shelf.pack(fill="x")
+        self.btn_spools.pack(fill="x")
+        self.btn_labels.pack(fill="x")
+        self.btn_stats.pack(fill="x")
+        self.btn_swap.pack(fill="x")
+        self.btn_flow.pack(fill="x")
+        self.btn_calc.pack(fill="x")
+        
+        if hasattr(self, 'btn_ams') and self.btn_ams:
+            if self.settings.get("use_bambu", False):
+                self.btn_ams.pack(fill="x")
+            else:
+                self.btn_ams.pack_forget()
+                
+        if self.settings.get("use_bambu_cloud", True):
+            self.btn_cloud.pack(fill="x")
+        else:
+            self.btn_cloud.pack_forget()
+            
+        self.btn_queue.pack(fill="x")
+        
+        if self.settings.get("use_projects", False):
+            self.btn_projects.pack(fill="x")
+        else:
+            self.btn_projects.pack_forget()
+            
+        self.nav_sep.pack(fill="x", pady=10)
+        self.btn_new.pack(fill="x")
+        self.btn_help.pack(fill="x")
+
     def update_color_preview(self, event=None):
         cols = get_colors_from_text(self.combo_color.get(), self.settings.get("colors", COMMON_COLORS))
         img = create_color_icon(cols, (30, 20), "#888888")
@@ -928,10 +969,10 @@ class FilamentApp:
         webbrowser.open("https://paypal.me/florianfranck")
 
     def show_howto(self):
-        """Öffnet das vollständige VibeSpool Handbuch mit detaillierten Kapiteln."""
+        """Öffnet das vollständige VibeSpool Handbuch mit einer vertikalen Navigation."""
         win = tk.Toplevel(self.root)
         win.title("📘 VibeSpool Handbuch & Hilfe")
-        win.geometry("950x750")
+        win.geometry("1050x750")
         win.configure(bg=self.root.cget('bg'))
         win.attributes('-topmost', True)
         from core.utils import center_window
@@ -942,41 +983,35 @@ class FilamentApp:
         ttk.Label(header, text="VibeSpool Handbuch", font=("Segoe UI", 16, "bold")).pack(side="left")
         ttk.Label(header, text=f"Version {APP_VERSION}", foreground="gray").pack(side="right", pady=5)
         
-        tabs = ttk.Notebook(win)
-        tabs.pack(fill="both", expand=True, padx=10, pady=5)
-
-        def create_tab(title, content):
-            frame = ttk.Frame(tabs)
-            tabs.add(frame, text=title)
-            scrollbar = ttk.Scrollbar(frame)
-            scrollbar.pack(side="right", fill="y")
-            
-            text_box = tk.Text(frame, wrap="word", yscrollcommand=scrollbar.set, font=("Segoe UI", 10), 
-                              padx=15, pady=15, bg=self.root.cget('bg'), bd=0)
-            text_box.pack(side="left", fill="both", expand=True)
-            scrollbar.config(command=text_box.yview)
-            
-            text_box.tag_configure("h1", font=("Segoe UI", 12, "bold"), foreground="#0078D7", spacing1=15, spacing3=5)
-            text_box.tag_configure("bold", font=("Segoe UI", 10, "bold"))
-            text_box.tag_configure("bullet", lmargin1=20, lmargin2=35, spacing1=3)
-            
-            for line in content.split('\n'):
-                if line.startswith('## '):
-                    text_box.insert("end", line[3:] + "\n", "h1")
-                elif line.startswith('• '):
-                    if ":" in line:
-                        parts = line.split(":", 1)
-                        text_box.insert("end", "• " + parts[0].strip(":").replace("• ","") + ":", "bold")
-                        text_box.insert("end", parts[1] + "\n", "bullet")
-                    else:
-                        text_box.insert("end", line + "\n", "bullet")
-                else:
-                    text_box.insert("end", line + "\n")
-            
-            text_box.config(state="disabled")
+        # Split layout: Left sidebar for tabs, Right content area
+        container = ttk.Frame(win)
+        container.pack(fill="both", expand=True, padx=10, pady=5)
+        
+        # Left sidebar frame (fixed width)
+        nav_frame = ttk.Frame(container, width=220)
+        nav_frame.pack(side="left", fill="y", padx=(0, 10))
+        nav_frame.pack_propagate(False)
+        
+        # Right content frame
+        content_frame = ttk.Frame(container)
+        content_frame.pack(side="right", fill="both", expand=True)
+        
+        scrollbar = ttk.Scrollbar(content_frame)
+        scrollbar.pack(side="right", fill="y")
+        
+        is_dark = "dark" in str(self.root.cget('bg'))
+        text_fg = "#ffffff" if is_dark else "#000000"
+        
+        text_box = tk.Text(content_frame, wrap="word", yscrollcommand=scrollbar.set, font=("Segoe UI", 10), 
+                           padx=20, pady=20, bg=self.root.cget('bg'), fg=text_fg, bd=0, highlightthickness=0)
+        text_box.pack(side="left", fill="both", expand=True)
+        scrollbar.config(command=text_box.yview)
+        
+        text_box.tag_configure("h1", font=("Segoe UI", 13, "bold"), foreground="#0078D7", spacing1=18, spacing3=6)
+        text_box.tag_configure("bold", font=("Segoe UI", 10, "bold"))
+        text_box.tag_configure("bullet", lmargin1=20, lmargin2=35, spacing1=4)
 
         # --- Inhalte definieren ---
-        
         tab1_content = """## Grundlagen & Spulen anlegen
 • Spulen hinzufügen: Klicke links auf 'Neu', fülle die Felder aus und klicke auf 'Neu Hinzufügen'. Wenn du das ID-Feld leer lässt, vergibt VibeSpool automatisch die nächste freie Nummer.
 • Farb-Automatik: Du kannst Hex-Codes (z.B. #FF0000) eintippen. VibeSpool übersetzt diese beim Speichern automatisch in den passenden Namen und zeigt dir ein Farb-Icon. Bei Multi-Color-Filamenten trenne die Farben einfach mit einem Schrägstrich (Rot / Blau).
@@ -1030,7 +1065,9 @@ class FilamentApp:
         tab6_content = """## Handy-Scanner & QR-Codes
 • Der lokale Server: VibeSpool hat einen unsichtbaren Webserver eingebaut. Klicke oben auf '📱 Handy'. Scanne den dortigen QR-Code mit deinem Smartphone.
 • Mobile Bedienung: Du hast VibeSpool nun als Web-App auf dem Handy. Du kannst im WLAN durch den Raum laufen, QR-Codes auf Spulen scannen und direkt am Handy Gewichte abziehen oder Spulen umbuchen. Das Programm am PC reagiert live auf deine Handy-Eingaben!
-• Etiketten & PDF Druck: Klicke links auf 'Label'. Wähle eine Spule. Du kannst das fertige Etikett als Bild speichern, oder auf 'ALLE als PDF exportieren' klicken. Der PDF-Modus druckt hunderte Etiketten perfekt ausgerichtet auf DIN A4 Bögen oder schickt sie an deinen Endlos-Labeldrucker!
+• Etiketten & PDF Druck: Klicke links auf 'Label'. Wähle eine Spule. Du kannst eine eigene Labelgröße in Millimetern (Breite & Höhe) definieren. VibeSpool skaliert Text und QR-Code proportional und dreht das Layout bei Hochformaten (z. B. 30x50 mm) automatisch ins Hochkantformat.
+• System-Vorschau: Nutze den Button '👁️ System-Vorschau', um das fertige Label sofort im Windows-Bildbetrachter zu öffnen und testweise auszudrucken.
+• PDF-Export: Exportierte PDFs werden im Rollenmodus bei 254.0 DPI (exakte Millimeter) ausgegeben, während der A4-Bogenmodus bei 300 DPI das Etikettenraster perfekt berechnet.
 
 ## Hersteller-Barcodes anlernen
 • Das Prinzip: Viele Spulen haben vom Hersteller bereits Barcodes auf der Packung. Warum eigene drucken?
@@ -1043,14 +1080,81 @@ class FilamentApp:
 • Smart Home (MQTT / Home Assistant): Aktiviere MQTT in den Optionen. VibeSpool funkt bei jeder Änderung (oder spätestens wenn es online ist via Offline-Buffer) live an dein Smart Home: Wie viele Spulen hast du? Welche sind fast leer? Was steckt gerade im AMS?
 • Hintergrund-Modus: Wenn du auf das 'X' zum Schließen klickst, fragt dich VibeSpool, ob es sich in die Windows-Taskleiste minimieren soll. Von dort kann es blitzschnell wieder aufgerufen werden!"""
 
-        # --- Tabs erstellen ---
-        create_tab("🏠 1. Grundlagen", tab1_content)
-        create_tab("📦 2. Lager & AMS", tab2_content)
-        create_tab("⚖️ 3. Verbrauch & Waage", tab3_content)
-        create_tab("💶 4. Finanzen & Cost Center", tab4_content)
-        create_tab("☁️ 5. Cloud & Smart-Match", tab5_content)
-        create_tab("📱 6. Scanner & Etiketten", tab6_content)
-        create_tab("⚙️ 7. System & Backup", tab7_content)
+        tab8_content = """## Projektverwaltung & Druckverlauf
+• Aktivierung: Gehe zuerst auf 'Optionen' -> Tab 'System' und aktiviere 'Projektverlauf & Projektverwaltung aktivieren'. Danach erscheint das Ordner-Symbol (📂 Projekte) in der linken Seitenleiste.
+• Ordnerstruktur: Klicke links auf 'Projekte'. Hier kannst du eine unbegrenzte Baumstruktur aus Hauptkategorien (z. B. 'Litophane') und Unterordnern (z. B. 'Tiere', 'runde') anlegen.
+• Drag & Drop: Verschiebe Druckaufträge ganz einfach mit der Maus! Ziehe einen Auftrag per Drag & Drop auf einen beliebigen Ordner oder lasse ihn auf 'Unzugeordnete Druckaufträge' fallen, um ihn aus einem Projekt zu entfernen. Das Ziel wird beim Darüberziehen direkt blau markiert.
+• Rechtsklick-Menü: Mache einen Rechtsklick auf einen Druckauftrag oder einen Ordner. Du kannst Aufträge verschieben, im Planer öffnen oder Ordner umbenennen und löschen.
+• Aggregierte Statistiken: Wählst du einen Ordner aus, rechnet VibeSpool in Echtzeit alle darin (und in dessen Unterordnern) enthaltenen Druckaufträge zusammen: Gesamte Druckzeit, Filamentverbrauch in kg, Materialkosten sowie den Verkaufswert (VK) inklusive Marge.
+• Finanz-Dashboard: Wenn das Projektmodul aktiv ist, findest du in der 'Finanzen'-Übersicht einen neuen Reiter 'Projekte', der die gesamte Kosten- und Verbrauchsübersicht aller deiner Projekte tabellarisch darstellt."""
+
+        topics = [
+            ("🏠 1. Grundlagen", tab1_content),
+            ("📦 2. Lager & AMS", tab2_content),
+            ("⚖️ 3. Verbrauch & Waage", tab3_content),
+            ("💶 4. Finanzen", tab4_content),
+            ("☁️ 5. Cloud & Sync", tab5_content),
+            ("📱 6. Scanner & Labels", tab6_content),
+            ("⚙️ 7. System & Backup", tab7_content),
+            ("📂 8. Projektverwaltung", tab8_content)
+        ]
+        
+        nav_buttons = []
+        active_idx = [0]
+        
+        def select_topic(idx):
+            active_idx[0] = idx
+            for i, btn in enumerate(nav_buttons):
+                if i == idx:
+                    btn.config(bg=COLOR_ACCENT, fg="#ffffff", activebackground=COLOR_ACCENT, activeforeground="#ffffff")
+                else:
+                    bg_color = "#2d2d2d" if is_dark else "#e1e1e1"
+                    fg_color = "#ffffff" if is_dark else "#000000"
+                    btn.config(bg=bg_color, fg=fg_color, activebackground=bg_color, activeforeground=fg_color)
+            
+            text_box.config(state="normal")
+            text_box.delete("1.0", "end")
+            
+            content = topics[idx][1]
+            for line in content.split('\n'):
+                if line.startswith('## '):
+                    text_box.insert("end", line[3:] + "\n", "h1")
+                elif line.startswith('• '):
+                    if ":" in line:
+                        parts = line.split(":", 1)
+                        text_box.insert("end", "• " + parts[0].strip(":").replace("• ","") + ":", "bold")
+                        text_box.insert("end", parts[1] + "\n", "bullet")
+                    else:
+                        text_box.insert("end", line + "\n", "bullet")
+                else:
+                    text_box.insert("end", line + "\n")
+                    
+            text_box.config(state="disabled")
+            text_box.yview_moveto(0.0)
+
+        def on_enter(b, i):
+            if active_idx[0] != i:
+                b.config(bg="#3d3d3d" if is_dark else "#d0d0d0")
+
+        def on_leave(b, i):
+            if active_idx[0] != i:
+                b.config(bg="#2d2d2d" if is_dark else "#e1e1e1")
+
+        for idx, (title, _) in enumerate(topics):
+            bg_color = "#2d2d2d" if is_dark else "#e1e1e1"
+            fg_color = "#ffffff" if is_dark else "#000000"
+            btn = tk.Button(nav_frame, text=title, anchor="w", font=("Segoe UI", 9, "bold"),
+                            bd=0, padx=12, pady=10, cursor="hand2", relief="flat",
+                            bg=bg_color, fg=fg_color)
+            btn.pack(fill="x", pady=2)
+            btn.config(command=lambda i=idx: select_topic(i))
+            
+            btn.bind("<Enter>", lambda e, b=btn, i=idx: on_enter(b, i))
+            btn.bind("<Leave>", lambda e, b=btn, i=idx: on_leave(b, i))
+            
+            nav_buttons.append(btn)
+
+        select_topic(0)
 
         ttk.Button(win, text="Alles klar, ich bin bereit!", command=win.destroy, style="Accent.TButton").pack(pady=15)
     

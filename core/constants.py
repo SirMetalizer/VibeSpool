@@ -1,6 +1,6 @@
 # core/constants.py
 
-APP_VERSION = "2.2.2"
+APP_VERSION = "2.3.0"
 GITHUB_REPO = "SirMetalizer/VibeSpool"
 
 DEFAULT_SETTINGS = {
@@ -31,7 +31,10 @@ DEFAULT_SETTINGS = {
     "subtypes": ["Standard", "Matte", "Silk", "High Speed", "Dual Color", "Tri Color", "Glow in Dark", "Transparent", "Translucent", "Marmor", "Holz", "Glitzer/Sparkle"],
     "colors": ["Black", "White", "Grey", "Silver", "Ash Gray", "Red", "Maroon Red", "Blue", "Light Blue", "Navy", "Green", "Dark Green", "Mint", "Olive", "Yellow", "Orange", "Terracotta", "Purple", "Plum", "Lavender", "Pink", "Magenta", "Brown", "Beige", "Turquoise", "Cyan", "Gold", "Copper", "Bronze", "Rainbow", "Marble", "Wood"],
     "brands": ["Bambu", "eSun", "Geeetech", "Sunlu", "Polymaker", "Prusa", "Eryone"],
-    "visible_columns": ["id", "brand", "material", "color", "subtype", "weight", "flow", "location", "status"]
+    "visible_columns": ["id", "brand", "material", "color", "subtype", "weight", "flow", "location", "status"],
+    "use_projects": False,
+    "label_width_mm": 80,
+    "label_height_mm": 40
 }
 
 MATERIALS = ["PLA", "PLA+", "PETG", "ABS", "ASA", "TPU", "PC", "PA-CF", "PVA", "Sonstiges"]

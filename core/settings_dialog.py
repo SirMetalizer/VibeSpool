@@ -214,6 +214,8 @@ class SettingsDialog(tk.Toplevel):
         ttk.Checkbutton(tab_sys, text="Entwickler unterstützen (Affiliate)", variable=self.var_affiliate).pack(anchor="w", pady=2)
         self.var_rfid = tk.BooleanVar(value=self.settings.get("rfid_mode", False))
         ttk.Checkbutton(tab_sys, text="RFID-Reader Modus aktiv", variable=self.var_rfid).pack(anchor="w", pady=2)
+        self.var_projects = tk.BooleanVar(value=self.settings.get("use_projects", False))
+        ttk.Checkbutton(tab_sys, text="Projektverlauf / Projektverwaltung aktivieren", variable=self.var_projects).pack(anchor="w", pady=2)
         
         ttk.Separator(tab_sys, orient="horizontal").pack(fill="x", pady=10)
         
@@ -684,6 +686,7 @@ class SettingsDialog(tk.Toplevel):
                 "printer_api_key": self.settings.get("printer_api_key", ""), 
                 "use_bambu": use_bambu,
                 "use_bambu_cloud": self.var_cloud.get(),
+                "use_projects": self.var_projects.get(),
                 "bambu_ip": bambu_ip,
                 "bambu_access": bambu_acc,
                 "bambu_serial": bambu_ser,
@@ -710,10 +713,13 @@ class SettingsDialog(tk.Toplevel):
                     app_inst.update_slot_dropdown()
                 if hasattr(app_inst, 'shelf_visualizer') and app_inst.shelf_visualizer and app_inst.shelf_visualizer.winfo_exists():
                     app_inst.shelf_visualizer.redraw()
-                if self.settings.get("use_bambu_cloud", True):
-                    app_inst.btn_cloud.pack(fill="x")
+                if hasattr(app_inst, 'refresh_sidebar'):
+                    app_inst.refresh_sidebar()
                 else:
-                    app_inst.btn_cloud.pack_forget()
+                    if self.settings.get("use_bambu_cloud", True):
+                        app_inst.btn_cloud.pack(fill="x")
+                    else:
+                        app_inst.btn_cloud.pack_forget()
                 
             self.destroy()
             

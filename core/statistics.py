@@ -9,6 +9,7 @@ import re
 from core.utils import center_window
 from core.logic import calculate_net_weight
 from core.constants import COLOR_ACCENT, COLOR_DELETE
+from core.print_queue import safe_float, decimal_to_hm
 
 class StatisticsDialog(tk.Toplevel):
     def __init__(self, parent, inventory, app_instance):
@@ -275,6 +276,104 @@ class StatisticsDialog(tk.Toplevel):
         for (brand, mat, color), stats in sorted(detailed_stats.items(), key=lambda x: (x[0][0].lower(), x[0][1].lower(), x[0][2].lower())):
             kg = stats['weight'] / 1000
             tree_detailed.insert("", "end", values=(brand, mat, color, f"{stats['count']} Stk", f"{kg:.2f} kg", f"{stats['value']:.2f} €"))
+
+        # Tab 5: Projekte (nur wenn in Einstellungen aktiviert)
+        if self.app.settings.get("use_projects", False):
+            tab_proj = ttk.Frame(breakdown_notebook)
+            breakdown_notebook.add(tab_proj, text="Projekte")
+            
+            tree_proj = ttk.Treeview(tab_proj, columns=("count", "time", "weight", "cost", "sell"), show="tree headings", height=6)
+            tree_proj.heading("#0", text="Projekt / Kategorie")
+            tree_proj.heading("count", text="Aufträge")
+            tree_proj.heading("time", text="Druckzeit")
+            tree_proj.heading("weight", text="Gewicht")
+            tree_proj.heading("cost", text="Kosten")
+            tree_proj.heading("sell", text="VK-Wert")
+            
+            tree_proj.column("#0", width=140)
+            tree_proj.column("count", width=70, anchor="center")
+            tree_proj.column("time", width=70, anchor="center")
+            tree_proj.column("weight", width=80, anchor="center")
+            tree_proj.column("cost", width=80, anchor="e")
+            tree_proj.column("sell", width=80, anchor="e")
+            
+            tree_proj.pack(fill="both", expand=True)
+            
+            projects = self.app.data_manager.load_projects()
+            jobs = self.app.data_manager.load_jobs()
+            
+            folders = [f for f in projects if f.get("type", "folder") == "folder"]
+            folders_dict = {f["id"]: f for f in folders}
+            
+            def calc_folder_stats(fid):
+                descendants = [fid]
+                def get_descendants(parent_id):
+                    for f in folders:
+                        if f.get("parent_id") == parent_id:
+                            descendants.append(f["id"])
+                            get_descendants(f["id"])
+                get_descendants(fid)
+                
+                f_jobs = [j for j in jobs if j.get("project_id") in descendants]
+                
+                total_time = 0.0
+                total_weight = 0.0
+                total_cost = 0.0
+                total_sell = 0.0
+                completed_cnt = 0
+                
+                for j in f_jobs:
+                    is_completed = "Erledigt" in j.get("status", "")
+                    if is_completed:
+                        completed_cnt += 1
+                    total_time += safe_float(j.get("print_time"), 0.0)
+                    total_weight += safe_float(j.get("est_weight"), 0.0)
+                    
+                    price_str = j.get("est_price", "0.00")
+                    nums = re.findall(r'[\d.,]+', price_str)
+                    cost_val = 0.0
+                    sell_val = 0.0
+                    if len(nums) >= 1:
+                        cost_val = float(nums[0].replace(",", "."))
+                    if len(nums) >= 2:
+                        sell_val = float(nums[1].replace(",", "."))
+                    else:
+                        sell_val = cost_val
+                    total_cost += cost_val
+                    total_sell += sell_val
+                    
+                return {
+                    "count": len(f_jobs),
+                    "completed": completed_cnt,
+                    "time": total_time,
+                    "weight": total_weight,
+                    "cost": total_cost,
+                    "sell": total_sell
+                }
+                
+            def insert_folder_node(parent_iid, folder_obj):
+                stats = calc_folder_stats(folder_obj["id"])
+                
+                h, m = decimal_to_hm(stats["time"])
+                time_str = f"{h}h {m}m"
+                weight_str = f"{(stats['weight']/1000.0):.2f} kg"
+                cost_str = f"{stats['cost']:.2f} €"
+                sell_str = f"{stats['sell']:.2f} €"
+                count_str = f"{stats['count']} ({stats['completed']} ok)"
+                
+                node = tree_proj.insert(parent_iid, "end", text=folder_obj["name"], values=(
+                    count_str, time_str, weight_str, cost_str, sell_str
+                ), open=True)
+                
+                subs = [f for f in folders if f.get("parent_id") == folder_obj["id"]]
+                subs.sort(key=lambda x: x.get("name", "").lower())
+                for sub in subs:
+                    insert_folder_node(node, sub)
+                    
+            root_folders = [f for f in folders if not f.get("parent_id")]
+            root_folders.sort(key=lambda x: x.get("name", "").lower())
+            for rf in root_folders:
+                insert_folder_node("", rf)
 
         # --- 4. RECHTE SEITE (Verbrauchs-Chart) ---
         ttk.Label(right_panel, text="Verbrauch der letzten 7 Tage:", font=("Segoe UI", 12, "bold")).pack(anchor="w", pady=(0, 5))

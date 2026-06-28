@@ -39,10 +39,12 @@ class DataManager:
             self.data_file = os.path.join(custom_db_path, "inventory.json")
             self.spools_file = os.path.join(custom_db_path, "spools.json")
             self.jobs_file = os.path.join(custom_db_path, "print_jobs.json") # NEU
+            self.projects_file = os.path.join(custom_db_path, "projects.json") # NEU
         else:
             self.data_file = os.path.join(self.base_dir, "inventory.json")
             self.spools_file = os.path.join(self.base_dir, "spools.json")
             self.jobs_file = os.path.join(self.base_dir, "print_jobs.json") # NEU
+            self.projects_file = os.path.join(self.base_dir, "projects.json") # NEU
 
     def load_all(self, default_settings):
         settings = load_json(self.settings_file, default_settings)
@@ -166,3 +168,10 @@ class DataManager:
     def save_jobs(self, jobs):
         from core.utils import save_json
         save_json(self.jobs_file, jobs)
+
+    def load_projects(self):
+        return load_json(self.projects_file, [])
+
+    def save_projects(self, projects):
+        from core.utils import save_json
+        save_json(self.projects_file, projects)

@@ -1,5 +1,12 @@
 # 📋 VibeSpool Development Backlog
 
+## ✅ Abgeschlossen (v2.3.0 - "The Custom Label & Project Module Update")
+- [x] **🏷️ Eigene Label-Größe & dynamische Skalierung:** Breite und Höhe in mm im Label Creator konfigurierbar, inklusive proportionaler Skalierung (Schriften und QR-Code), automatischer Orientierungsanpassung (Horizontal/Vertikal) und verzerrungsfreier Live-Vorschau.
+- [x] **👁️ System-Vorschau für Labels:** Neues Feature zum schnellen Öffnen eines hochauflösenden Label-Entwurfs direkt im Standard-Bildbetrachter des Betriebssystems vor dem Drucken.
+- [x] **📄 DPI-korrekter PDF-Export:** Skaliert Labelraster im DIN A4-Export auf 300 DPI und Rollen-Labels im 1-Label-pro-Seite Modus auf exakte Millimeter-Abmessungen via 254.0 DPI (10px/mm).
+- [x] **📂 Globaler Druckverlauf / Projektverwaltung:** Modular aktivierbare Projektverwaltung zur Organisation von Druckaufträgen in Gruppen, Ordnern und Unterordnern (z. B. `Litophane / runde`). Muss in den Optionen erst aktiviert werden. Standardmäßig sind keine Projekte aktiv. 
+- [x] **📊 Aggregierte Projekt-Statistiken:** Rekursive Aufsummierung von Auftragsanzahl, Filamentgewicht, Druckzeit und Kosten/Umsatz direkt im Projekt-Fenster und in einem neuen "Projekte"-Tab innerhalb des Finanz-Dashboard.
+
 ## ✅ Abgeschlossen (v2.2.2 - "The Search & Custom ID Patch")
 - [x] **🧮 Quick-Cost Alphanumeric-ID-Fix:** Die Preisermittlung funktioniert nun auch bei selbst angelegten, alphanumerischen Spulen-IDs (z. B. `PLA-01`) fehlerfrei durch Umstellung der Regex-Filterung auf einen flexiblen Split-Mechanismus.
 - [x] **🔍 Suchfunktion im Quick-Cost Rechner:** Spulenauswahl über ein neues, integriertes Suchfeld oberhalb des Dropdowns filtern, statt durch lange Listen scrollen zu müssen.

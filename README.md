@@ -1,6 +1,6 @@
 # 🧵 VibeSpool - Das smarte Filament-Management-System
 
-![Version](https://img.shields.io/badge/version-2.3.0-blue.svg)
+![Version](https://img.shields.io/badge/version-2.4.0-blue.svg)
 ![Python](https://img.shields.io/badge/python-3.10%2B-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
@@ -9,27 +9,24 @@
 <img width="1924" height="1044" alt="VibeSpool Main Dashboard" src="https://github.com/user-attachments/assets/7234891c-0458-478b-8c5a-7d9e6cd184cb" />
 ---
 
-## 🆕 Was ist neu in Version 2.3.0? ("The Custom Label & Project Module Update")
-Dieses Update bringt maximale Freiheit beim Etikettendruck durch frei konfigurierbare Label-Größen mit proportionaler Skalierung, eine direkte System-Vorschau und DPI-genauen PDF-Export sowie eine mächtige, modular aktivierbare Projektverwaltung zur strukturierten Organisation und Kosten-Aggregation deiner Druckaufträge!
+## 🆕 Was ist neu in Version 2.4.0? ("The Auto-Updater & Split Shelf Columns Update")
+Dieses Update bringt einen integrierten Auto-Updater für die Windows EXE-Version, getrennte Zeiteingabe (Std/Min) für die Kostenberechnung, detaillierte Kostenaufschlüsselungen in der Warteschlange und der Projektverwaltung sowie eine optional spaltbare Lagerortanzeige (Regal, Reihe, Platz) und einen flexiblen Spalten-Selektor für den PDF-Bestandsexport!
 
 ### ✨ Die Highlights:
 
-* **🤖 Multi-Drucker-Verwaltung:** Dynamische Liste von Druckern (Bambu Lab, Klipper/Moonraker oder Manuell) in den Einstellungen erstellen, bearbeiten und löschen.
-* **🔌 AMS- & Spulen-Zuordnung pro Drucker:** Weise AMS-Einheiten und externe Spulenplätze (z. B. `P1S 2 Extern`) bestimmten Druckern zu, um deinen Filamentbestand optimal zu strukturieren.
-* **🧠 Intelligenteres Smart-Match & Aggregation:** Cloud- und Live-Syncs ordnen Verbräuche exakt den druckerspezifischen Slots zu. Die globale Druckhistorie aggregiert Kosten und Verbräuche über alle Drucker hinweg.
-* **⚡ Druckerspezifische Strom- & Verschleißkosten:** Konfiguriere Leistung (Watt) und Verschleiß (pro Stunde) individuell pro Drucker für eine centgenaue Kalkulation bei Aufträgen und im Quick-Cost Rechner.
-* **📐 Fenstergröße- & Positions-Speicherung:** Alle Dialogfenster (Hauptfenster, Aufträge, Finanzen, Spulendatenbank, Labels, Einkaufsliste und Flussrechner) merken sich nun ihre Größe und Position – sowohl beim Schließen über das "X" als auch über Buttons im Dialog.
-* **📦 Regal-Optimierungen & Rechtsklick-Menü:**
-  * **Neues Kontextmenü:** Rechtsklick auf Spulen im Regal ermöglicht Quick-Swap, Löschen, Klonen, Öffnen des Spulen-Logbuchs und mehr (inklusive automatischem Filter-Reset).
-  * **Leere Zusatz-Orte:** Freie, benutzerdefinierte Standorte werden nun im Regal visualisiert, um leere Slots als Drag & Drop-Ziele anzubieten.
-  * **Scrollbar-Intelligenz:** Der horizontale Scrollbalken sperrt sich automatisch, wenn der Inhalt komplett sichtbar ist, und schaltet sich erst bei Überlauf aktiv.
-  * **37 Kerntests:** 37 Unit-Tests sichern nun die Stabilität der Kernfunktionen dauerhaft ab.
-
-* **🏷️ Eigene Label-Größe & dynamische Skalierung:** Breite und Höhe sind im Label Creator in mm konfigurierbar. Alle Texte und der QR-Code skalieren proportional mit. Je nach Seitenverhältnis passt sich die Orientierung (Horizontal/Vertikal) automatisch an.
-* **👁️ System-Vorschau für Labels:** Öffne den hochauflösenden Label-Entwurf mit nur einem Klick direkt im Standard-Bildbetrachter deines Betriebssystems vor dem eigentlichen Druck.
-* **📄 DPI-korrekter PDF-Export:** Skaliert Labelraster im DIN A4-Export auf 300 DPI und Rollen-Labels im 1-Label-pro-Seite Modus auf exakte Millimeter-Abmessungen via 254.0 DPI (10px/mm) zur Vermeidung von Verzerrungen.
-* **📂 Globaler Druckverlauf & Projektverwaltung:** Organisiere Druckaufträge in Gruppen, Ordnern und Unterordnern (z. B. `Litophane / runde`). Das Projektmodul lässt sich in den Einstellungen flexibel aktivieren und ist standardmäßig deaktiviert.
-* **📊 Aggregierte Projekt-Statistiken:** Rekursive Aufsummierung von Auftragsanzahl, verbrauchtem Filamentgewicht, Druckzeit sowie Kosten und Umsätzen direkt im Projekt-Fenster und in einem neuen "Projekte"-Tab innerhalb des Finanz-Dashboards.
+* **⚡ Integrierter Auto-Updater:** Updates können nun vollautomatisch mit einem grafischen Fortschrittsbalken direkt aus der App heruntergeladen und über ein detached Windows-Batch-Skript installiert und neu gestartet werden.
+* **⏱️ Komfortable Quickcost-Zeiteingabe:** Stunden (Std) und Minuten (Min) getrennt eingeben. Das lästige Umrechnen von Minuten in Dezimalstunden entfällt.
+* **📊 Detaillierte Kostenaufschlüsselung:**
+  * Im **Auftrags-Planer** werden die berechneten Posten für Material, Strom und Maschinenverschleiß direkt unter dem Preis angezeigt.
+  * Diese Daten werden persistent in `print_jobs.json` gespeichert.
+  * Das **Projekt-Detailfenster** zeigt diese Posten strukturiert als Unterpunkte von "Kosten/Preis" an.
+* **📦 Regal-Spalten Modul (Orte spalten):**
+  * Spalte die bisherige Gesamtspalte "Ort" in drei eigenständige Spalten: **Regal**, **Reihe** und **Platz**.
+  * Kann flexibel über *Optionen -> System* oder direkt per *Rechtsklick auf den Tabellenkopf* aktiviert/deaktiviert werden.
+  * Volle Sortierbarkeit nach Regalname, Reihe und Platz.
+* **📄 Flexibler PDF-Bestandsexport:**
+  * Vor dem Export öffnet sich ein Dialog, in dem die gewünschten Spalten ausgewählt werden können.
+  * Die Spaltenbreiten werden auf dem PDF-Dokument (DIN A4 bei 300 DPI) automatisch proportional und dynamisch aufgeteilt.
 
 
 ---
@@ -123,6 +120,19 @@ Starten:
 ---
 
 ## ⏳ Release-Historie
+
+### 🆕 Was ist neu in Version 2.3.0? ("The Custom Label & Project Module Update")
+* **🏷️ Eigene Label-Größe & dynamische Skalierung:** Breite und Höhe sind im Label Creator in mm konfigurierbar. Alle Texte und der QR-Code skalieren proportional mit. Je nach Seitenverhältnis passt sich die Orientierung (Horizontal/Vertikal) automatisch an.
+* **👁️ System-Vorschau für Labels:** Öffne den hochauflösenden Label-Entwurf mit nur einem Klick direkt im Standard-Bildbetrachter deines Betriebssystems vor dem eigentlichen Druck.
+* **📄 DPI-korrekter PDF-Export:** Skaliert Labelraster im DIN A4-Export auf 300 DPI und Rollen-Labels im 1-Label-pro-Seite Modus auf exakte Millimeter-Abmessungen via 254.0 DPI (10px/mm) zur Vermeidung von Verzerrungen.
+* **📂 Globaler Druckverlauf & Projektverwaltung:** Organisiere Druckaufträge in Gruppen, Ordnern und Unterordnern (z. B. `Litophane / runde`). Das Projektmodul lässt sich in den Einstellungen flexibel aktivieren und ist standardmäßig deaktiviert.
+* **📊 Aggregierte Projekt-Statistiken:** Rekursive Aufsummierung von Auftragsanzahl, verbrauchtem Filamentgewicht, Druckzeit sowie Kosten und Umsätzen direkt im Projekt-Fenster und in einem neuen "Projekte"-Tab innerhalb des Finanz-Dashboards.
+* **🤖 Multi-Drucker-Verwaltung:** Dynamische Liste von Druckern (Bambu Lab, Klipper/Moonraker oder Manuell) in den Einstellungen erstellen, bearbeiten und löschen.
+* **🔌 AMS- & Spulen-Zuordnung pro Drucker:** Weise AMS-Einheiten und externe Spulenplätze (z. B. `P1S 2 Extern`) bestimmten Druckern zu, um deinen Filamentbestand optimal zu strukturieren.
+* **🧠 Intelligenteres Smart-Match & Aggregation:** Cloud- und Live-Syncs ordnen Verbräuche exakt den druckerspezifischen Slots zu. Die globale Druckhistorie aggregiert Kosten und Verbräuche über alle Drucker hinweg.
+* **⚡ Druckerspezifische Strom- & Verschleißkosten:** Konfiguriere Leistung (Watt) und Verschleiß (pro Stunde) individuell pro Drucker für eine centgenaue Kalkulation bei Aufträgen und im Quick-Cost Rechner.
+* **📐 Fenstergröße- & Positions-Speicherung:** Alle Dialogfenster merken sich nun ihre Größe und Position.
+* **📦 Regal-Optimierungen & Rechtsklick-Menü:** Neues Kontextmenü, leere Zusatz-Orte und verbesserte Scrollbar-Intelligenz.
 
 ### 🆕 Was ist neu in Version 2.2.0? ("The Multi-Printer, Custom Location & Smart-Match Update")
 * **🤖 Multi-Drucker-Verwaltung:** Dynamische Liste von Druckern (Bambu Lab & Klipper) in den Einstellungen anlegen, bearbeiten und löschen.

@@ -33,6 +33,21 @@ def check_for_updates(github_repo, current_version):
         pass
     return None
 
+def get_latest_exe_asset(github_repo):
+    try:
+        url = f"https://api.github.com/repos/{github_repo}/releases/latest"
+        req = urllib.request.Request(url, headers={'User-Agent': 'VibeSpool-App'})
+        with urllib.request.urlopen(req, timeout=5) as response:
+            data = json.loads(response.read().decode('utf-8'))
+            assets = data.get("assets", [])
+            for asset in assets:
+                name = asset.get("name", "")
+                if name.endswith(".exe"):
+                    return name, asset.get("browser_download_url")
+    except:
+        pass
+    return None, None
+
 def parse_shelves_string(shelves_str):
     """Parses the comma-separated shelf string into a list of dictionaries."""
     shelves = []

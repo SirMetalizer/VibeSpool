@@ -423,13 +423,20 @@ class ProjectsDialog(tk.Toplevel):
         add_info_row(5, "Druckzeit:", f"{h} Std {m} Min")
         add_info_row(6, "Kosten/Preis:", job.get("est_price", "-"))
         
+        row_idx = 7
+        if "material_cost" in job:
+            add_info_row(7, "  - Material:", f"{safe_float(job.get('material_cost')):.2f} €")
+            add_info_row(8, "  - Strom:", f"{safe_float(job.get('electricity_cost')):.2f} €")
+            add_info_row(9, "  - Verschleiß:", f"{safe_float(job.get('wear_cost')):.2f} €")
+            row_idx = 10
+            
         link = job.get("link", "").strip()
         if link:
             lbl_link = ttk.Label(grid, text="Link:", font=("Segoe UI", 10, "bold"))
-            lbl_link.grid(row=7, column=0, sticky="w", pady=3, padx=(0, 10))
+            lbl_link.grid(row=row_idx, column=0, sticky="w", pady=3, padx=(0, 10))
             
             btn_link = tk.Label(grid, text=link, font=("Segoe UI", 10), fg="#0078d7", cursor="hand2")
-            btn_link.grid(row=7, column=1, sticky="w", pady=3)
+            btn_link.grid(row=row_idx, column=1, sticky="w", pady=3)
             btn_link.bind("<Button-1>", lambda e: self.open_link(link))
             
         notes = job.get("notes", "").strip()

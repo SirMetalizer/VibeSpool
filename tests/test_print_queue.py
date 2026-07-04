@@ -53,6 +53,12 @@ def test_recalculate_price(tk_root, mock_app):
     assert "3.49" in txt
     assert "3.84" in txt
     
+    # Verify detailed breakdown label
+    breakdown_txt = dialog.lbl_calc_breakdown.cget("text")
+    assert "Material: 3.00 €" in breakdown_txt
+    assert "Strom: 0.09 €" in breakdown_txt
+    assert "Verschleiß: 0.40 €" in breakdown_txt
+    
     dialog.destroy()
 
 def test_job_deduction_dialog(tk_root, mock_app):

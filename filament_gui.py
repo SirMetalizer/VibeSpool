@@ -20,7 +20,7 @@ import qrcode
 
 # --- MODULE IMPORT ---
 from core.utils import load_json, save_json, get_colors_from_text, create_color_icon, center_window
-from core.logic import calculate_net_weight, check_for_updates, parse_shelves_string, serialize_shelves
+from core.logic import calculate_net_weight, check_for_updates, parse_shelves_string, serialize_shelves, get_latest_exe_asset
 from core.data_manager import DataManager
 from core.spool_presets import SPOOL_PRESETS
 from core.colors import get_color_name_from_hex
@@ -621,11 +621,30 @@ class FilamentApp:
         self.side_panel_open = False
         self.current_panel_title = ""
         
-        self.tree = ttk.Treeview(table_frame, columns=("id", "brand", "material", "color", "subtype", "weight", "flow", "location", "status"), show="tree headings")
+        cols_all = ("id", "brand", "material", "color", "subtype", "weight", "flow", "location", "shelf_name", "shelf_row", "shelf_slot", "status")
+        self.tree = ttk.Treeview(table_frame, columns=cols_all, show="tree headings")
         scrollbar = ttk.Scrollbar(table_frame, orient=tk.VERTICAL, command=self.tree.yview); self.tree.configure(yscrollcommand=scrollbar.set); scrollbar.pack(side="right", fill="y"); self.tree.pack(fill="both", expand=True)
         self.tree.column("#0", width=40, anchor="center", stretch=False)
-        for col, text in zip(("id", "brand", "material", "color", "subtype", "weight", "flow", "location", "status"), ["ID", "Marke", "Material", "Farbe", "Effekt / Typ", "Rest(g)", "Flow", "Ort", "Status"]): self.tree.heading(col, text=text, command=lambda c=col: self.treeview_sort_column(c, False))
-        self.tree.column("id", width=40, anchor="center"); self.tree.column("brand", width=120); self.tree.column("material", width=60, anchor="center"); self.tree.column("weight", width=60, anchor="center"); self.tree.column("flow", width=50, anchor="center"); self.tree.column("status", width=90, anchor="center"); self.tree.bind("<<TreeviewSelect>>", self.on_select)
+        
+        columns_info = [
+            ("id", "ID", 40, "center"),
+            ("brand", "Marke", 120, "w"),
+            ("material", "Material", 60, "center"),
+            ("color", "Farbe", 100, "w"),
+            ("subtype", "Effekt / Typ", 100, "w"),
+            ("weight", "Rest(g)", 60, "center"),
+            ("flow", "Flow", 50, "center"),
+            ("location", "Ort", 120, "w"),
+            ("shelf_name", "Regal", 100, "w"),
+            ("shelf_row", "Reihe", 80, "center"),
+            ("shelf_slot", "Platz", 80, "center"),
+            ("status", "Status", 90, "center")
+        ]
+        for col, text, w, anchor in columns_info:
+            self.tree.heading(col, text=text, command=lambda c=col: self.treeview_sort_column(c, False))
+            self.tree.column(col, width=w, anchor=anchor)  # type: ignore
+            
+        self.tree.bind("<<TreeviewSelect>>", self.on_select)
         self.update_locations_dropdown(); self.update_spool_dropdown(); self.update_filter_dropdowns(); self.clear_inputs(); self.refresh_table()
         
         # Initialisiert die neuen Rechtsklick-Menüs
@@ -820,17 +839,30 @@ class FilamentApp:
         combo_printer.current(0)
         combo_printer.pack(fill="x", pady=(0, 15))
         
-        ttk.Label(parent, text="Druckzeit (Stunden):", font=("Segoe UI", 10, "bold")).pack(anchor="w")
-        ent_time = ttk.Entry(parent)
-        ent_time.insert(0, "5")
-        ent_time.pack(fill="x", pady=(0, 15))
+        ttk.Label(parent, text="Druckzeit:", font=("Segoe UI", 10, "bold")).pack(anchor="w")
+        time_frm = ttk.Frame(parent)
+        time_frm.pack(fill="x", pady=(0, 15))
+        
+        ent_hours = ttk.Entry(time_frm, width=8)
+        ent_hours.insert(0, "5")
+        ent_hours.pack(side="left")
+        ttk.Label(time_frm, text="Std").pack(side="left", padx=(2, 10))
+        
+        ent_minutes = ttk.Entry(time_frm, width=8)
+        ent_minutes.insert(0, "0")
+        ent_minutes.pack(side="left")
+        ttk.Label(time_frm, text="Min").pack(side="left", padx=2)
         
         lbl_res = ttk.Label(parent, text="", font=("Segoe UI", 11, "bold"), foreground="#0078d7", justify="center")
         lbl_res.pack(pady=20)
         
         def calc():
             try:
-                t = float(ent_time.get().replace(",", "."))
+                try: h = float(ent_hours.get().replace(",", ".")) if ent_hours.get().strip() else 0.0
+                except: h = 0.0
+                try: m = float(ent_minutes.get().replace(",", ".")) if ent_minutes.get().strip() else 0.0
+                except: m = 0.0
+                t = h + (m / 60.0)
                 
                 mat = 0.0
                 total_w = 0.0
@@ -1159,10 +1191,139 @@ class FilamentApp:
         ttk.Button(win, text="Alles klar, ich bin bereit!", command=win.destroy, style="Accent.TButton").pack(pady=15)
     
     def show_update_prompt(self, latest, url):
-        upd = tk.Toplevel(self.root); upd.title("VibeSpool Update"); upd.geometry("400x150"); upd.configure(bg=self.root.cget('bg')); upd.attributes('-topmost', True); center_window(upd, self.root)
+        upd = tk.Toplevel(self.root)
+        upd.title("VibeSpool Update")
+        upd.geometry("480x160")
+        upd.configure(bg=self.root.cget('bg'))
+        upd.attributes('-topmost', True)
+        from core.utils import center_window
+        center_window(upd, self.root)
+        
         ttk.Label(upd, text=f"Version {latest} ist verfügbar!", font=("Segoe UI", 12, "bold")).pack(pady=15)
-        btn_frm = ttk.Frame(upd); btn_frm.pack(pady=10)
-        ttk.Button(btn_frm, text="Laden", command=lambda: [webbrowser.open(url), upd.destroy()]).pack(side="left", padx=5); ttk.Button(btn_frm, text="Später", command=upd.destroy).pack(side="left", padx=5)
+        btn_frm = ttk.Frame(upd)
+        btn_frm.pack(pady=10)
+        
+        # Auto-Update button
+        ttk.Button(btn_frm, text="⚡ Auto-Update", command=lambda: [upd.destroy(), self.start_auto_update(latest)], style="Accent.TButton").pack(side="left", padx=5)
+        # Manual download button
+        ttk.Button(btn_frm, text="🌐 Manuell laden", command=lambda: [webbrowser.open(url), upd.destroy()]).pack(side="left", padx=5)
+        # Cancel button
+        ttk.Button(btn_frm, text="Später", command=upd.destroy).pack(side="left", padx=5)
+
+    def start_auto_update(self, latest_version):
+        import sys
+        import os
+        import subprocess
+        import urllib.request
+        import threading
+        
+        if not getattr(sys, 'frozen', False):
+            messagebox.showinfo(
+                "Info", 
+                "Automatisches Update ist nur in der kompilierten EXE-Version von VibeSpool verfügbar.\n\n"
+                "Wenn du die App aus dem Quellcode ausführst, nutze bitte 'git pull', um die neuesten Änderungen zu erhalten.",
+                parent=self.root
+            )
+            return
+            
+        # Get compiled EXE asset info
+        asset_name, asset_url = get_latest_exe_asset(GITHUB_REPO)
+        if not asset_url:
+            messagebox.showwarning(
+                "Auto-Update", 
+                "Auf GitHub wurde kein vorkompiliertes EXE-Release (.exe) gefunden.\n\n"
+                "Bitte lade das Update manuell herunter.",
+                parent=self.root
+            )
+            return
+            
+        # Open download progress dialog
+        dl_win = tk.Toplevel(self.root)
+        dl_win.title("VibeSpool Auto-Updater")
+        dl_win.geometry("400x150")
+        dl_win.configure(bg=self.root.cget('bg'))
+        dl_win.attributes('-topmost', True)
+        from core.utils import center_window
+        center_window(dl_win, self.root)
+        dl_win.grab_set()
+        
+        lbl_status = ttk.Label(dl_win, text="Verbinde mit GitHub...", font=("Segoe UI", 10))
+        lbl_status.pack(pady=(15, 5))
+        
+        progress = ttk.Progressbar(dl_win, orient="horizontal", length=300, mode="determinate")
+        progress.pack(pady=10)
+        
+        def update_progress(percent):
+            progress['value'] = percent
+            lbl_status.config(text=f"Lade Version {latest_version} herunter... ({percent}%)")
+            
+        def run_download():
+            try:
+                exe_dir = os.path.dirname(sys.executable)
+                temp_exe = os.path.join(exe_dir, "VibeSpool_new.exe")
+                
+                req = urllib.request.Request(asset_url, headers={'User-Agent': 'VibeSpool-App'})
+                with urllib.request.urlopen(req) as response:
+                    total_size = int(response.info().get('Content-Length', 0))
+                    bytes_read = 0
+                    with open(temp_exe, 'wb') as f:
+                        while True:
+                            chunk = response.read(16384)
+                            if not chunk:
+                                break
+                            f.write(chunk)
+                            bytes_read += len(chunk)
+                            if total_size > 0:
+                                percent = int((bytes_read / total_size) * 100)
+                                self.root.after(0, lambda p=percent: update_progress(p))
+                
+                self.root.after(0, lambda: finalize_update(temp_exe))
+            except Exception as e:
+                self.root.after(0, lambda err=e: download_failed(err))
+                
+        def download_failed(err):
+            dl_win.destroy()
+            messagebox.showerror("Fehler", f"Fehler beim Herunterladen des Updates:\n{err}", parent=self.root)
+            
+        def finalize_update(temp_exe):
+            dl_win.destroy()
+            messagebox.showinfo(
+                "Update bereit", 
+                "Das Update wurde erfolgreich heruntergeladen.\n\n"
+                "VibeSpool wird nun beendet und die neue Version wird gestartet.",
+                parent=self.root
+            )
+            
+            try:
+                exe_dir = os.path.dirname(sys.executable)
+                running_exe_name = os.path.basename(sys.executable)
+                batch_path = os.path.join(exe_dir, "update.bat")
+                
+                # Write Windows batch script to overwrite running exe and restart it
+                batch_content = f"""@echo off
+:loop
+taskkill /f /im "{running_exe_name}" >nul 2>&1
+timeout /t 1 /nobreak >nul
+del "{running_exe_name}"
+if exist "{running_exe_name}" goto loop
+ren "VibeSpool_new.exe" "{running_exe_name}"
+start "" "{running_exe_name}"
+del "%~f0"
+"""
+                with open(batch_path, "w", encoding="utf-8") as bf:
+                    bf.write(batch_content)
+                    
+                # Launch batch script detached
+                subprocess.Popen([batch_path], shell=True, creationflags=subprocess.CREATE_NEW_CONSOLE)
+                
+                # Exit application
+                self.root.quit()
+                sys.exit(0)
+            except Exception as e:
+                messagebox.showerror("Fehler", f"Konnte Updater-Skript nicht starten:\n{e}", parent=self.root)
+                
+        # Start download thread
+        threading.Thread(target=run_download, daemon=True).start()
 
     def on_closing(self):
         """Fragt den Nutzer, ob das Programm ins Tray minimiert oder beendet werden soll."""
@@ -1369,10 +1530,12 @@ class FilamentApp:
             if isinstance(child, tk.Toplevel) and child.winfo_exists():
                 try:
                     child.configure(bg=c["bg"])
-                    if hasattr(child, 'canvas') and child.canvas.winfo_exists():
-                        child.canvas.configure(bg=c["bg"])
-                    if hasattr(child, 'redraw'):
-                        child.redraw()
+                    canvas = getattr(child, 'canvas', None)
+                    if canvas is not None and canvas.winfo_exists():
+                        canvas.configure(bg=c["bg"])
+                    redraw_fn = getattr(child, 'redraw', None)
+                    if redraw_fn is not None:
+                        redraw_fn()
                 except Exception:
                     pass
 
@@ -1538,6 +1701,8 @@ class FilamentApp:
             self.update_locations_dropdown()
             self.update_slot_dropdown()
             self.update_filter_dropdowns()
+            self.setup_context_menus()
+            self.refresh_table()
         SettingsDialog(self.root, self.data_manager, on_save, start_tab, self)
     def manual_update_check(self):
         latest, url = check_for_updates(GITHUB_REPO, APP_VERSION) or (None, None)
@@ -1636,6 +1801,18 @@ class FilamentApp:
                     return f"{float(w):08.2f}"
                 except:
                     return "00000000.00"
+            elif col == "shelf_name":
+                return str(i.get('type', ''))
+            elif col == "shelf_row":
+                loc_id_str = str(i.get('loc_id', ''))
+                if " - " in loc_id_str:
+                    return loc_id_str.split(" - ", 1)[0].strip()
+                return "-"
+            elif col == "shelf_slot":
+                loc_id_str = str(i.get('loc_id', ''))
+                if " - " in loc_id_str:
+                    return loc_id_str.split(" - ", 1)[1].strip()
+                return loc_id_str if loc_id_str else "-"
             elif col == "status":
                 return "VERBRAUCHT" if i.get('type') == "VERBRAUCHT" else "KAUFEN" if i.get('reorder') else ""
             return str(i.get(col, ""))
@@ -1736,9 +1913,20 @@ class FilamentApp:
             # Schneidet alles ab, was wie ein Hex-Code in Klammern aussieht
             display_color = re.sub(r'\s*\(\s*#[0-9a-fA-F]{6}\s*\)', '', i.get('color', '')).strip()
             
+            shelf_name = i['type']
+            shelf_row = "-"
+            shelf_slot = i.get('loc_id', '-')
+            loc_id_str = str(i.get('loc_id', ''))
+            if " - " in loc_id_str:
+                parts = loc_id_str.split(" - ", 1)
+                shelf_row = parts[0].strip()
+                shelf_slot = parts[1].strip()
+            elif loc_id_str in ["", "-"]:
+                shelf_slot = "-"
+                
             self.tree.insert("", "end", iid=str(i['id']), image=icon, values=(
                 i['id'], i['brand'], i.get('material', '-'), display_color, i.get('subtype', 'Standard'), 
-                f"{net}g", flow_val, loc_s, stat
+                f"{net}g", flow_val, loc_s, shelf_name, shelf_row, shelf_slot, stat
             ), tags=(["alert"] if i.get('reorder') else ["grayed"] if i['type'] == "VERBRAUCHT" else []))
             
         self.tree.tag_configure("alert", background="#ffe6e6", foreground="#d9534f")
@@ -3059,6 +3247,64 @@ class FilamentApp:
             messagebox.showwarning("PDF Export", "Keine Filamente zum Exportieren vorhanden (Filter aktiv?)", parent=self.root)
             return
 
+        # Dialog zur Spaltenauswahl öffnen
+        dialog = tk.Toplevel(self.root)
+        dialog.title("PDF Spaltenauswahl")
+        dialog.geometry("400x520")
+        dialog.configure(bg=self.root.cget('bg'))
+        dialog.transient(self.root)
+        dialog.grab_set()
+        
+        from core.utils import center_window
+        center_window(dialog, self.root)
+        
+        ttk.Label(dialog, text="Wähle die Spalten für den PDF-Export:", font=("Segoe UI", 11, "bold")).pack(pady=10, padx=15, anchor="w")
+        
+        # Checkboxen für Spalten
+        col_vars = {}
+        available_cols = [
+            ("id", "ID (Spulen-ID)"),
+            ("brand", "Hersteller / Marke"),
+            ("material", "Material (Typ + Subtyp)"),
+            ("color", "Farbe (inkl. Farbsymbole)"),
+            ("spool_type", "Spulentyp (Leergewicht)"),
+            ("location", "Lagerort (Ort / Regalplatz)"),
+            ("net_weight", "Netto-Gewicht (Restfilament)"),
+            ("gross_weight", "Brutto-Gewicht (Gesamtgewicht)"),
+            ("capacity", "Original-Kapazität"),
+            ("status", "Status (Aktiv/Verbraucht/Kaufen)")
+        ]
+        
+        # Gespeicherte Auswahl laden (Standard falls leer)
+        saved_export_cols = self.settings.get("pdf_export_columns", ["id", "brand", "material", "color", "location", "net_weight"])
+        
+        frm_checks = ttk.Frame(dialog, padding=10)
+        frm_checks.pack(fill="both", expand=True, padx=15)
+        
+        for cid, label in available_cols:
+            var = tk.BooleanVar(value=(cid in saved_export_cols))
+            col_vars[cid] = var
+            ttk.Checkbutton(frm_checks, text=label, variable=var).pack(anchor="w", pady=4)
+            
+        def on_confirm():
+            selected = [cid for cid, var in col_vars.items() if var.get()]
+            if not selected:
+                messagebox.showwarning("Warnung", "Bitte wähle mindestens eine Spalte aus!", parent=dialog)
+                return
+            
+            # Auswahl persistent speichern
+            self.settings["pdf_export_columns"] = selected
+            self.data_manager.save_settings(self.settings)
+            
+            dialog.destroy()
+            self.generate_pdf_file(items, selected)
+            
+        btn_frm = ttk.Frame(dialog, padding=10)
+        btn_frm.pack(fill="x", side="bottom")
+        ttk.Button(btn_frm, text="Abbrechen", command=dialog.destroy).pack(side="right", padx=5)
+        ttk.Button(btn_frm, text="Weiter ➡️", command=on_confirm, style="Accent.TButton").pack(side="right", padx=5)
+
+    def generate_pdf_file(self, items, selected_cols):
         fp = filedialog.asksaveasfilename(
             defaultextension=".pdf",
             filetypes=[("PDF-Dokument", "*.pdf")],
@@ -3083,6 +3329,53 @@ class FilamentApp:
 
             pages = []
             
+            # Definitionen für Spalten-Breitengewichtung, Titel und Ausrichtung
+            col_weights = {
+                "id": 0.6,
+                "brand": 1.8,
+                "material": 1.5,
+                "color": 2.2,
+                "spool_type": 1.8,
+                "location": 1.8,
+                "net_weight": 1.2,
+                "gross_weight": 1.2,
+                "capacity": 1.0,
+                "status": 1.0
+            }
+            col_titles = {
+                "id": "ID",
+                "brand": "Hersteller",
+                "material": "Material",
+                "color": "Farbe",
+                "spool_type": "Spulentyp",
+                "location": "Lagerort",
+                "net_weight": "Netto-Rest",
+                "gross_weight": "Brutto-Gew.",
+                "capacity": "Kapazität",
+                "status": "Status"
+            }
+            col_align = {
+                "id": "center",
+                "brand": "left",
+                "material": "left",
+                "color": "left",
+                "spool_type": "left",
+                "location": "left",
+                "net_weight": "right",
+                "gross_weight": "right",
+                "capacity": "right",
+                "status": "center"
+            }
+            
+            total_weight = sum(col_weights[cid] for cid in selected_cols)
+            
+            running_x = 100
+            col_x_map = {}
+            for cid in selected_cols:
+                w = (col_weights[cid] / total_weight) * 2280
+                col_x_map[cid] = (running_x, w)
+                running_x += w
+
             def draw_color_swatch(draw_obj, x, y, colors):
                 swatch_w, swatch_h = 60, 40
                 rect = [x, y, x + swatch_w, y + swatch_h]
@@ -3134,12 +3427,16 @@ class FilamentApp:
                 d.rectangle([100, header_y, 2380, header_y + 80], fill="#0078d7")
                 
                 th_y = header_y + 20
-                d.text((175, th_y), "ID", fill="white", font=font_header, anchor="mt")
-                d.text((270, th_y), "Hersteller", fill="white", font=font_header, anchor="lt")
-                d.text((770, th_y), "Material", fill="white", font=font_header, anchor="lt")
-                d.text((1070, th_y), "Farbe", fill="white", font=font_header, anchor="lt")
-                d.text((1670, th_y), "Spulentyp", fill="white", font=font_header, anchor="lt")
-                d.text((2360, th_y), "Gewicht (Netto)", fill="white", font=font_header, anchor="rt")
+                for col_id in selected_cols:
+                    x, w = col_x_map[col_id]
+                    title = col_titles[col_id]
+                    align = col_align[col_id]
+                    if align == "center":
+                        d.text((x + w/2, th_y), title, fill="white", font=font_header, anchor="mt")
+                    elif align == "right":
+                        d.text((x + w - 20, th_y), title, fill="white", font=font_header, anchor="rt")
+                    else: # left
+                        d.text((x + 20, th_y), title, fill="white", font=font_header, anchor="lt")
                 
                 return pg, d, header_y + 80
 
@@ -3155,35 +3452,59 @@ class FilamentApp:
                     
                 d.line([100, page_y + 80, 2380, page_y + 80], fill="#e2e8f0", width=1)
                 
-                d.text((175, page_y + 20), str(item['id']), fill="#334155", font=font_body_bold, anchor="mt")
-                d.text((270, page_y + 20), item.get('brand', '-'), fill="#1e293b", font=font_body, anchor="lt")
-                
-                mat = item.get('material', '-')
-                subtype = item.get('subtype', 'Standard')
-                mat_display = f"{mat} ({subtype})" if subtype and subtype != "Standard" else mat
-                d.text((770, page_y + 20), mat_display, fill="#1e293b", font=font_body, anchor="lt")
-                
-                display_color = re.sub(r'\s*\(\s*#[0-9a-fA-F]{6}\s*\)', '', item.get('color', '')).strip()
-                cols = get_colors_from_text(item.get('color', ''), self.settings.get('colors') if hasattr(self, 'settings') else None)
-                draw_color_swatch(d, 1070, page_y + 20, cols)
-                d.text((1150, page_y + 20), display_color, fill="#1e293b", font=font_body, anchor="lt")
-                
-                sp_id = item.get('spool_id', -1)
-                empty_weight = item.get('empty_weight')
-                sp_preset = next((s for s in self.spools if s['id'] == sp_id), None)
-                if sp_preset:
-                    spool_name = f"{sp_preset.get('name', 'Standard')} ({sp_preset.get('weight', 0)}g)"
-                elif empty_weight is not None:
-                    spool_name = f"Custom ({empty_weight}g)"
-                else:
-                    spool_name = "-"
-                d.text((1670, page_y + 20), spool_name, fill="#475569", font=font_body, anchor="lt")
-                
-                net = calculate_net_weight(item.get('weight_gross', '0'), item.get('spool_id', -1), self.spools, item.get('empty_weight'))
-                capacity = float(item.get('capacity', 1000))
-                pct = int(round((net / capacity) * 100)) if capacity > 0 else 0
-                weight_text = f"{net}g ({pct}%)"
-                d.text((2360, page_y + 20), weight_text, fill="#1e293b", font=font_body_bold, anchor="rt")
+                for col_id in selected_cols:
+                    x, w = col_x_map[col_id]
+                    align = col_align[col_id]
+                    val = ""
+                    
+                    if col_id == "id":
+                        val = str(item['id'])
+                    elif col_id == "brand":
+                        val = item.get('brand', '-')
+                    elif col_id == "material":
+                        mat = item.get('material', '-')
+                        subtype = item.get('subtype', 'Standard')
+                        val = f"{mat} ({subtype})" if subtype and subtype != "Standard" else mat
+                    elif col_id == "color":
+                        display_color = re.sub(r'\s*\(\s*#[0-9a-fA-F]{6}\s*\)', '', item.get('color', '')).strip()
+                        cols = get_colors_from_text(item.get('color', ''), self.settings.get('colors') if hasattr(self, 'settings') else None)
+                        draw_color_swatch(d, x + 20, page_y + 20, cols)
+                        val = display_color
+                        x += 80
+                        w -= 80
+                    elif col_id == "spool_type":
+                        sp_id = item.get('spool_id', -1)
+                        empty_weight = item.get('empty_weight')
+                        sp_preset = next((s for s in self.spools if s['id'] == sp_id), None)
+                        if sp_preset:
+                            val = f"{sp_preset.get('name', 'Standard')} ({sp_preset.get('weight', 0)}g)"
+                        elif empty_weight is not None:
+                            val = f"Custom ({empty_weight}g)"
+                        else:
+                            val = "-"
+                    elif col_id == "location":
+                        val = f"{item['type']} {item.get('loc_id', '')}".strip()
+                    elif col_id == "net_weight":
+                        net = calculate_net_weight(item.get('weight_gross', '0'), item.get('spool_id', -1), self.spools, item.get('empty_weight'))
+                        capacity = float(item.get('capacity', 1000))
+                        pct = int(round((net / capacity) * 100)) if capacity > 0 else 0
+                        val = f"{net}g ({pct}%)"
+                    elif col_id == "gross_weight":
+                        try: val = f"{float(item.get('weight_gross', 0)):.1f}g"
+                        except: val = "-"
+                    elif col_id == "capacity":
+                        try: val = f"{float(item.get('capacity', 1000)):.0f}g"
+                        except: val = "-"
+                    elif col_id == "status":
+                        val = "VERBRAUCHT" if item.get('type') == "VERBRAUCHT" else "KAUFEN" if item.get('reorder') else "Aktiv"
+                        
+                    # Zelle zeichnen
+                    if align == "center":
+                        d.text((x + w/2, page_y + 20), val, fill="#1e293b", font=font_body, anchor="mt")
+                    elif align == "right":
+                        d.text((x + w - 20, page_y + 20), val, fill="#1e293b", font=font_body_bold if col_id in ["net_weight", "gross_weight"] else font_body, anchor="rt")
+                    else: # left
+                        d.text((x + 20, page_y + 20), val, fill="#1e293b", font=font_body, anchor="lt")
                 
                 page_y += 80
                 
@@ -3291,17 +3612,52 @@ class FilamentApp:
         # --- 1. DAS HEADER-MENÜ (Spalten-Konfigurator) ---
         self.menu_header = tk.Menu(self.root, tearoff=0)
         
-        self.col_vars = {}
-        all_cols = {"id": "ID", "brand": "Marke", "material": "Material", "color": "Farbe", 
-                    "subtype": "Effekt / Typ", "weight": "Rest(g)", "flow": "Flow", 
-                    "location": "Ort", "status": "Status"}
-                    
-        visible_now = self.settings.get("visible_columns", list(all_cols.keys()))
+        split = self.settings.get("split_shelves_columns", False)
+        self.var_split_shelves = tk.BooleanVar(value=split)
+        self.menu_header.add_checkbutton(label="Regale spalten (Ort aufteilen)", variable=self.var_split_shelves, command=self.toggle_split_shelves)
+        self.menu_header.add_separator()
         
+        default_visible = ["id", "brand", "material", "color", "subtype", "weight", "flow", "location", "status"]
+        visible_now = self.settings.get("visible_columns", default_visible)
+        
+        if split:
+            new_visible = []
+            for col in visible_now:
+                if col == "location":
+                    new_visible.extend(["shelf_name", "shelf_row", "shelf_slot"])
+                elif col not in ["shelf_name", "shelf_row", "shelf_slot"]:
+                    new_visible.append(col)
+            visible_now = new_visible
+        else:
+            new_visible = []
+            added_location = False
+            for col in visible_now:
+                if col in ["shelf_name", "shelf_row", "shelf_slot"]:
+                    if not added_location:
+                        new_visible.append("location")
+                        added_location = True
+                else:
+                    new_visible.append(col)
+            if not added_location and "location" not in new_visible:
+                new_visible.append("location")
+            visible_now = new_visible
+            
+        self.settings["visible_columns"] = visible_now
+        
+        self.col_vars = {}
+        if split:
+            all_cols = {"id": "ID", "brand": "Marke", "material": "Material", "color": "Farbe", 
+                        "subtype": "Effekt / Typ", "weight": "Rest(g)", "flow": "Flow", 
+                        "shelf_name": "Regal", "shelf_row": "Reihe", "shelf_slot": "Platz",
+                        "status": "Status"}
+        else:
+            all_cols = {"id": "ID", "brand": "Marke", "material": "Material", "color": "Farbe", 
+                        "subtype": "Effekt / Typ", "weight": "Rest(g)", "flow": "Flow", 
+                        "location": "Ort", "status": "Status"}
+                        
         def toggle_column():
-            # Welche Spalten haben einen Haken?
             new_visible = [col for col, var in self.col_vars.items() if var.get()]
-            if not new_visible: # Mindestens eine Spalte muss an bleiben!
+            if not new_visible:
                 new_visible = ["id"]
                 self.col_vars["id"].set(True)
                 
@@ -3315,7 +3671,7 @@ class FilamentApp:
             self.menu_header.add_checkbutton(label=col_name, variable=var, command=toggle_column)
             
         self.menu_header.add_separator()
-        self.menu_header.add_command(label="🔄 Standard-Ansicht", command=lambda: [v.set(True) for v in self.col_vars.values()] or toggle_column())
+        self.menu_header.add_command(label="🔄 Standard-Ansicht", command=self.reset_standard_columns)
 
         # Wende die gespeicherten Spalten direkt beim Start an!
         self.tree.configure(displaycolumns=visible_now)
@@ -3335,6 +3691,23 @@ class FilamentApp:
         self.menu_row.add_separator()
         self.menu_row.add_command(label="📝 Etikett-Vorschau öffnen", command=self.quick_open_label)
         self.menu_row.add_command(label="❌ Spule löschen", command=self.delete_filament)
+
+    def toggle_split_shelves(self):
+        self.settings["split_shelves_columns"] = self.var_split_shelves.get()
+        self.data_manager.save_settings(self.settings)
+        self.setup_context_menus()
+        self.refresh_table()
+
+    def reset_standard_columns(self):
+        split = self.settings.get("split_shelves_columns", False)
+        if split:
+            visible = ["id", "brand", "material", "color", "subtype", "weight", "flow", "shelf_name", "shelf_row", "shelf_slot", "status"]
+        else:
+            visible = ["id", "brand", "material", "color", "subtype", "weight", "flow", "location", "status"]
+        self.settings["visible_columns"] = visible
+        self.data_manager.save_settings(self.settings)
+        self.setup_context_menus()
+        self.refresh_table()
 
     def show_spool_history(self, event=None, spool_id=None):
         """Öffnet das Logbuch (Historie) für eine ausgewählte Spule."""

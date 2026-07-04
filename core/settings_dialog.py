@@ -216,6 +216,8 @@ class SettingsDialog(tk.Toplevel):
         ttk.Checkbutton(tab_sys, text="RFID-Reader Modus aktiv", variable=self.var_rfid).pack(anchor="w", pady=2)
         self.var_projects = tk.BooleanVar(value=self.settings.get("use_projects", False))
         ttk.Checkbutton(tab_sys, text="Projektverlauf / Projektverwaltung aktivieren", variable=self.var_projects).pack(anchor="w", pady=2)
+        self.var_split_shelves = tk.BooleanVar(value=self.settings.get("split_shelves_columns", False))
+        ttk.Checkbutton(tab_sys, text="Lagerort-Spalte in 'Regal', 'Reihe', 'Platz' aufteilen", variable=self.var_split_shelves).pack(anchor="w", pady=2)
         
         ttk.Separator(tab_sys, orient="horizontal").pack(fill="x", pady=10)
         
@@ -687,6 +689,7 @@ class SettingsDialog(tk.Toplevel):
                 "use_bambu": use_bambu,
                 "use_bambu_cloud": self.var_cloud.get(),
                 "use_projects": self.var_projects.get(),
+                "split_shelves_columns": self.var_split_shelves.get(),
                 "bambu_ip": bambu_ip,
                 "bambu_access": bambu_acc,
                 "bambu_serial": bambu_ser,

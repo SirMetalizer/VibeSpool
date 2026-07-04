@@ -473,7 +473,10 @@ class PrintQueueDialog(tk.Toplevel):
         
         # NEU: Errechneter Preis inside scrollable container
         self.lbl_calc_price = ttk.Label(sf.inner, text="Errechneter Preis: 0.00 €", font=("Segoe UI", 11, "bold"), foreground="#0078d7")
-        self.lbl_calc_price.pack(anchor="w", pady=(0, 10))
+        self.lbl_calc_price.pack(anchor="w", pady=(0, 2))
+        
+        self.lbl_calc_breakdown = ttk.Label(sf.inner, text="", font=("Segoe UI", 9), foreground="gray")
+        self.lbl_calc_breakdown.pack(anchor="w", pady=(0, 10))
         
         ttk.Label(sf.inner, text="Notizen (Planung / Details):").pack(anchor="w")
         self.txt_notes = tk.Text(sf.inner, height=4, font=("Segoe UI", 10))
@@ -580,6 +583,7 @@ class PrintQueueDialog(tk.Toplevel):
             total_weight += w_val
             
         total_cost = 0.0
+        total_mat_cost = 0.0
         for sp_id, w_val in weights.items():
             ent, _, lbl_price = self.selected_spool_entries[sp_id]
             if w_val <= 0:
@@ -597,6 +601,7 @@ class PrintQueueDialog(tk.Toplevel):
                 if cap > 0: mat_cost = w_val * (price / cap)
             except: pass
             
+            total_mat_cost += mat_cost
             share = w_val / total_weight if total_weight > 0 else 0.0
             spool_share_cost = mat_cost + (strom_gesamt * share) + (wear_gesamt * share)
             spool_sell_price = spool_share_cost * (1 + (margin_percent / 100.0))
@@ -613,6 +618,9 @@ class PrintQueueDialog(tk.Toplevel):
         if margin_percent > 0:
             res_text += f" (VK: {sell_price:.2f} €)"
         self.lbl_calc_price.config(text=res_text)
+        
+        breakdown_text = f"Material: {total_mat_cost:.2f} € | Strom: {strom_gesamt:.2f} € | Verschleiß: {wear_gesamt:.2f} €"
+        self.lbl_calc_breakdown.config(text=breakdown_text)
 
     def on_quick_add_spool(self, event):
         sel = self.combo_add.get()
@@ -954,6 +962,7 @@ class PrintQueueDialog(tk.Toplevel):
         wear_gesamt = print_time_val * wear_price
         
         total_cost = 0.0
+        total_mat_cost = 0.0
         for sp_id, w_val in spool_weights.items():
             if w_val <= 0: continue
             sp = next((i for i in self.app.inventory if str(i['id']) == sp_id), None)
@@ -966,6 +975,7 @@ class PrintQueueDialog(tk.Toplevel):
                 if cap > 0: mat_cost = w_val * (price / cap)
             except: pass
             
+            total_mat_cost += mat_cost
             share = w_val / est_weight_val if est_weight_val > 0 else 0.0
             spool_share_cost = mat_cost + (strom_gesamt * share) + (wear_gesamt * share)
             total_cost += spool_share_cost
@@ -991,7 +1001,12 @@ class PrintQueueDialog(tk.Toplevel):
                     "notes": self.txt_notes.get("1.0", tk.END).strip(),
                     "est_weight": f"{est_weight_val:.1f}".replace(".0", ""),
                     "est_time": f"{print_time_val:.1f}".replace(".0", ""),
-                    "est_price": est_price_str
+                    "est_price": est_price_str,
+                    "material_cost": total_mat_cost,
+                    "electricity_cost": strom_gesamt,
+                    "wear_cost": wear_gesamt,
+                    "total_cost": total_cost,
+                    "sell_price": sell_price
                 })
                 if img_name_to_save is not None:
                     job["image_name"] = img_name_to_save
@@ -1010,7 +1025,12 @@ class PrintQueueDialog(tk.Toplevel):
                 "status": "Geplant",
                 "est_weight": f"{est_weight_val:.1f}".replace(".0", ""),
                 "est_time": f"{print_time_val:.1f}".replace(".0", ""),
-                "est_price": est_price_str
+                "est_price": est_price_str,
+                "material_cost": total_mat_cost,
+                "electricity_cost": strom_gesamt,
+                "wear_cost": wear_gesamt,
+                "total_cost": total_cost,
+                "sell_price": sell_price
             }
             if img_name_to_save:
                 new_job["image_name"] = img_name_to_save

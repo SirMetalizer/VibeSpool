@@ -1,6 +1,6 @@
 # core/constants.py
 
-APP_VERSION = "2.4.1"
+APP_VERSION = "2.4.2"
 GITHUB_REPO = "SirMetalizer/VibeSpool"
 
 DEFAULT_SETTINGS = {

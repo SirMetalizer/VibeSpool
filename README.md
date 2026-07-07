@@ -1,6 +1,6 @@
 # 🧵 VibeSpool - Das smarte Filament-Management-System
 
-![Version](https://img.shields.io/badge/version-2.4.1-blue.svg)
+![Version](https://img.shields.io/badge/version-2.4.2-blue.svg)
 ![Python](https://img.shields.io/badge/python-3.10%2B-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
@@ -9,12 +9,13 @@
 <img width="1924" height="1044" alt="VibeSpool Main Dashboard" src="https://github.com/user-attachments/assets/7234891c-0458-478b-8c5a-7d9e6cd184cb" />
 ---
 
-## 🆕 Was ist neu in Version 2.4.1? ("Pure Filament Cost Display Update")
-Dieses Update verbessert die Übersichtlichkeit bei der Preisdarstellung im Auftrags-Planer, indem neben den einzelnen Spulen nun ausschließlich der reine Materialpreis (Filamentkosten) angezeigt wird. Dies verhindert Verwirrung, da zusätzliche Kosten wie Strom, Verschleiß sowie optionale Margen weiterhin im Gesamtpreis-Bereich unten detailliert aufgeschlüsselt sind.
+## 🆕 Was ist neu in Version 2.4.2? ("Pure Filament Cost & Auto-Updater Fix Update")
+Dieses Update bringt eine verbesserte Übersichtlichkeit bei der Preisdarstellung im Auftrags-Planer sowie einen wichtigen Bugfix für das automatische App-Update unter Windows.
 
 ### ✨ Die Highlights:
 
-* **💰 Reiner Materialpreis pro Spule:** In der Spulenliste des Auftrags-Planers wird bei jeder ausgewählten Spule nur noch der Materialpreis anstatt des Gesamtanteils (inkl. Strom und Verschleiß) aufgeführt.
+* **💰 Reiner Materialpreis pro Spule:** In der Spulenliste des Auftrags-Planers wird bei jeder ausgewählten Spule nur noch der reine Materialpreis (Filamentkosten) anstatt des Gesamtanteils (inkl. Strom und Verschleiß) aufgeführt. Alle weiteren Posten sind übersichtlich in der Gesamtrechnung unten aufgeschlüsselt.
+* **⚡ Zuverlässiges Auto-Update für Setups:** Falls das Update-Asset ein Inno Setup Installer ist, blockiert sich dieser nicht mehr selbst (Fehler `DeleteFile failed; code 32`), sondern wird vollautomatisch und geräuschlos im Hintergrund installiert und neu gestartet.
 * **📊 Beibehaltung der Gesamtrechnung:** Alle Kostenkomponenten (Material, Strom, Verschleiß) werden weiterhin wie gewohnt unten aggregiert berechnet und mit Marge aufgeführt.
 
 
@@ -109,6 +110,10 @@ Starten:
 ---
 
 ## ⏳ Release-Historie
+
+### 🆕 Was ist neu in Version 2.4.1? ("Pure Filament Cost Display Update")
+* **💰 Reiner Materialpreis pro Spule:** In der Spulenliste des Auftrags-Planers wird bei jeder ausgewählten Spule nur noch der Materialpreis anstatt des Gesamtanteils (inkl. Strom und Verschleiß) aufgeführt.
+* **📊 Beibehaltung der Gesamtrechnung:** Alle Kostenkomponenten (Material, Strom, Verschleiß) werden weiterhin wie gewohnt unten aggregiert berechnet und mit Marge aufgeführt.
 
 ### 🆕 Was ist neu in Version 2.4.0? ("The Auto-Updater & Split Shelf Columns Update")
 * **⚡ Integrierter Auto-Updater:** Updates können nun vollautomatisch mit einem grafischen Fortschrittsbalken direkt aus der App heruntergeladen und über ein detached Windows-Batch-Skript installiert und neu gestartet werden.

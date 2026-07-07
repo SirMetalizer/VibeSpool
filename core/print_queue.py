@@ -607,10 +607,7 @@ class PrintQueueDialog(tk.Toplevel):
             spool_sell_price = spool_share_cost * (1 + (margin_percent / 100.0))
             total_cost += spool_share_cost
             
-            if margin_percent > 0:
-                lbl_price.config(text=f"{spool_sell_price:.2f} €")
-            else:
-                lbl_price.config(text=f"{spool_share_cost:.2f} €")
+            lbl_price.config(text=f"{mat_cost:.2f} €")
             
         sell_price = total_cost * (1 + (margin_percent / 100.0))
         

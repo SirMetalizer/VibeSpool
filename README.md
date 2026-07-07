@@ -1,6 +1,6 @@
 # 🧵 VibeSpool - Das smarte Filament-Management-System
 
-![Version](https://img.shields.io/badge/version-2.4.0-blue.svg)
+![Version](https://img.shields.io/badge/version-2.4.1-blue.svg)
 ![Python](https://img.shields.io/badge/python-3.10%2B-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
@@ -9,24 +9,13 @@
 <img width="1924" height="1044" alt="VibeSpool Main Dashboard" src="https://github.com/user-attachments/assets/7234891c-0458-478b-8c5a-7d9e6cd184cb" />
 ---
 
-## 🆕 Was ist neu in Version 2.4.0? ("The Auto-Updater & Split Shelf Columns Update")
-Dieses Update bringt einen integrierten Auto-Updater für die Windows EXE-Version, getrennte Zeiteingabe (Std/Min) für die Kostenberechnung, detaillierte Kostenaufschlüsselungen in der Warteschlange und der Projektverwaltung sowie eine optional spaltbare Lagerortanzeige (Regal, Reihe, Platz) und einen flexiblen Spalten-Selektor für den PDF-Bestandsexport!
+## 🆕 Was ist neu in Version 2.4.1? ("Pure Filament Cost Display Update")
+Dieses Update verbessert die Übersichtlichkeit bei der Preisdarstellung im Auftrags-Planer, indem neben den einzelnen Spulen nun ausschließlich der reine Materialpreis (Filamentkosten) angezeigt wird. Dies verhindert Verwirrung, da zusätzliche Kosten wie Strom, Verschleiß sowie optionale Margen weiterhin im Gesamtpreis-Bereich unten detailliert aufgeschlüsselt sind.
 
 ### ✨ Die Highlights:
 
-* **⚡ Integrierter Auto-Updater:** Updates können nun vollautomatisch mit einem grafischen Fortschrittsbalken direkt aus der App heruntergeladen und über ein detached Windows-Batch-Skript installiert und neu gestartet werden.
-* **⏱️ Komfortable Quickcost-Zeiteingabe:** Stunden (Std) und Minuten (Min) getrennt eingeben. Das lästige Umrechnen von Minuten in Dezimalstunden entfällt.
-* **📊 Detaillierte Kostenaufschlüsselung:**
-  * Im **Auftrags-Planer** werden die berechneten Posten für Material, Strom und Maschinenverschleiß direkt unter dem Preis angezeigt.
-  * Diese Daten werden persistent in `print_jobs.json` gespeichert.
-  * Das **Projekt-Detailfenster** zeigt diese Posten strukturiert als Unterpunkte von "Kosten/Preis" an.
-* **📦 Regal-Spalten Modul (Orte spalten):**
-  * Spalte die bisherige Gesamtspalte "Ort" in drei eigenständige Spalten: **Regal**, **Reihe** und **Platz**.
-  * Kann flexibel über *Optionen -> System* oder direkt per *Rechtsklick auf den Tabellenkopf* aktiviert/deaktiviert werden.
-  * Volle Sortierbarkeit nach Regalname, Reihe und Platz.
-* **📄 Flexibler PDF-Bestandsexport:**
-  * Vor dem Export öffnet sich ein Dialog, in dem die gewünschten Spalten ausgewählt werden können.
-  * Die Spaltenbreiten werden auf dem PDF-Dokument (DIN A4 bei 300 DPI) automatisch proportional und dynamisch aufgeteilt.
+* **💰 Reiner Materialpreis pro Spule:** In der Spulenliste des Auftrags-Planers wird bei jeder ausgewählten Spule nur noch der Materialpreis anstatt des Gesamtanteils (inkl. Strom und Verschleiß) aufgeführt.
+* **📊 Beibehaltung der Gesamtrechnung:** Alle Kostenkomponenten (Material, Strom, Verschleiß) werden weiterhin wie gewohnt unten aggregiert berechnet und mit Marge aufgeführt.
 
 
 ---
@@ -120,6 +109,21 @@ Starten:
 ---
 
 ## ⏳ Release-Historie
+
+### 🆕 Was ist neu in Version 2.4.0? ("The Auto-Updater & Split Shelf Columns Update")
+* **⚡ Integrierter Auto-Updater:** Updates können nun vollautomatisch mit einem grafischen Fortschrittsbalken direkt aus der App heruntergeladen und über ein detached Windows-Batch-Skript installiert und neu gestartet werden.
+* **⏱️ Komfortable Quickcost-Zeiteingabe:** Stunden (Std) und Minuten (Min) getrennt eingeben. Das lästige Umrechnen von Minuten in Dezimalstunden entfällt.
+* **📊 Detaillierte Kostenaufschlüsselung:**
+  * Im **Auftrags-Planer** werden die berechneten Posten für Material, Strom und Maschinenverschleiß direkt unter dem Preis angezeigt.
+  * Diese Daten werden persistent in `print_jobs.json` gespeichert.
+  * Das **Projekt-Detailfenster** zeigt diese Posten strukturiert als Unterpunkte von "Kosten/Preis" an.
+* **📦 Regal-Spalten Modul (Orte spalten):**
+  * Spalte die bisherige Gesamtspalte "Ort" in drei eigenständige Spalten: **Regal**, **Reihe** und **Platz**.
+  * Kann flexibel über *Optionen -> System* oder direkt per *Rechtsklick auf den Tabellenkopf* aktiviert/deaktiviert werden.
+  * Volle Sortierbarkeit nach Regalname, Reihe und Platz.
+* **📄 Flexibler PDF-Bestandsexport:**
+  * Vor dem Export öffnet sich ein Dialog, in dem die gewünschten Spalten ausgewählt werden können.
+  * Die Spaltenbreiten werden auf dem PDF-Dokument (DIN A4 bei 300 DPI) automatisch proportional und dynamisch aufgeteilt.
 
 ### 🆕 Was ist neu in Version 2.3.0? ("The Custom Label & Project Module Update")
 * **🏷️ Eigene Label-Größe & dynamische Skalierung:** Breite und Höhe sind im Label Creator in mm konfigurierbar. Alle Texte und der QR-Code skalieren proportional mit. Je nach Seitenverhältnis passt sich die Orientierung (Horizontal/Vertikal) automatisch an.

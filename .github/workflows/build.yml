@@ -69,13 +69,20 @@ jobs:
         path: dist/VibeSpool_Mac.zip
 
     # --- AUTO-UPLOAD INS RELEASE ---
-    - name: Setup an Release anhängen (Windows)
+    - name: Standalone EXE an Release anhängen (Windows)
       if: github.event_name == 'release' && matrix.os == 'windows-latest'
       uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2
       with:
-        files: |
-          dist/VibeSpool_Win.exe
-          dist/VibeSpool_Setup.exe
+        files: dist/VibeSpool_Win.exe
+        tag_name: ${{ github.event.release.tag_name }}
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Setup Installer an Release anhängen (Windows)
+      if: github.event_name == 'release' && matrix.os == 'windows-latest'
+      uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2
+      with:
+        files: dist/VibeSpool_Setup.exe
         tag_name: ${{ github.event.release.tag_name }}
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

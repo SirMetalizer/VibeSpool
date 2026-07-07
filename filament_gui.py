@@ -1299,8 +1299,25 @@ class FilamentApp:
                 running_exe_name = os.path.basename(sys.executable)
                 batch_path = os.path.join(exe_dir, "update.bat")
                 
-                # Write Windows batch script to overwrite running exe and restart it
-                batch_content = f"""@echo off
+                # Check if asset is an installer
+                is_installer = "setup" in asset_name.lower() or "installer" in asset_name.lower()
+                
+                if is_installer:
+                    batch_content = f"""@echo off
+:loop
+taskkill /f /im "{running_exe_name}" >nul 2>&1
+timeout /t 1 /nobreak >nul
+if exist "{running_exe_name}" (
+    del "{running_exe_name}" >nul 2>&1
+    if exist "{running_exe_name}" goto loop
+)
+start /wait "" "VibeSpool_new.exe" /SILENT /DIR="{exe_dir}" /SP- /NOICONS
+del "VibeSpool_new.exe" >nul 2>&1
+start "" "{running_exe_name}"
+del "%~f0"
+"""
+                else:
+                    batch_content = f"""@echo off
 :loop
 taskkill /f /im "{running_exe_name}" >nul 2>&1
 timeout /t 1 /nobreak >nul

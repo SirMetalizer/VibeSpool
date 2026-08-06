@@ -1,6 +1,6 @@
 # 🧵 VibeSpool - Das smarte Filament-Management-System
 
-![Version](https://img.shields.io/badge/version-2.4.2-blue.svg)
+![Version](https://img.shields.io/badge/version-2.4.3-blue.svg)
 ![Python](https://img.shields.io/badge/python-3.10%2B-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
@@ -9,14 +9,14 @@
 <img width="1924" height="1044" alt="VibeSpool Main Dashboard" src="https://github.com/user-attachments/assets/7234891c-0458-478b-8c5a-7d9e6cd184cb" />
 ---
 
-## 🆕 Was ist neu in Version 2.4.2? ("Pure Filament Cost & Auto-Updater Fix Update")
-Dieses Update bringt eine verbesserte Übersichtlichkeit bei der Preisdarstellung im Auftrags-Planer sowie einen wichtigen Bugfix für das automatische App-Update unter Windows.
+## 🆕 Was ist neu in Version 2.4.3? ("PDF Export Landscape & Shelf Selection Edit Update")
+Dieses Update bringt flexible Querformat-Druckoptionen für deinen Bestand, verbesserte Auswahlfunktionen beim PDF-Export sowie direkte Filament-Bearbeitung aus der Regalansicht!
 
 ### ✨ Die Highlights:
 
-* **💰 Reiner Materialpreis pro Spule:** In der Spulenliste des Auftrags-Planers wird bei jeder ausgewählten Spule nur noch der reine Materialpreis (Filamentkosten) anstatt des Gesamtanteils (inkl. Strom und Verschleiß) aufgeführt. Alle weiteren Posten sind übersichtlich in der Gesamtrechnung unten aufgeschlüsselt.
-* **⚡ Zuverlässiges Auto-Update für Setups:** Falls das Update-Asset ein Inno Setup Installer ist, blockiert sich dieser nicht mehr selbst (Fehler `DeleteFile failed; code 32`), sondern wird vollautomatisch und geräuschlos im Hintergrund installiert und neu gestartet.
-* **📊 Beibehaltung der Gesamtrechnung:** Alle Kostenkomponenten (Material, Strom, Verschleiß) werden weiterhin wie gewohnt unten aggregiert berechnet und mit Marge aufgeführt.
+* **🖼️ Flexible PDF-Ausrichtung (Querformat & Hochformat):** Wähle beim Bestandsexport als PDF zwischen DIN A4 Querformat (Landscape) und Hochformat (Portrait). Das Querformat bietet optimale Übersicht für viele ausgewählte Spalten. Ihre Ausrichtung wird persistent gespeichert.
+* **📋 Ergonomische Spalten- & Spulenauswahl:** Neue Schnellauswahl-Buttons (`☑️ Alle` / `☐ Keine`) für Spalten sowie eine interaktive Spulen-Checkliste im PDF-Export-Dialog mit Zähler (`X/Y gewählt`).
+* **✏️ Filament-Bearbeitung aus der Regalansicht:** Direktes Laden und Bearbeiten einer Spule beim Auswählen, Doppelklick oder per Kontextmenü in der Regal- & AMS-Übersicht (`ShelfVisualizer`).
 
 
 ---

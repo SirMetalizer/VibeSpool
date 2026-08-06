@@ -1042,9 +1042,12 @@ class FilamentApp:
         text_box.tag_configure("h1", font=("Segoe UI", 13, "bold"), foreground="#0078D7", spacing1=18, spacing3=6)
         text_box.tag_configure("bold", font=("Segoe UI", 10, "bold"))
         text_box.tag_configure("bullet", lmargin1=20, lmargin2=35, spacing1=4)
+        text_box.tag_configure("link", font=("Segoe UI", 10, "bold"), foreground="#0078D7", underline=True)
 
         # --- Inhalte definieren ---
         tab1_content = """## Grundlagen & Spulen anlegen
+[▶ Video-Tutorial: Erste Schritte & Spulen anlegen](https://www.youtube.com/watch?v=placeholder1)
+
 • Spulen hinzufügen: Klicke links auf 'Neu', fülle die Felder aus und klicke auf 'Neu Hinzufügen'. Wenn du das ID-Feld leer lässt, vergibt VibeSpool automatisch die nächste freie Nummer.
 • Farb-Automatik: Du kannst Hex-Codes (z.B. #FF0000) eintippen. VibeSpool übersetzt diese beim Speichern automatisch in den passenden Namen und zeigt dir ein Farb-Icon. Bei Multi-Color-Filamenten trenne die Farben einfach mit einem Schrägstrich (Rot / Blau).
 • Listen anpassen: Fehlt dir ein Hersteller oder ein Material im Dropdown-Menü? Klicke oben rechts auf 'Optionen' -> 'Listen-Verwaltung' und füge deine eigenen Einträge hinzu. VibeSpool lernt aber auch automatisch mit, wenn du einfach ein neues Wort in das Feld eintippst!
@@ -1053,20 +1056,29 @@ class FilamentApp:
 ## Tabellen & Ansicht
 • Spalten konfigurieren: Mach einen Rechtsklick auf den Tabellenkopf (wo 'Marke', 'Material' etc. steht). Dort kannst du Spalten ein- und ausblenden.
 • Sortieren: Klicke auf eine Spaltenüberschrift, um danach zu sortieren. AMS-Spulen werden dabei immer priorisiert ganz oben angezeigt!
-• Rechtsklick-Menü: Ein Rechtsklick auf eine Spule in der Tabelle öffnet ein Schnellmenü für die wichtigsten Aktionen (Löschen, Logbuch, Quick-Swap, Shop-Link)."""
+• Rechtsklick-Menü: Ein Rechtsklick auf eine Spule in der Tabelle öffnet ein Schnellmenü für die wichtigsten Aktionen (Löschen, Logbuch, Quick-Swap, Shop-Link).
+• 3MF-Import: Über den '3MF-Import' Button im Auftrags-Planer kannst du Druckzeiten und Filamentgewichte direkt aus den Metadaten deiner Slicer-Dateien (.3mf von Bambu oder OrcaSlicer) auslesen."""
 
         tab2_content = """## Lager & Regale
+[▶ Video-Tutorial: Lager, Regale & Doppeltiefe Fächer](https://www.youtube.com/watch?v=placeholder2)
+
 • Regalplaner: Gehe in die Optionen -> 'Lager-Layout planen'. Dort legst du fest, wie viele Regale du hast und wie viele Spalten/Reihen sie besitzen.
 • Fächer benennen: Ebenfalls in den Optionen kannst du Regalfächern eigene Namen geben (z.B. 'Kiste A' statt 'Fach 1').
 • Doppeltiefe Regale: Aktivierst du diese Option, bekommt jeder Slot einen vorderen (V) und einen hinteren (H) Platz. Perfekt für tiefe Schränke!
 • Zusatz-Orte: Trag in den Optionen Orte wie 'Trockenbox' ein. Diese erscheinen dann endlos als normaler Lagerort im Dropdown.
+• Orte spalten (Regal-Spalten Modul): Aktivierst du diese Option (über Optionen -> System oder per Rechtsklick auf den Tabellenkopf), wird das Feld 'Ort' in 'Regal', 'Reihe' und 'Platz' aufgeteilt. Dadurch lässt sich dein Lager flexibler sortieren und strukturieren.
 
 ## AMS & Drucker-Verwaltung
+[▶ Video-Tutorial: Drucker-Verwaltung & Live AMS-Sync](https://www.youtube.com/watch?v=placeholder3)
+
+• Drucker- & AMS-Zuordnung: Du kannst mehrere Drucker (Bambu Lab, Klipper oder Manuell) in den Einstellungen anlegen. Weise deinen Druckern feste AMS-Einheiten und externe Spulenplätze (z. B. 'P1S Extern') zu, um den Filamentbestand optimal zu strukturieren.
 • Quick-Swap (Tauschen): Du willst drucken? Klicke auf 'Swap'. Wähle den AMS-Slot aus. VibeSpool tauscht die Spule aus dem Regal magisch mit der Spule im AMS. Du weißt immer, wo die alte Spule gelandet ist!
 • Bambu AMS Live-Sync: Wenn du in den Optionen deine Bambu-IP und den Access-Code hinterlegst, kannst du links auf 'AMS' klicken. VibeSpool liest dein echtes Bambu-AMS aus und fragt dich, welche VibeSpool-Rollen du gerade eingelegt hast. Kollisionen werden dabei verhindert!
 • Ins Lager: Der Button 'Ins Lager' wirft eine Spule sofort aus dem AMS/Drucker und packt sie auf den großen, endlosen Haufen 'LAGER'."""
 
         tab3_content = """## Die Schlaue Waage (Netto-Gewicht)
+[▶ Video-Tutorial: Die Schlaue Waage & Verbrauch](https://www.youtube.com/watch?v=placeholder4)
+
 • Ziel: Präzise wissen, wie viel Filament noch auf der Rolle ist, ohne selbst rechnen zu müssen.
 • Leerspulen anlegen: Klicke links auf 'Spulen' (Das Faden-Symbol). Lege dort an, wie viel eine leere Plastik-/Papprolle der jeweiligen Hersteller wiegt (z.B. Bambu Lab Leer = 250g).
 • So funktioniert's: Wähle im Hauptfenster aus dem Dropdown die Leerspule deines Herstellers. Stell die Spule auf deine Küchenwaage. Trage das ermittelte Gewicht bei 'Gewicht auf Waage (Brutto)' ein. VibeSpool zieht das Leergewicht ab und zeigt dir sofort das exakte 'Netto (Rest)' an!
@@ -1077,10 +1089,15 @@ class FilamentApp:
 • Korrektur: Du hast Ausschuss produziert oder Filament weggeschnitten? Trag die Grammzahl ein und klicke auf '➕ Korrektur'. Dies zieht das Gewicht ab, ohne eine Finanz-Kalkulation auszulösen."""
 
         tab4_content = """## Finanz-Dashboard & Kosten (Das Cost Center)
+[▶ Video-Tutorial: Cost Center & Auftragsplaner](https://www.youtube.com/watch?v=placeholder5)
+
 • Echte Gewerbe-Kalkulation: Gehe in die Optionen zum 'Druckkosten-Rechner'. Trag deinen Strompreis, Drucker-Watt, Maschinenverschleiß (pro Stunde) und deine gewünschte Gewinnmarge ein. 
 • Das Dashboard: Klicke links auf 'Finanzen'. Hier siehst du deinen Lagerwert, ein 7-Tage-Verbrauchsdiagramm und unten die 'Globale Druck-Historie'.
 • Globale Historie: Dies ist dein Kassenbuch! Es zeigt alle Drucke über alle Spulen hinweg an, inklusive der ausgerechneten Kosten und deines Verkaufspreises.
 • Quick-Cost Kalkulator: Klicke links im Menü auf das Taschenrechner-Symbol (🧮). Damit kannst du schnell ein Preisangebot für einen Kunden berechnen, ohne dass du dafür eine echte Spule aus dem Lager belasten musst.
+• Quickcost-Zeiteingabe: Bei Berechnungen gibst du Stunden (Std) und Minuten (Min) komfortabel getrennt ein. Die App rechnet dies im Hintergrund automatisch um.
+• Detaillierte Kostenaufschlüsselung: Im Auftrags-Planer und im Projekt-Detailfenster siehst du die exakten Posten für Material, Strom und Maschinenverschleiß einzeln aufgeschlüsselt.
+• Reiner Materialpreis pro Spule: In der Spulen-Auswahlliste des Auftragsplaners wird bei jeder Spule nur noch der reine Materialpreis (Filamentkosten) angezeigt. Alle weiteren Kostenkomponenten (Strom, Verschleiß, Marge) werden übersichtlich in der Gesamtkalkulation unten zusammengefasst.
 
 ## Logbuch & Retro-Fit (Nachträgliche Korrektur)
 • Spulen-Logbuch: Jede Spule führt ihr eigenes Logbuch. Klicke auf 'Logbuch', um zu sehen, wann was gedruckt wurde.
@@ -1088,6 +1105,8 @@ class FilamentApp:
 • Retro-Fit Kalkulator: Bei sehr alten Drucken fehlen vielleicht Kosten. Doppelklicke den Eintrag und klicke auf die Buttons '🧮 Mat.' und '🧮 Marge'. VibeSpool rechnet die Materialkosten und den VK-Preis für die Vergangenheit auf die Sekunde genau nach!"""
 
         tab5_content = """## Bambu Cloud & Smart-Match
+[▶ Video-Tutorial: Bambu Cloud-Sync & Smart-Match](https://www.youtube.com/watch?v=placeholder6)
+
 • Einrichtung: Trage in den Optionen ('Drucker') deine Bambu Lab E-Mail und dein Passwort ein.
 • Cloud-Sync: Klicke links auf 'Cloud'. VibeSpool holt sich deine letzten erfolgreichen Drucke direkt von den Bambu Servern.
 • Smart-Match Abzug: Klicke in der Liste doppelt auf einen Druck oder auf 'Abziehen'. VibeSpool erkennt durch 'Smart-Match', auf welchem AMS-Slot die Farbe lag und wählt die passende VibeSpool-Rolle automatisch aus! Bestätigen, fertig.
@@ -1095,11 +1114,18 @@ class FilamentApp:
 • Filter & Ignorieren: Drucke, die du manuell abgezogen hast oder nicht tracken willst, kannst du 'Ignorieren'. Setze oben den Haken bei 'Erledigte ausblenden', um eine cleane ToDo-Liste zu haben."""
 
         tab6_content = """## Handy-Scanner & QR-Codes
+[▶ Video-Tutorial: Handy-Scanner & Barcodes anlernen](https://www.youtube.com/watch?v=placeholder7)
+
 • Der lokale Server: VibeSpool hat einen unsichtbaren Webserver eingebaut. Klicke oben auf '📱 Handy'. Scanne den dortigen QR-Code mit deinem Smartphone.
 • Mobile Bedienung: Du hast VibeSpool nun als Web-App auf dem Handy. Du kannst im WLAN durch den Raum laufen, QR-Codes auf Spulen scannen und direkt am Handy Gewichte abziehen oder Spulen umbuchen. Das Programm am PC reagiert live auf deine Handy-Eingaben!
+
+## Etiketten & PDF-Druck
+[▶ Video-Tutorial: Etiketten drucken (Label Creator)](https://www.youtube.com/watch?v=placeholder8)
+
 • Etiketten & PDF Druck: Klicke links auf 'Label'. Wähle eine Spule. Du kannst eine eigene Labelgröße in Millimetern (Breite & Höhe) definieren. VibeSpool skaliert Text und QR-Code proportional und dreht das Layout bei Hochformaten (z. B. 30x50 mm) automatisch ins Hochkantformat.
 • System-Vorschau: Nutze den Button '👁️ System-Vorschau', um das fertige Label sofort im Windows-Bildbetrachter zu öffnen und testweise auszudrucken.
 • PDF-Export: Exportierte PDFs werden im Rollenmodus bei 254.0 DPI (exakte Millimeter) ausgegeben, während der A4-Bogenmodus bei 300 DPI das Etikettenraster perfekt berechnet.
+• Flexibler PDF-Bestandsexport: Über 'Drucken/PDF' oben rechts kannst du vor dem Export die gewünschten Spalten auswählen. Das Spaltenraster wird auf dem PDF (DIN A4 bei 300 DPI) automatisch proportional und dynamisch aufgeteilt.
 
 ## Hersteller-Barcodes anlernen
 • Das Prinzip: Viele Spulen haben vom Hersteller bereits Barcodes auf der Packung. Warum eigene drucken?
@@ -1107,12 +1133,17 @@ class FilamentApp:
 • Der Vorteil: Wenn du diese leere Spule in Zukunft scannst, erkennt VibeSpool sie sofort wieder!"""
 
         tab7_content = """## System, Backup & Smart Home
-• Backup & Restore: Klicke oben rechts auf '💾 Backup'. VibeSpool packt deine gesamte Datenbank, alle Einstellungen und das Logbuch in eine einzige, sichere ZIP-Datei. Genau dort kannst du sie bei einem PC-Wechsel auch wieder importieren.
+[▶ Video-Tutorial: Auto-Updater, Backup & Smart Home](https://www.youtube.com/watch?v=placeholder9)
+
+• Backup & Restore: Klicke oben rechts auf '💾 Backup'. VibeSpool packt deine gesamte database, alle Einstellungen und das Logbuch in eine einzige, sichere ZIP-Datei. Genau dort kannst du sie bei einem PC-Wechsel auch wieder importieren.
 • CSV Import: Du wechselst von Excel zu VibeSpool? Klicke auf 'CSV Import'. VibeSpool ist extrem schlau und sucht in deiner Excel-Tabelle selbstständig nach Spalten, die nach Marke, Farbe oder Material klingen.
 • Smart Home (MQTT / Home Assistant): Aktiviere MQTT in den Optionen. VibeSpool funkt bei jeder Änderung (oder spätestens wenn es online ist via Offline-Buffer) live an dein Smart Home: Wie viele Spulen hast du? Welche sind fast leer? Was steckt gerade im AMS?
-• Hintergrund-Modus: Wenn du auf das 'X' zum Schließen klickst, fragt dich VibeSpool, ob es sich in die Windows-Taskleiste minimieren soll. Von dort kann es blitzschnell wieder aufgerufen werden!"""
+• Hintergrund-Modus: Wenn du auf das 'X' zum Schließen klickst, fragt dich VibeSpool, ob es sich in die Windows-Taskleiste minimieren soll. Von dort kann es blitzschnell wieder aufgerufen werden!
+• Auto-Updater: VibeSpool sucht beim Start im Hintergrund nach Updates. Ist ein neues Update verfügbar, wirst du gefragt, ob du es per '⚡ Auto-Update' vollautomatisch und geräuschlos im Hintergrund installieren und neu starten lassen möchtest."""
 
         tab8_content = """## Projektverwaltung & Druckverlauf
+[▶ Video-Tutorial: Projektverwaltung, Auto-Heal & Retro-Fit](https://www.youtube.com/watch?v=placeholder10)
+
 • Aktivierung: Gehe zuerst auf 'Optionen' -> Tab 'System' und aktiviere 'Projektverlauf & Projektverwaltung aktivieren'. Danach erscheint das Ordner-Symbol (📂 Projekte) in der linken Seitenleiste.
 • Ordnerstruktur: Klicke links auf 'Projekte'. Hier kannst du eine unbegrenzte Baumstruktur aus Hauptkategorien (z. B. 'Litophane') und Unterordnern (z. B. 'Tiere', 'runde') anlegen.
 • Drag & Drop: Verschiebe Druckaufträge ganz einfach mit der Maus! Ziehe einen Auftrag per Drag & Drop auf einen beliebigen Ordner oder lasse ihn auf 'Unzugeordnete Druckaufträge' fallen, um ihn aus einem Projekt zu entfernen. Das Ziel wird beim Darüberziehen direkt blau markiert.
@@ -1134,6 +1165,33 @@ class FilamentApp:
         nav_buttons = []
         active_idx = [0]
         
+        import re
+        link_pattern = re.compile(r'\[([^\]]+)\]\((https?://[^\)]+)\)')
+
+        def insert_text_with_links(tb, txt, base_tags=()):
+            last_pos = 0
+            for match in link_pattern.finditer(txt):
+                before = txt[last_pos:match.start()]
+                if before:
+                    tb.insert("end", before, base_tags)
+                
+                link_text = match.group(1)
+                link_url = match.group(2)
+                
+                tag_name = f"link_{id(link_url)}_{match.start()}"
+                
+                tb.insert("end", link_text, base_tags + ("link", tag_name))
+                
+                tb.tag_bind(tag_name, "<Button-1>", lambda e, url=link_url: webbrowser.open(url))
+                tb.tag_bind(tag_name, "<Enter>", lambda e: tb.config(cursor="hand2"))
+                tb.tag_bind(tag_name, "<Leave>", lambda e: tb.config(cursor=""))
+                
+                last_pos = match.end()
+                
+            after = txt[last_pos:]
+            if after:
+                tb.insert("end", after, base_tags)
+        
         def select_topic(idx):
             active_idx[0] = idx
             for i, btn in enumerate(nav_buttons):
@@ -1150,16 +1208,17 @@ class FilamentApp:
             content = topics[idx][1]
             for line in content.split('\n'):
                 if line.startswith('## '):
-                    text_box.insert("end", line[3:] + "\n", "h1")
+                    insert_text_with_links(text_box, line[3:] + "\n", ("h1",))
                 elif line.startswith('• '):
                     if ":" in line:
                         parts = line.split(":", 1)
-                        text_box.insert("end", "• " + parts[0].strip(":").replace("• ","") + ":", "bold")
-                        text_box.insert("end", parts[1] + "\n", "bullet")
+                        bold_text = "• " + parts[0].strip(":").replace("• ","") + ":"
+                        insert_text_with_links(text_box, bold_text, ("bold",))
+                        insert_text_with_links(text_box, parts[1] + "\n", ("bullet",))
                     else:
-                        text_box.insert("end", line + "\n", "bullet")
+                        insert_text_with_links(text_box, line + "\n", ("bullet",))
                 else:
-                    text_box.insert("end", line + "\n")
+                    insert_text_with_links(text_box, line + "\n", ())
                     
             text_box.config(state="disabled")
             text_box.yview_moveto(0.0)
@@ -1300,7 +1359,8 @@ class FilamentApp:
                 batch_path = os.path.join(exe_dir, "update.bat")
                 
                 # Check if asset is an installer
-                is_installer = "setup" in asset_name.lower() or "installer" in asset_name.lower()
+                asset_lower = (asset_name or "").lower()
+                is_installer = "setup" in asset_lower or "installer" in asset_lower
                 
                 if is_installer:
                     batch_content = f"""@echo off
@@ -3264,10 +3324,9 @@ del "%~f0"
             messagebox.showwarning("PDF Export", "Keine Filamente zum Exportieren vorhanden (Filter aktiv?)", parent=self.root)
             return
 
-        # Dialog zur Spaltenauswahl öffnen
         dialog = tk.Toplevel(self.root)
-        dialog.title("PDF Spaltenauswahl")
-        dialog.geometry("400x520")
+        dialog.title("📄 PDF Bestandsexport - Einstellungen")
+        dialog.geometry("760x620")
         dialog.configure(bg=self.root.cget('bg'))
         dialog.transient(self.root)
         dialog.grab_set()
@@ -3275,53 +3334,156 @@ del "%~f0"
         from core.utils import center_window
         center_window(dialog, self.root)
         
-        ttk.Label(dialog, text="Wähle die Spalten für den PDF-Export:", font=("Segoe UI", 11, "bold")).pack(pady=10, padx=15, anchor="w")
+        # Top Frame: Orientation
+        top_frame = ttk.LabelFrame(dialog, text="📐 Seitenausrichtung", padding=10)
+        top_frame.pack(fill="x", padx=15, pady=(10, 5))
         
-        # Checkboxen für Spalten
-        col_vars = {}
+        saved_orientation = self.settings.get("pdf_export_orientation", "landscape")
+        orientation_var = tk.StringVar(value=saved_orientation)
+        
+        ttk.Radiobutton(top_frame, text="🖼️ Querformat (DIN A4 - Breit)", variable=orientation_var, value="landscape").pack(side="left", padx=20)
+        ttk.Radiobutton(top_frame, text="📱 Hochformat (DIN A4 - Schmal)", variable=orientation_var, value="portrait").pack(side="left", padx=20)
+
+        # Main 2-column layout frame
+        main_frame = ttk.Frame(dialog, padding=5)
+        main_frame.pack(fill="both", expand=True, padx=15, pady=5)
+        main_frame.columnconfigure(0, weight=1)
+        main_frame.columnconfigure(1, weight=2)
+        main_frame.rowconfigure(0, weight=1)
+
+        # Left column: Column Selection
+        lf_cols = ttk.LabelFrame(main_frame, text="📋 Spalten auswählen", padding=10)
+        lf_cols.grid(row=0, column=0, sticky="nsew", padx=(0, 5))
+
+        col_hdr_btn_frame = ttk.Frame(lf_cols)
+        col_hdr_btn_frame.pack(fill="x", pady=(0, 5))
+
         available_cols = [
             ("id", "ID (Spulen-ID)"),
             ("brand", "Hersteller / Marke"),
-            ("material", "Material (Typ + Subtyp)"),
-            ("color", "Farbe (inkl. Farbsymbole)"),
-            ("spool_type", "Spulentyp (Leergewicht)"),
-            ("location", "Lagerort (Ort / Regalplatz)"),
-            ("net_weight", "Netto-Gewicht (Restfilament)"),
-            ("gross_weight", "Brutto-Gewicht (Gesamtgewicht)"),
+            ("material", "Material (Typ/Subtyp)"),
+            ("color", "Farbe (inkl. Symbol)"),
+            ("spool_type", "Spulentyp (Leergew.)"),
+            ("location", "Lagerort (Regal/Ort)"),
+            ("net_weight", "Netto-Restgew. (g/%)"),
+            ("gross_weight", "Brutto-Gesamtgew."),
             ("capacity", "Original-Kapazität"),
-            ("status", "Status (Aktiv/Verbraucht/Kaufen)")
+            ("status", "Status (Aktiv/kaufen)")
         ]
         
-        # Gespeicherte Auswahl laden (Standard falls leer)
         saved_export_cols = self.settings.get("pdf_export_columns", ["id", "brand", "material", "color", "location", "net_weight"])
-        
-        frm_checks = ttk.Frame(dialog, padding=10)
-        frm_checks.pack(fill="both", expand=True, padx=15)
+        col_vars = {}
+
+        def select_all_cols():
+            for var in col_vars.values():
+                var.set(True)
+
+        def deselect_all_cols():
+            for var in col_vars.values():
+                var.set(False)
+
+        ttk.Button(col_hdr_btn_frame, text="☑️ Alle", command=select_all_cols, width=8).pack(side="left", padx=(0, 2))
+        ttk.Button(col_hdr_btn_frame, text="☐ Keine", command=deselect_all_cols, width=8).pack(side="left", padx=2)
+
+        frm_checks = ttk.Frame(lf_cols)
+        frm_checks.pack(fill="both", expand=True, pady=5)
         
         for cid, label in available_cols:
             var = tk.BooleanVar(value=(cid in saved_export_cols))
             col_vars[cid] = var
-            ttk.Checkbutton(frm_checks, text=label, variable=var).pack(anchor="w", pady=4)
-            
+            ttk.Checkbutton(frm_checks, text=label, variable=var).pack(anchor="w", pady=3)
+
+        # Right column: Spool Selection (Items)
+        lf_spools = ttk.LabelFrame(main_frame, text="🧵 Spulen / Filamente wählen", padding=10)
+        lf_spools.grid(row=0, column=1, sticky="nsew", padx=(5, 0))
+
+        spool_hdr_frame = ttk.Frame(lf_spools)
+        spool_hdr_frame.pack(fill="x", pady=(0, 5))
+
+        spool_vars = {}
+
+        lbl_spool_count = ttk.Label(spool_hdr_frame, text="", font=("Segoe UI", 9, "bold"))
+        lbl_spool_count.pack(side="right", padx=5)
+
+        def update_spool_count():
+            selected_cnt = sum(1 for v in spool_vars.values() if v.get())
+            lbl_spool_count.config(text=f"({selected_cnt}/{len(items)} gewählt)")
+
+        def select_all_spools():
+            for var in spool_vars.values():
+                var.set(True)
+            update_spool_count()
+
+        def deselect_all_spools():
+            for var in spool_vars.values():
+                var.set(False)
+            update_spool_count()
+
+        ttk.Button(spool_hdr_frame, text="☑️ Alle Spulen", command=select_all_spools).pack(side="left", padx=(0, 2))
+        ttk.Button(spool_hdr_frame, text="☐ Keine Spulen", command=deselect_all_spools).pack(side="left", padx=2)
+
+        # Canvas with Scrollbar for spool checklist
+        spool_canvas_frame = ttk.Frame(lf_spools)
+        spool_canvas_frame.pack(fill="both", expand=True)
+
+        spool_canvas = tk.Canvas(spool_canvas_frame, bg=self.root.cget('bg'), highlightthickness=0)
+        spool_scrollbar = ttk.Scrollbar(spool_canvas_frame, orient="vertical", command=spool_canvas.yview)
+        spool_inner_frame = ttk.Frame(spool_canvas)
+
+        spool_inner_frame.bind("<Configure>", lambda e: spool_canvas.configure(scrollregion=spool_canvas.bbox("all")))
+        spool_window = spool_canvas.create_window((0, 0), window=spool_inner_frame, anchor="nw")
+        spool_canvas.bind("<Configure>", lambda e: spool_canvas.itemconfig(spool_window, width=e.width))
+        spool_canvas.configure(yscrollcommand=spool_scrollbar.set)
+
+        spool_canvas.pack(side="left", fill="both", expand=True)
+        spool_scrollbar.pack(side="right", fill="y")
+
+        def _on_spool_mousewheel(e):
+            spool_canvas.yview_scroll(int(-1 * (e.delta / 120)), "units")
+
+        spool_canvas.bind_all("<MouseWheel>", _on_spool_mousewheel)
+        dialog.bind("<Destroy>", lambda e: spool_canvas.unbind_all("<MouseWheel>"))
+
+        for item in items:
+            sid = item['id']
+            brand = item.get('brand', '-')
+            mat = item.get('material', '-')
+            color = item.get('color', '-')
+            loc = f"{item.get('type', '')} {item.get('loc_id', '')}".strip()
+            label_text = f"#{sid} | {brand} - {mat} ({color}) [{loc}]"
+
+            var = tk.BooleanVar(value=True)
+            spool_vars[sid] = var
+            cb = ttk.Checkbutton(spool_inner_frame, text=label_text, variable=var, command=update_spool_count)
+            cb.pack(anchor="w", pady=2, padx=2)
+
+        update_spool_count()
+
         def on_confirm():
-            selected = [cid for cid, var in col_vars.items() if var.get()]
-            if not selected:
+            selected_c = [cid for cid, var in col_vars.items() if var.get()]
+            if not selected_c:
                 messagebox.showwarning("Warnung", "Bitte wähle mindestens eine Spalte aus!", parent=dialog)
                 return
             
-            # Auswahl persistent speichern
-            self.settings["pdf_export_columns"] = selected
+            selected_items = [item for item in items if spool_vars.get(item['id']) and spool_vars[item['id']].get()]
+            if not selected_items:
+                messagebox.showwarning("Warnung", "Bitte wähle mindestens eine Spule aus!", parent=dialog)
+                return
+
+            orient = orientation_var.get()
+            self.settings["pdf_export_columns"] = selected_c
+            self.settings["pdf_export_orientation"] = orient
             self.data_manager.save_settings(self.settings)
-            
+
             dialog.destroy()
-            self.generate_pdf_file(items, selected)
-            
+            self.generate_pdf_file(selected_items, selected_c, orientation=orient)
+
         btn_frm = ttk.Frame(dialog, padding=10)
         btn_frm.pack(fill="x", side="bottom")
         ttk.Button(btn_frm, text="Abbrechen", command=dialog.destroy).pack(side="right", padx=5)
-        ttk.Button(btn_frm, text="Weiter ➡️", command=on_confirm, style="Accent.TButton").pack(side="right", padx=5)
+        ttk.Button(btn_frm, text="📄 PDF Generieren ➡️", command=on_confirm, style="Accent.TButton").pack(side="right", padx=5)
 
-    def generate_pdf_file(self, items, selected_cols):
+    def generate_pdf_file(self, items, selected_cols, orientation="landscape"):
         fp = filedialog.asksaveasfilename(
             defaultextension=".pdf",
             filetypes=[("PDF-Dokument", "*.pdf")],
@@ -3345,6 +3507,19 @@ del "%~f0"
                 font_title = font_subtitle = font_header = font_body = font_body_bold = font_footer = ImageFont.load_default()
 
             pages = []
+            
+            # Page dimensions
+            if orientation == "portrait":
+                pw, ph = 2480, 3508
+            else: # landscape
+                pw, ph = 3508, 2480
+
+            margin_left = 100
+            right_x = pw - 100
+            content_width = right_x - margin_left
+            max_page_y = ph - 208
+            footer_x = pw // 2
+            footer_y = ph - 108
             
             # Definitionen für Spalten-Breitengewichtung, Titel und Ausrichtung
             col_weights = {
@@ -3386,10 +3561,10 @@ del "%~f0"
             
             total_weight = sum(col_weights[cid] for cid in selected_cols)
             
-            running_x = 100
+            running_x = margin_left
             col_x_map = {}
             for cid in selected_cols:
-                w = (col_weights[cid] / total_weight) * 2280
+                w = (col_weights[cid] / total_weight) * content_width
                 col_x_map[cid] = (running_x, w)
                 running_x += w
 
@@ -3409,18 +3584,18 @@ del "%~f0"
                 draw_obj.rectangle(rect, fill=None, outline="black", width=2)
 
             def start_new_page(is_first):
-                pg = Image.new('RGB', (2480, 3508), 'white')
+                pg = Image.new('RGB', (pw, ph), 'white')
                 d = ImageDraw.Draw(pg)
                 
                 if is_first:
-                    d.text((100, 100), "VibeSpool Filament-Bestand", fill="#111111", font=font_title)
+                    d.text((margin_left, 100), "VibeSpool Filament-Bestand", fill="#111111", font=font_title)
                     
                     total_spools = len(items)
                     total_net_weight_kg = sum(calculate_net_weight(i.get('weight_gross', '0'), i.get('spool_id', -1), self.spools, i.get('empty_weight')) for i in items) / 1000.0
                     stats_text = f"Spulen: {total_spools}   |   Bestand: {total_net_weight_kg:.2f} kg"
-                    d.text((2380, 120), stats_text, fill="#555555", font=font_subtitle, anchor="rt")
+                    d.text((right_x, 120), stats_text, fill="#555555", font=font_subtitle, anchor="rt")
                     
-                    d.rectangle([100, 190, 2380, 196], fill="#0078d7")
+                    d.rectangle([margin_left, 190, right_x, 196], fill="#0078d7")
                     
                     filter_text = f"Erstellt am: {datetime.now().strftime('%d.%m.%Y %H:%M')}"
                     active_filters = []
@@ -3432,16 +3607,16 @@ del "%~f0"
                     
                     if active_filters:
                         filter_text += f"   |   Filter: {', '.join(active_filters)}"
-                    d.text((100, 220), filter_text, fill="#777777", font=font_subtitle)
+                    d.text((margin_left, 220), filter_text, fill="#777777", font=font_subtitle)
                     
                     header_y = 300
                 else:
-                    d.text((100, 80), "VibeSpool Filament-Bestand", fill="#333333", font=font_subtitle)
-                    d.text((2380, 80), f"Erstellt am: {datetime.now().strftime('%d.%m.%Y')}", fill="#777777", font=font_subtitle, anchor="rt")
-                    d.line([100, 140, 2380, 140], fill="#e0e0e0", width=2)
+                    d.text((margin_left, 80), "VibeSpool Filament-Bestand", fill="#333333", font=font_subtitle)
+                    d.text((right_x, 80), f"Erstellt am: {datetime.now().strftime('%d.%m.%Y')}", fill="#777777", font=font_subtitle, anchor="rt")
+                    d.line([margin_left, 140, right_x, 140], fill="#e0e0e0", width=2)
                     header_y = 160
                     
-                d.rectangle([100, header_y, 2380, header_y + 80], fill="#0078d7")
+                d.rectangle([margin_left, header_y, right_x, header_y + 80], fill="#0078d7")
                 
                 th_y = header_y + 20
                 for col_id in selected_cols:
@@ -3460,14 +3635,14 @@ del "%~f0"
             pg, d, page_y = start_new_page(is_first=True)
             
             for idx, item in enumerate(items):
-                if page_y + 80 > 3300:
+                if page_y + 80 > max_page_y:
                     pages.append(pg)
                     pg, d, page_y = start_new_page(is_first=False)
                 
                 if idx % 2 == 1:
-                    d.rectangle([100, page_y, 2380, page_y + 80], fill="#f8fafc")
+                    d.rectangle([margin_left, page_y, right_x, page_y + 80], fill="#f8fafc")
                     
-                d.line([100, page_y + 80, 2380, page_y + 80], fill="#e2e8f0", width=1)
+                d.line([margin_left, page_y + 80, right_x, page_y + 80], fill="#e2e8f0", width=1)
                 
                 for col_id in selected_cols:
                     x, w = col_x_map[col_id]
@@ -3531,7 +3706,7 @@ del "%~f0"
             for p_idx, page in enumerate(pages):
                 p_draw = ImageDraw.Draw(page)
                 footer_text = f"Seite {p_idx + 1} von {total_pages}   |   Erstellt mit VibeSpool"
-                p_draw.text((1240, 3400), footer_text, fill="#94a3b8", font=font_footer, anchor="mt")
+                p_draw.text((footer_x, footer_y), footer_text, fill="#94a3b8", font=font_footer, anchor="mt")
                 
             pages[0].save(fp, "PDF", resolution=300.0, save_all=True, append_images=pages[1:])
             
@@ -3990,6 +4165,8 @@ del "%~f0"
                 
                 # --- FIX 1: Menü JEDES MAL neu aufbauen, damit es nie verschwindet! ---
                 menu_row = tk.Menu(self.root, tearoff=0)
+                menu_row.add_command(label="✏️ Filament bearbeiten", command=lambda: self.on_select(None))
+                menu_row.add_separator()
                 menu_row.add_command(label="🛒 Im Shop öffnen", command=self.quick_open_shop)
                 # --- NEU: Logbuch Button ---
                 menu_row.add_command(label="📜 Spulen-Logbuch öffnen", command=self.show_spool_history)

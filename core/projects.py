@@ -429,6 +429,10 @@ class ProjectsDialog(tk.Toplevel):
             add_info_row(8, "  - Strom:", f"{safe_float(job.get('electricity_cost')):.2f} €")
             add_info_row(9, "  - Verschleiß:", f"{safe_float(job.get('wear_cost')):.2f} €")
             row_idx = 10
+            other_exp = safe_float(job.get("other_expenses"), 0.0)
+            if other_exp > 0:
+                add_info_row(row_idx, "  - Sonstiges:", f"{other_exp:.2f} €")
+                row_idx += 1
             
         link = job.get("link", "").strip()
         if link:

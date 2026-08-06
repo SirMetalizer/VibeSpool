@@ -423,6 +423,16 @@ class PrintQueueDialog(tk.Toplevel):
         
         self.ent_print_hours.bind("<KeyRelease>", self.recalculate_price)
         self.ent_print_mins.bind("<KeyRelease>", self.recalculate_price)
+        
+        # NEU: Sonstige Ausgaben inside scrollable container
+        ttk.Label(sf.inner, text="Sonstige Ausgaben (z.B. Modellkauf):").pack(anchor="w")
+        expenses_frm = ttk.Frame(sf.inner)
+        expenses_frm.pack(fill="x", pady=(0, 10))
+        self.ent_other_expenses = ttk.Entry(expenses_frm, width=12)
+        self.ent_other_expenses.insert(0, "0.00")
+        self.ent_other_expenses.pack(side="left")
+        ttk.Label(expenses_frm, text="€").pack(side="left", padx=5)
+        self.ent_other_expenses.bind("<KeyRelease>", self.recalculate_price)
  
         # NEU: Verwendete Spulen & Gewichte inside scrollable container
         ttk.Label(sf.inner, text="Ausgewählte Spulen & Grammzahl:").pack(anchor="w")
@@ -609,7 +619,14 @@ class PrintQueueDialog(tk.Toplevel):
             
             lbl_price.config(text=f"{mat_cost:.2f} €")
             
-        sell_price = total_cost * (1 + (margin_percent / 100.0))
+        try:
+            other_exp = float(self.ent_other_expenses.get().replace(",", ".")) if self.ent_other_expenses.get() else 0.0
+        except ValueError:
+            other_exp = 0.0
+
+        print_sell_price = total_cost * (1 + (margin_percent / 100.0))
+        sell_price = print_sell_price + other_exp
+        total_cost += other_exp
         
         res_text = f"Errechneter Preis: {total_cost:.2f} €"
         if margin_percent > 0:
@@ -617,6 +634,8 @@ class PrintQueueDialog(tk.Toplevel):
         self.lbl_calc_price.config(text=res_text)
         
         breakdown_text = f"Material: {total_mat_cost:.2f} € | Strom: {strom_gesamt:.2f} € | Verschleiß: {wear_gesamt:.2f} €"
+        if other_exp > 0:
+            breakdown_text += f" | Sonstiges: {other_exp:.2f} €"
         self.lbl_calc_breakdown.config(text=breakdown_text)
 
     def on_quick_add_spool(self, event):
@@ -793,6 +812,11 @@ class PrintQueueDialog(tk.Toplevel):
                 for p in parts:
                     self.add_spool_row(p, 0.0)
                     
+            # Load other expenses
+            other_exp = job.get('other_expenses', 0.0)
+            self.ent_other_expenses.delete(0, tk.END)
+            self.ent_other_expenses.insert(0, f"{other_exp:.2f}")
+
             self.txt_notes.delete("1.0", tk.END); self.txt_notes.insert("1.0", job.get('notes', ''))
             self.recalculate_price()
             
@@ -832,6 +856,9 @@ class PrintQueueDialog(tk.Toplevel):
         self.ent_print_hours.insert(0, "1")
         self.ent_print_mins.delete(0, tk.END)
         self.ent_print_mins.insert(0, "0")
+        
+        self.ent_other_expenses.delete(0, tk.END)
+        self.ent_other_expenses.insert(0, "0.00")
         
         for _, (_, row_frm, _) in self.selected_spool_entries.items():
             row_frm.destroy()
@@ -977,8 +1004,19 @@ class PrintQueueDialog(tk.Toplevel):
             spool_share_cost = mat_cost + (strom_gesamt * share) + (wear_gesamt * share)
             total_cost += spool_share_cost
             
-        sell_price = total_cost * (1 + (margin_percent / 100.0))
-        est_price_str = f"{sell_price:.2f} €"
+        try:
+            other_expenses = float(self.ent_other_expenses.get().replace(",", ".")) if self.ent_other_expenses.get() else 0.0
+        except ValueError:
+            other_expenses = 0.0
+
+        print_sell_price = total_cost * (1 + (margin_percent / 100.0))
+        sell_price = print_sell_price + other_expenses
+        total_cost += other_expenses
+        
+        if margin_percent > 0:
+            est_price_str = f"{total_cost:.2f} € (VK: {sell_price:.2f} €)"
+        else:
+            est_price_str = f"{sell_price:.2f} €"
  
         # Get selected project_id
         selected_path = self.combo_project.get()
@@ -1002,6 +1040,7 @@ class PrintQueueDialog(tk.Toplevel):
                     "material_cost": total_mat_cost,
                     "electricity_cost": strom_gesamt,
                     "wear_cost": wear_gesamt,
+                    "other_expenses": other_expenses,
                     "total_cost": total_cost,
                     "sell_price": sell_price
                 })
@@ -1026,6 +1065,7 @@ class PrintQueueDialog(tk.Toplevel):
                 "material_cost": total_mat_cost,
                 "electricity_cost": strom_gesamt,
                 "wear_cost": wear_gesamt,
+                "other_expenses": other_expenses,
                 "total_cost": total_cost,
                 "sell_price": sell_price
             }

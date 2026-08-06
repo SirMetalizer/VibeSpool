@@ -285,9 +285,27 @@ class ShelfVisualizer(tk.Toplevel):
             
             if item:
                 lbl.bind("<Button-3>", lambda event, i=item: self.show_context_menu(event, i))
+                lbl.bind("<Double-Button-1>", lambda event, i=item: self.edit_filament(i))
             
         lbl.bind("<Enter>", lambda e: self.show_tip(e, tooltip), add="+")
         lbl.bind("<Leave>", self.hide_tip, add="+")
+
+    def edit_filament(self, item):
+        if not self.app or not item:
+            return
+        spool_id_str = str(item['id'])
+        try:
+            if not self.app.tree.exists(spool_id_str):
+                self.app.reset_filters()
+            if self.app.tree.exists(spool_id_str):
+                self.app.tree.selection_set(spool_id_str)
+                self.app.tree.see(spool_id_str)
+                self.app.on_select(None)
+                self.app.root.deiconify()
+                self.app.root.lift()
+                self.app.root.focus_force()
+        except Exception:
+            pass
 
     def check_auto_scroll(self):
         if not getattr(self, 'drag_source', None):
@@ -323,6 +341,18 @@ class ShelfVisualizer(tk.Toplevel):
         widget = event.widget
         data = self.widget_data.get(id(widget))
         if not data or not data["item"]: return
+
+        if self.app and data["item"]:
+            spool_id_str = str(data["item"]['id'])
+            try:
+                if not self.app.tree.exists(spool_id_str):
+                    self.app.reset_filters()
+                if self.app.tree.exists(spool_id_str):
+                    self.app.tree.selection_set(spool_id_str)
+                    self.app.tree.see(spool_id_str)
+                    self.app.on_select(None)
+            except Exception:
+                pass
         
         self.drag_source = widget
         self.last_mx_root = event.x_root
@@ -422,6 +452,8 @@ class ShelfVisualizer(tk.Toplevel):
             self.app.on_select(None)
             
             menu = tk.Menu(self, tearoff=0)
+            menu.add_command(label="✏️ Filament bearbeiten", command=lambda: self.edit_filament(item))
+            menu.add_separator()
             menu.add_command(label="🛒 Im Shop öffnen", command=self.app.quick_open_shop)
             menu.add_command(label="📜 Spulen-Logbuch öffnen", command=lambda: self.app.show_spool_history(spool_id=spool_id_str))
             menu.add_separator()

@@ -133,3 +133,37 @@ def test_deleted_printer_fallback(tk_root, mock_app):
     assert "3.84" in txt
     
     dialog.destroy()
+
+def test_other_expenses(tk_root, mock_app):
+    dialog = PrintQueueDialog(tk_root, mock_app)
+    
+    dialog.ent_print_hours.delete(0, tk.END)
+    dialog.ent_print_hours.insert(0, "2")
+    dialog.ent_print_mins.delete(0, tk.END)
+    dialog.ent_print_mins.insert(0, "0")
+    dialog.add_spool_row(1, 150.0)
+    
+    dialog.ent_other_expenses.delete(0, tk.END)
+    dialog.ent_other_expenses.insert(0, "5.50")
+    
+    dialog.recalculate_price()
+    
+    txt = dialog.lbl_calc_price.cget("text")
+    assert "8.99" in txt
+    assert "9.34" in txt
+    
+    breakdown_txt = dialog.lbl_calc_breakdown.cget("text")
+    assert "Sonstiges: 5.50 €" in breakdown_txt
+    
+    dialog.ent_title.insert(0, "Test Job with Expenses")
+    assert dialog.save_job(clear_after=False)
+    
+    saved_job = dialog.jobs[-1]
+    assert saved_job["other_expenses"] == 5.50
+    assert "8.99" in saved_job["est_price"]
+    assert "9.34" in saved_job["est_price"]
+    
+    dialog.reset_form()
+    assert dialog.ent_other_expenses.get() == "0.00"
+    
+    dialog.destroy()

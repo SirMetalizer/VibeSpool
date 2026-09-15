@@ -1,6 +1,6 @@
 # 🧵 VibeSpool - Das smarte Filament-Management-System
 
-![Version](https://img.shields.io/badge/version-2.4.3-blue.svg)
+![Version](https://img.shields.io/badge/version-2.5.0-blue.svg)
 ![Python](https://img.shields.io/badge/python-3.10%2B-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
@@ -9,14 +9,16 @@
 <img width="1924" height="1044" alt="VibeSpool Main Dashboard" src="https://github.com/user-attachments/assets/7234891c-0458-478b-8c5a-7d9e6cd184cb" />
 ---
 
-## 🆕 Was ist neu in Version 2.4.3? ("PDF Export Landscape & Shelf Selection Edit Update")
-Dieses Update bringt flexible Querformat-Druckoptionen für deinen Bestand, verbesserte Auswahlfunktionen beim PDF-Export sowie direkte Filament-Bearbeitung aus der Regalansicht!
+## 🆕 Was ist neu in Version 2.5.0? ("Auftragsplaner & Projektverlauf Pro Update")
+Dieses Update erweitert den Auftragsplaner und den Projektverlauf um professionelle Kalkulations- und Verwaltungsfunktionen, verbesserte Bildvorschauen und ergonomische Sortierung!
 
 ### ✨ Die Highlights:
 
-* **🖼️ Flexible PDF-Ausrichtung (Querformat & Hochformat):** Wähle beim Bestandsexport als PDF zwischen DIN A4 Querformat (Landscape) und Hochformat (Portrait). Das Querformat bietet optimale Übersicht für viele ausgewählte Spalten. Ihre Ausrichtung wird persistent gespeichert.
-* **📋 Ergonomische Spalten- & Spulenauswahl:** Neue Schnellauswahl-Buttons (`☑️ Alle` / `☐ Keine`) für Spalten sowie eine interaktive Spulen-Checkliste im PDF-Export-Dialog mit Zähler (`X/Y gewählt`).
-* **✏️ Filament-Bearbeitung aus der Regalansicht:** Direktes Laden und Bearbeiten einer Spule beim Auswählen, Doppelklick oder per Kontextmenü in der Regal- & AMS-Übersicht (`ShelfVisualizer`).
+* **🖼️ Modellbilder mit Zoom & System-Viewer:** Große Modellbild-Vorschau (bis 240px) und Klick-Zoom (`JobImageViewerDialog`) mit Vollbild-Betrachtung in der Windows-Fotoanzeige.
+* **🔢 Stückzahl (Quantity) & Batch-Kalkulation:** Automatische Berechnung von Materialgewicht, Druckzeit und Kosten pro Stück sowie für den gesamten Auftrag (`GESAMT`).
+* **📝 Zusätzliche Freitextfelder:** Erfassung von Kunden/Auftraggebern (`Kunde / Kontakt`) und detaillierten Druckparametern (`specs` wie Schichthöhe, Infill etc.).
+* **💰 Ist-Verkaufspreis & Reingewinn-Tracking:** Erfassung des tatsächlichen Erlöses mit Live-Berechnung von Gewinn/Marge im Planer sowie global in der Ordner-KPI-Übersicht des Projektverlaufs.
+* **🔤 Ordner sortieren & verschieben:** Alphabetische Sortierung (A-Z / Z-A) und manuelle Verschiebung (`🔼 / 🔽`) von Projektordnern per Toolbar und Kontextmenü.
 
 
 ---

@@ -234,3 +234,33 @@ def test_projects_dialog_context_menu(tk_root, mock_app):
     assert mock_app.jobs_data[0]["project_id"] == "folder_1"
     
     dialog.destroy()
+
+def test_folder_sorting_and_reordering(tk_root, mock_app):
+    mock_app.projects_data = [
+        {"id": "f_c", "name": "Charlie", "parent_id": None, "type": "folder"},
+        {"id": "f_a", "name": "Alpha", "parent_id": None, "type": "folder"},
+        {"id": "f_b", "name": "Bravo", "parent_id": None, "type": "folder"}
+    ]
+    mock_app.jobs_data = []
+    dialog = ProjectsDialog(tk_root, mock_app)
+    
+    # Sort asc
+    dialog.set_sort_mode("asc")
+    children = dialog.tree.get_children("root")
+    names = [dialog.tree.item(c)["text"] for c in children]
+    assert names == ["📁 Alpha", "📁 Bravo", "📁 Charlie"]
+    
+    # Sort desc
+    dialog.set_sort_mode("desc")
+    children = dialog.tree.get_children("root")
+    names = [dialog.tree.item(c)["text"] for c in children]
+    assert names == ["📁 Charlie", "📁 Bravo", "📁 Alpha"]
+    
+    # Move manual
+    dialog.tree.selection_set("f_a")
+    dialog.move_folder_order(-1) # Alpha moves before Charlie
+    assert dialog.projects[0]["id"] == "f_a"
+    assert dialog.projects[1]["id"] == "f_c"
+    
+    dialog.destroy()
+

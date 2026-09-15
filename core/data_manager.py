@@ -46,6 +46,25 @@ class DataManager:
             self.jobs_file = os.path.join(self.base_dir, "print_jobs.json") # NEU
             self.projects_file = os.path.join(self.base_dir, "projects.json") # NEU
 
+        self.images_dir = os.path.join(os.path.dirname(self.jobs_file), "job_images")
+        if not os.path.exists(self.images_dir):
+            try: os.makedirs(self.images_dir, exist_ok=True)
+            except: pass
+
+    def get_images_dir(self):
+        if not hasattr(self, "images_dir") or not self.images_dir:
+            if hasattr(self, "jobs_file") and self.jobs_file:
+                self.images_dir = os.path.join(os.path.dirname(os.path.abspath(self.jobs_file)), "job_images")
+            elif hasattr(self, "base_dir") and self.base_dir:
+                self.images_dir = os.path.join(os.path.abspath(self.base_dir), "job_images")
+            else:
+                self.images_dir = os.path.join(os.getcwd(), "job_images")
+        try:
+            os.makedirs(self.images_dir, exist_ok=True)
+        except Exception:
+            pass
+        return self.images_dir
+
     def load_all(self, default_settings):
         settings = load_json(self.settings_file, default_settings)
         

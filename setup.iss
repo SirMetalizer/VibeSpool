@@ -3,7 +3,7 @@
 
 [Setup]
 AppName=VibeSpool
-AppVersion=2.4.3
+AppVersion=2.5.0
 DefaultDirName={autopf}\VibeSpool
 DefaultGroupName=VibeSpool
 OutputDir=dist

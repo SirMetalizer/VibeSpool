@@ -167,3 +167,76 @@ def test_other_expenses(tk_root, mock_app):
     assert dialog.ent_other_expenses.get() == "0.00"
     
     dialog.destroy()
+
+def test_quantity_and_actual_sell_price(tk_root, mock_app):
+    dialog = PrintQueueDialog(tk_root, mock_app)
+    
+    dialog.ent_title.insert(0, "Multi Batch Part")
+    dialog.ent_customer.insert(0, "Max Mustermann")
+    dialog.ent_specs.insert(0, "0.2mm Schichthöhe, 3 Wände")
+    dialog.ent_quantity.delete(0, tk.END)
+    dialog.ent_quantity.insert(0, "3")
+    
+    dialog.ent_print_hours.delete(0, tk.END)
+    dialog.ent_print_hours.insert(0, "1")
+    dialog.ent_print_mins.delete(0, tk.END)
+    dialog.ent_print_mins.insert(0, "0")
+    dialog.add_spool_row(1, 100.0) # 100g * 3 = 300g
+    
+    dialog.ent_actual_sell_price.delete(0, tk.END)
+    dialog.ent_actual_sell_price.insert(0, "15.00")
+    
+    dialog.recalculate_price()
+    
+    # 1 Stk: 1h, 100g (2.00 €), Strom (0.045 €), Wear (0.20 €) -> unit cost ~ 2.25 €
+    # 3 Stk: Total cost ~ 6.74 € (3 * 2.245)
+    # Total VK ~ 7.41 €
+    # Profit on 15.00 € = 15.00 - 6.74 = +8.26 €
+    profit_text = dialog.lbl_actual_profit.cget("text")
+    assert "Echter Gewinn:" in profit_text
+    assert "8.27 €" in profit_text
+    
+    # Save job
+    assert dialog.save_job(clear_after=False)
+    saved_job = dialog.jobs[-1]
+    assert saved_job["customer"] == "Max Mustermann"
+    assert saved_job["specs"] == "0.2mm Schichthöhe, 3 Wände"
+    assert saved_job["quantity"] == 3
+    assert saved_job["actual_sell_price"] == 15.00
+    assert saved_job["est_weight"] == "300"
+    assert saved_job["print_time"] == 1.0
+    
+    dialog.destroy()
+
+def test_job_deduction_scales_with_quantity(tk_root, mock_app):
+    queue_dialog = MagicMock()
+    queue_dialog.app = mock_app
+    queue_dialog.jobs = []
+    
+    # Unit time = 2.0h, Unit weight = 100g. Quantity = 4 -> Total time = 8h, Total weight = 400g
+    job = {
+        "id": "batch_123",
+        "title": "Batch Job",
+        "quantity": 4,
+        "print_time": 2.0,
+        "spool_weights": {"1": 100.0},
+        "status": "Geplant"
+    }
+    
+    mock_app.inventory[0]['weight_gross'] = 1000
+    matched_spools = [mock_app.inventory[0]]
+    
+    dialog = JobDeductionDialog(tk_root, queue_dialog, job, matched_spools)
+    
+    # Verify prefilled values scale with the job's planned total
+    assert dialog.ent_hours.get() == "8"
+    assert dialog.spool_entries[1].get() == "400"
+    
+    dialog.process_deduction()
+    
+    # Check 400g deducted: 1000 - 400 = 600
+    assert mock_app.inventory[0]['weight_gross'] == 600
+    assert job['status'] == "Erledigt ✅"
+    
+    dialog.destroy()
+

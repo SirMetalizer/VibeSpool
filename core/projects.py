@@ -5,7 +5,7 @@ import re
 from datetime import datetime
 from PIL import Image, ImageTk
 from core.utils import center_window, ScrollableFrame
-from core.print_queue import PrintQueueDialog, safe_float, decimal_to_hm, safe_int
+from core.print_queue import PrintQueueDialog, JobImageViewerDialog, safe_float, decimal_to_hm, safe_int
 
 class ProjectsDialog(tk.Toplevel):
     def __init__(self, parent, app_instance):
@@ -32,8 +32,12 @@ class ProjectsDialog(tk.Toplevel):
         self.jobs = self.app.data_manager.load_jobs()
         
         # Load directory for job images
-        db_dir = os.path.dirname(os.path.abspath(self.app.data_manager.filename if hasattr(self.app.data_manager, "filename") else "inventory.json"))
-        self.images_dir = os.path.join(db_dir, "job_images")
+        if hasattr(self.app, 'data_manager') and hasattr(self.app.data_manager, 'get_images_dir'):
+            self.images_dir = self.app.data_manager.get_images_dir()
+        else:
+            db_dir = os.path.dirname(os.path.abspath(self.app.data_manager.jobs_file if hasattr(self.app.data_manager, "jobs_file") else "print_jobs.json"))
+            self.images_dir = os.path.join(db_dir, "job_images")
+            os.makedirs(self.images_dir, exist_ok=True)
         
         self.build_ui()
 
@@ -51,18 +55,27 @@ class ProjectsDialog(tk.Toplevel):
         frm_left = ttk.Frame(main_paned)
         main_paned.add(frm_left, weight=1)
         
+        self.folder_sort_mode = self.app.settings.get("folder_sort_mode", "asc")
+        
         # Toolbar above Treeview
         toolbar = ttk.Frame(frm_left, padding=(0, 0, 0, 5))
         toolbar.pack(fill="x")
         
-        ttk.Button(toolbar, text="📁+ Neuer Ordner", command=self.create_folder).pack(side="left", padx=2)
-        ttk.Button(toolbar, text="✏️ Umbenennen", command=self.rename_folder).pack(side="left", padx=2)
-        ttk.Button(toolbar, text="🗑️ Löschen", command=self.delete_folder, style="Delete.TButton").pack(side="left", padx=2)
+        ttk.Button(toolbar, text="📁+ Neu", command=self.create_folder, width=7).pack(side="left", padx=1)
+        ttk.Button(toolbar, text="✏️", command=self.rename_folder, width=3).pack(side="left", padx=1)
+        ttk.Button(toolbar, text="🗑️", command=self.delete_folder, style="Delete.TButton", width=3).pack(side="left", padx=1)
         
-        ttk.Separator(toolbar, orient="vertical").pack(side="left", fill="y", padx=5)
+        ttk.Separator(toolbar, orient="vertical").pack(side="left", fill="y", padx=3)
         
-        ttk.Button(toolbar, text="📋 Neuen Job planen", command=self.plan_new_job_here).pack(side="left", padx=2)
-        ttk.Button(toolbar, text="🔗 Job zuweisen", command=self.assign_existing_job).pack(side="left", padx=2)
+        ttk.Button(toolbar, text="🔤 A-Z", command=lambda: self.set_sort_mode("asc"), width=6).pack(side="left", padx=1)
+        ttk.Button(toolbar, text="🔤 Z-A", command=lambda: self.set_sort_mode("desc"), width=6).pack(side="left", padx=1)
+        ttk.Button(toolbar, text="🔼", command=lambda: self.move_folder_order(-1), width=3).pack(side="left", padx=1)
+        ttk.Button(toolbar, text="🔽", command=lambda: self.move_folder_order(1), width=3).pack(side="left", padx=1)
+        
+        ttk.Separator(toolbar, orient="vertical").pack(side="left", fill="y", padx=3)
+        
+        ttk.Button(toolbar, text="📋 Job planen", command=self.plan_new_job_here).pack(side="left", padx=1)
+        ttk.Button(toolbar, text="🔗 Zuweisen", command=self.assign_existing_job).pack(side="left", padx=1)
         
         # Treeview
         tree_frm = ttk.Frame(frm_left)
@@ -90,6 +103,39 @@ class ProjectsDialog(tk.Toplevel):
         self.refresh_tree()
         self.show_default_welcome()
 
+    def set_sort_mode(self, mode):
+        self.folder_sort_mode = mode
+        self.app.settings["folder_sort_mode"] = mode
+        self.app.data_manager.save_settings(self.app.settings)
+        self.refresh_tree()
+
+    def move_folder_order(self, direction):
+        sel = self.tree.selection()
+        if not sel or sel[0] in ("root", "unassigned") or sel[0].startswith("job_"):
+            messagebox.showinfo("Info", "Bitte wähle zuerst einen Ordner aus, den du verschieben möchtest!")
+            return
+        folder_id = sel[0]
+        folder = next((f for f in self.projects if f["id"] == folder_id), None)
+        if not folder: return
+        
+        parent_id = folder.get("parent_id")
+        sibling_indices = [idx for idx, f in enumerate(self.projects) if f.get("type", "folder") == "folder" and f.get("parent_id") == parent_id]
+        curr_pos = next((i for i, idx in enumerate(sibling_indices) if self.projects[idx]["id"] == folder_id), None)
+        if curr_pos is None: return
+        
+        target_pos = curr_pos + direction
+        if 0 <= target_pos < len(sibling_indices):
+            idx1 = sibling_indices[curr_pos]
+            idx2 = sibling_indices[target_pos]
+            self.projects[idx1], self.projects[idx2] = self.projects[idx2], self.projects[idx1]
+            
+            self.folder_sort_mode = "manual"
+            self.app.settings["folder_sort_mode"] = "manual"
+            self.app.data_manager.save_settings(self.app.settings)
+            self.app.data_manager.save_projects(self.projects)
+            self.refresh_tree()
+            self.tree.selection_set(folder_id)
+
     def refresh_tree(self):
         # Save selection status to restore if possible
         selected = self.tree.selection()
@@ -102,16 +148,22 @@ class ProjectsDialog(tk.Toplevel):
         
         # Map folders
         folders = [p for p in self.projects if p.get("type", "folder") == "folder"]
-        folders_dict = {f["id"]: f for f in folders}
+        
+        def sort_folders(f_list):
+            if self.folder_sort_mode == "desc":
+                return sorted(f_list, key=lambda x: x.get("name", "").lower(), reverse=True)
+            elif self.folder_sort_mode == "manual":
+                return f_list
+            else:  # "asc"
+                return sorted(f_list, key=lambda x: x.get("name", "").lower())
         
         # Add root project node
         root_node = self.tree.insert("", "end", iid="root", text="📁 Projekte / Ordner", open=True)
         
         # Function to add subfolders recursively
         def add_subfolders(parent_id, parent_node):
-            # Find subfolders of this parent
             sub_folders = [f for f in folders if f.get("parent_id") == parent_id]
-            sub_folders.sort(key=lambda x: x.get("name", "").lower())
+            sub_folders = sort_folders(sub_folders)
             
             for sf in sub_folders:
                 sf_id = sf["id"]
@@ -132,7 +184,7 @@ class ProjectsDialog(tk.Toplevel):
                 
         # Fill root level folders (parent_id is None or empty)
         root_folders = [f for f in folders if not f.get("parent_id")]
-        root_folders.sort(key=lambda x: x.get("name", "").lower())
+        root_folders = sort_folders(root_folders)
         
         for rf in root_folders:
             rf_id = rf["id"]
@@ -241,6 +293,7 @@ class ProjectsDialog(tk.Toplevel):
         total_weight = 0.0
         total_cost = 0.0
         total_sell = 0.0
+        total_actual_sell = 0.0
         total_time = 0.0
         
         for job in folder_jobs:
@@ -248,18 +301,28 @@ class ProjectsDialog(tk.Toplevel):
             total_weight += safe_float(job.get("est_weight"), 0.0)
             
             # Parse prices
-            price_str = job.get("est_price", "0.00")
-            nums = re.findall(r'[\d.,]+', price_str)
             cost_val = 0.0
             sell_val = 0.0
-            if len(nums) >= 1:
-                cost_val = float(nums[0].replace(",", "."))
-            if len(nums) >= 2:
-                sell_val = float(nums[1].replace(",", "."))
+            if "material_cost" in job:
+                cost_val = safe_float(job.get("material_cost", 0.0)) + safe_float(job.get("electricity_cost", 0.0)) + safe_float(job.get("wear_cost", 0.0)) + safe_float(job.get("other_expenses", 0.0))
+                sell_val = safe_float(job.get("sell_price", 0.0))
+                if sell_val == 0.0:
+                    margin = safe_int(self.app.settings.get("profit_margin"), 0)
+                    sell_val = cost_val * (1.0 + margin / 100.0) if margin > 0 else cost_val
             else:
-                sell_val = cost_val
+                price_str = job.get("est_price", "0.00")
+                nums = re.findall(r'[\d.,]+', price_str)
+                if len(nums) >= 1:
+                    cost_val = float(nums[0].replace(",", "."))
+                if len(nums) >= 2:
+                    sell_val = float(nums[1].replace(",", "."))
+                else:
+                    sell_val = cost_val
+                    
+            act_val = safe_float(job.get("actual_sell_price", 0.0), 0.0)
             total_cost += cost_val
             total_sell += sell_val
+            total_actual_sell += act_val
             
         # Stats KPI Frame
         kpi_frm = tk.Frame(self.frm_right, bg="#1e1e1e" if "dark" in str(self.cget('bg')) else "#ffffff", padx=15, pady=10, highlightthickness=1, highlightbackground="#0078d7")
@@ -268,6 +331,7 @@ class ProjectsDialog(tk.Toplevel):
         kpi_frm.columnconfigure(0, weight=1)
         kpi_frm.columnconfigure(1, weight=1)
         kpi_frm.columnconfigure(2, weight=1)
+        kpi_frm.columnconfigure(3, weight=1)
         
         # Col 0: Count
         frm_cnt = ttk.Frame(kpi_frm)
@@ -287,11 +351,24 @@ class ProjectsDialog(tk.Toplevel):
         # Col 2: Financials
         frm_finance = ttk.Frame(kpi_frm)
         frm_finance.grid(row=0, column=2, sticky="nsew")
-        ttk.Label(frm_finance, text="Kosten & VK-Wert:", font=("Segoe UI", 9), background=kpi_frm.cget("bg")).pack(anchor="w")
-        ttk.Label(frm_finance, text=f"{total_cost:.2f} € Kosten", font=("Segoe UI", 12, "bold"), foreground="#28a745", background=kpi_frm.cget("bg")).pack(anchor="w")
-        margin = safe_int(self.app.settings.get("profit_margin"), 0)
-        margin_text = f"VK-Wert: {total_sell:.2f} €" if margin > 0 else "Kein Aufschlag"
-        ttk.Label(frm_finance, text=margin_text, font=("Segoe UI", 8), foreground="gray", background=kpi_frm.cget("bg")).pack(anchor="w")
+        ttk.Label(frm_finance, text="Kosten & VK-Kalkulation:", font=("Segoe UI", 9), background=kpi_frm.cget("bg")).pack(anchor="w")
+        ttk.Label(frm_finance, text=f"{total_cost:.2f} € Kosten (EK)", font=("Segoe UI", 12, "bold"), foreground="#28a745", background=kpi_frm.cget("bg")).pack(anchor="w")
+        ttk.Label(frm_finance, text=f"Kalk. VK: {total_sell:.2f} €", font=("Segoe UI", 8), foreground="gray", background=kpi_frm.cget("bg")).pack(anchor="w")
+
+        # Col 3: Actual Revenue & Profit
+        frm_profit = ttk.Frame(kpi_frm)
+        frm_profit.grid(row=0, column=3, sticky="nsew")
+        if total_actual_sell > 0:
+            real_profit = total_actual_sell - total_cost
+            profit_color = "#28a745" if real_profit >= 0 else "#dc3545"
+            ttk.Label(frm_profit, text="Ist-Erlös / Reiner Gewinn:", font=("Segoe UI", 9), background=kpi_frm.cget("bg")).pack(anchor="w")
+            ttk.Label(frm_profit, text=f"{total_actual_sell:.2f} € Erlös", font=("Segoe UI", 12, "bold"), foreground=profit_color, background=kpi_frm.cget("bg")).pack(anchor="w")
+            ttk.Label(frm_profit, text=f"Gewinn: {real_profit:+.2f} €", font=("Segoe UI", 8, "bold"), foreground=profit_color, background=kpi_frm.cget("bg")).pack(anchor="w")
+        else:
+            calc_profit = total_sell - total_cost
+            ttk.Label(frm_profit, text="Kalkulierter Gewinn:", font=("Segoe UI", 9), background=kpi_frm.cget("bg")).pack(anchor="w")
+            ttk.Label(frm_profit, text=f"{calc_profit:+.2f} €", font=("Segoe UI", 12, "bold"), foreground="#28a745" if calc_profit >= 0 else "#dc3545", background=kpi_frm.cget("bg")).pack(anchor="w")
+            ttk.Label(frm_profit, text="Noch kein Ist-Verkaufspreis erfasst", font=("Segoe UI", 8), foreground="gray", background=kpi_frm.cget("bg")).pack(anchor="w")
 
         # Table showing jobs in this folder (direct jobs only)
         direct_jobs = [j for j in self.jobs if j.get("project_id") == folder_id]
@@ -305,19 +382,25 @@ class ProjectsDialog(tk.Toplevel):
             tbl_frm = ttk.Frame(self.frm_right)
             tbl_frm.pack(fill="both", expand=True, pady=5)
             
-            columns = ("date", "title", "weight", "price", "status")
+            columns = ("date", "title", "qty", "weight", "cost", "sell_price", "actual_price", "status")
             tbl = ttk.Treeview(tbl_frm, columns=columns, show="headings", height=8)
             tbl.heading("date", text="Datum")
             tbl.heading("title", text="Titel / Kunde")
+            tbl.heading("qty", text="Stk.")
             tbl.heading("weight", text="Gewicht")
-            tbl.heading("price", text="Preis")
+            tbl.heading("cost", text="Kosten (EK)")
+            tbl.heading("sell_price", text="VK (kalk.)")
+            tbl.heading("actual_price", text="Ist-Erlös")
             tbl.heading("status", text="Status")
             
             tbl.column("date", width=80, anchor="center")
-            tbl.column("title", width=150)
-            tbl.column("weight", width=80, anchor="center")
-            tbl.column("price", width=80, anchor="e")
-            tbl.column("status", width=90, anchor="center")
+            tbl.column("title", width=140)
+            tbl.column("qty", width=45, anchor="center")
+            tbl.column("weight", width=75, anchor="center")
+            tbl.column("cost", width=80, anchor="e")
+            tbl.column("sell_price", width=80, anchor="e")
+            tbl.column("actual_price", width=80, anchor="e")
+            tbl.column("status", width=85, anchor="center")
             
             tbl.pack(side="left", fill="both", expand=True)
             
@@ -326,11 +409,38 @@ class ProjectsDialog(tk.Toplevel):
             tbl.configure(yscrollcommand=scroll.set)
             
             for j in direct_jobs:
+                cost_v = 0.0
+                sell_v = 0.0
+                if "material_cost" in j:
+                    cost_v = safe_float(j.get("material_cost", 0.0)) + safe_float(j.get("electricity_cost", 0.0)) + safe_float(j.get("wear_cost", 0.0)) + safe_float(j.get("other_expenses", 0.0))
+                    sell_v = safe_float(j.get("sell_price", 0.0))
+                    if sell_v == 0.0:
+                        margin = safe_int(self.app.settings.get("profit_margin"), 0)
+                        sell_v = cost_v * (1.0 + margin / 100.0) if margin > 0 else cost_v
+                else:
+                    nums = re.findall(r'[\d.,]+', j.get("est_price", "0.00"))
+                    if len(nums) >= 1:
+                        cost_v = float(nums[0].replace(",", "."))
+                    if len(nums) >= 2:
+                        sell_v = float(nums[1].replace(",", "."))
+                    else:
+                        sell_v = cost_v
+                
+                act_v = safe_float(j.get("actual_sell_price", 0.0), 0.0)
+                act_str = f"{act_v:.2f} €" if act_v > 0 else "-"
+                
+                title_text = j.get("title", "Unbenannt")
+                if j.get("customer"):
+                    title_text = f"{title_text} ({j.get('customer')})"
+                
                 tbl.insert("", "end", values=(
                     j.get("date", ""),
-                    j.get("title", ""),
+                    title_text,
+                    str(safe_int(j.get("quantity", 1), 1)),
                     f"{j.get('est_weight', '0')} g",
-                    j.get("est_price", "-"),
+                    f"{cost_v:.2f} €",
+                    f"{sell_v:.2f} €",
+                    act_str,
                     j.get("status", "")
                 ), iid=j["id"])
                 
@@ -341,6 +451,14 @@ class ProjectsDialog(tk.Toplevel):
                     self.open_job_in_planner(sel_row[0])
                     
             tbl.bind("<Double-1>", on_table_double_click)
+
+    def open_job_image(self, job):
+        img_name = job.get('image_name', '')
+        if not img_name:
+            return
+        img_path = os.path.join(self.images_dir, img_name)
+        if os.path.exists(img_path):
+            JobImageViewerDialog(self, img_path, job.get("title", "Modell"))
 
     def show_job_details(self, job_id):
         for widget in self.frm_right.winfo_children():
@@ -356,25 +474,33 @@ class ProjectsDialog(tk.Toplevel):
         frm_details = ttk.Frame(frm_details_container)
         frm_details.pack(side="left", fill="both", expand=True, padx=(0, 10))
         
-        frm_image = ttk.Frame(frm_details_container, width=220)
+        frm_image = ttk.Frame(frm_details_container, width=240)
         frm_image.pack(side="right", fill="y", padx=(10, 0))
         frm_image.pack_propagate(False)
         
         # Load and display image
         ttk.Label(frm_image, text="Modell-Bild:", font=("Segoe UI", 10, "bold")).pack(anchor="w", pady=(0, 5))
         lbl_img = tk.Label(frm_image, text="Kein Bild\nhinterlegt", relief="solid", borderwidth=1, bg="#222" if "dark" in str(self.cget('bg')) else "#eee")
-        lbl_img.pack(fill="both", expand=True, pady=(0, 10))
+        lbl_img.pack(fill="x", pady=(0, 5))
         
         img_name = job.get('image_name', '')
+        has_img = False
         if img_name and os.path.exists(os.path.join(self.images_dir, img_name)):
             try:
-                img = Image.open(os.path.join(self.images_dir, img_name))
-                img.thumbnail((200, 200))
+                with Image.open(os.path.join(self.images_dir, img_name)) as im:
+                    img = im.copy()
+                resample_filter = getattr(getattr(Image, 'Resampling', Image), 'LANCZOS', Image.LANCZOS)
+                img.thumbnail((220, 220), resample_filter)
                 photo = ImageTk.PhotoImage(img)
-                lbl_img.config(image=photo, text="")
+                lbl_img.config(image=photo, text="", cursor="hand2")
                 lbl_img.image = photo
+                has_img = True
             except Exception as e:
                 print(f"Error loading image: {e}")
+                
+        if has_img:
+            lbl_img.bind("<Button-1>", lambda e: self.open_job_image(job))
+            ttk.Label(frm_image, text="🔍 Klick für Vollbild & Zoom", font=("Segoe UI", 8, "italic"), foreground="#0078d7", cursor="hand2").pack(anchor="w", pady=(0, 5))
                 
         # Texts
         job_status = job.get("status", "Geplant")
@@ -386,12 +512,27 @@ class ProjectsDialog(tk.Toplevel):
         grid = ttk.Frame(frm_details)
         grid.pack(fill="x", pady=5)
         
-        def add_info_row(r, label, value):
+        def add_info_row(r, label, value, val_fg=None, is_bold=False):
             ttk.Label(grid, text=label, font=("Segoe UI", 10, "bold")).grid(row=r, column=0, sticky="w", pady=3, padx=(0, 10))
-            ttk.Label(grid, text=value, font=("Segoe UI", 10)).grid(row=r, column=1, sticky="w", pady=3)
+            fnt = ("Segoe UI", 10, "bold") if is_bold else ("Segoe UI", 10)
+            if val_fg:
+                lbl = tk.Label(grid, text=value, font=fnt, fg=val_fg, bg=self.cget('bg'), anchor="w")
+                lbl.grid(row=r, column=1, sticky="w", pady=3)
+            else:
+                ttk.Label(grid, text=value, font=fnt).grid(row=r, column=1, sticky="w", pady=3)
             
         add_info_row(0, "Datum:", job.get("date", ""))
         add_info_row(1, "Status:", job.get("status", ""))
+        
+        r_idx = 2
+        customer = job.get("customer", "").strip()
+        if customer:
+            add_info_row(r_idx, "Kunde / Kontakt:", customer)
+            r_idx += 1
+            
+        qty = safe_int(job.get("quantity", 1), 1)
+        add_info_row(r_idx, "Stückzahl:", f"{qty} Stk.")
+        r_idx += 1
         
         printer_id = job.get("printer_id", "")
         printer_name = "- Globaler Standard -"
@@ -400,7 +541,8 @@ class ProjectsDialog(tk.Toplevel):
             printer = next((p for p in printers if p.get("id") == printer_id), None)
             if printer:
                 printer_name = printer.get("name", "Drucker")
-        add_info_row(2, "Drucker:", printer_name)
+        add_info_row(r_idx, "Drucker:", printer_name)
+        r_idx += 1
         
         # Retrieve spool details
         spool_weights = job.get("spool_weights", {})
@@ -415,33 +557,82 @@ class ProjectsDialog(tk.Toplevel):
         if not spool_str_list:
             spool_str_list = ["Keine Spulen zugewiesen"]
             
-        add_info_row(3, "Material:", "\n".join(spool_str_list))
-        add_info_row(4, "Gewicht:", f"{job.get('est_weight', '0')} g")
+        add_info_row(r_idx, "Material:", "\n".join(spool_str_list))
+        r_idx += 1
+        add_info_row(r_idx, "Gewicht:", f"{job.get('est_weight', '0')} g")
+        r_idx += 1
         
         time_val = safe_float(job.get("print_time"), 0.0)
         h, m = decimal_to_hm(time_val)
-        add_info_row(5, "Druckzeit:", f"{h} Std {m} Min")
-        add_info_row(6, "Kosten/Preis:", job.get("est_price", "-"))
+        add_info_row(r_idx, "Druckzeit:", f"{h} Std {m} Min")
+        r_idx += 1
         
-        row_idx = 7
+        # Prices & Profit
+        cost_val = 0.0
+        sell_val = 0.0
         if "material_cost" in job:
-            add_info_row(7, "  - Material:", f"{safe_float(job.get('material_cost')):.2f} €")
-            add_info_row(8, "  - Strom:", f"{safe_float(job.get('electricity_cost')):.2f} €")
-            add_info_row(9, "  - Verschleiß:", f"{safe_float(job.get('wear_cost')):.2f} €")
-            row_idx = 10
+            cost_val = safe_float(job.get("material_cost", 0.0)) + safe_float(job.get("electricity_cost", 0.0)) + safe_float(job.get("wear_cost", 0.0)) + safe_float(job.get("other_expenses", 0.0))
+            sell_val = safe_float(job.get("sell_price", 0.0))
+            if sell_val == 0.0:
+                margin = safe_int(self.app.settings.get("profit_margin"), 0)
+                sell_val = cost_val * (1.0 + margin / 100.0) if margin > 0 else cost_val
+        else:
+            nums = re.findall(r'[\d.,]+', job.get("est_price", "0.00"))
+            if len(nums) >= 1:
+                cost_val = float(nums[0].replace(",", "."))
+            if len(nums) >= 2:
+                sell_val = float(nums[1].replace(",", "."))
+            else:
+                sell_val = cost_val
+                
+        act_val = safe_float(job.get("actual_sell_price", 0.0), 0.0)
+        
+        add_info_row(r_idx, "Kosten (EK):", f"{cost_val:.2f} €")
+        r_idx += 1
+        add_info_row(r_idx, "Kalkulierter VK:", f"{sell_val:.2f} €")
+        r_idx += 1
+        
+        if act_val > 0:
+            add_info_row(r_idx, "Ist-Verkaufspreis:", f"{act_val:.2f} €", val_fg="#0078d7", is_bold=True)
+            r_idx += 1
+            real_profit = act_val - cost_val
+            p_fg = "#28a745" if real_profit >= 0 else "#dc3545"
+            add_info_row(r_idx, "Reiner Gewinn:", f"{real_profit:+.2f} €", val_fg=p_fg, is_bold=True)
+            r_idx += 1
+        else:
+            add_info_row(r_idx, "Ist-Verkaufspreis:", "Noch nicht erfasst", val_fg="gray")
+            r_idx += 1
+            calc_profit = sell_val - cost_val
+            add_info_row(r_idx, "Kalkulierte Marge:", f"{calc_profit:+.2f} €")
+            r_idx += 1
+            
+        if "material_cost" in job:
+            add_info_row(r_idx, "  - Material:", f"{safe_float(job.get('material_cost')):.2f} €")
+            r_idx += 1
+            add_info_row(r_idx, "  - Strom:", f"{safe_float(job.get('electricity_cost')):.2f} €")
+            r_idx += 1
+            add_info_row(r_idx, "  - Verschleiß:", f"{safe_float(job.get('wear_cost')):.2f} €")
+            r_idx += 1
             other_exp = safe_float(job.get("other_expenses"), 0.0)
             if other_exp > 0:
-                add_info_row(row_idx, "  - Sonstiges:", f"{other_exp:.2f} €")
-                row_idx += 1
+                add_info_row(r_idx, "  - Sonstiges:", f"{other_exp:.2f} €")
+                r_idx += 1
             
         link = job.get("link", "").strip()
         if link:
             lbl_link = ttk.Label(grid, text="Link:", font=("Segoe UI", 10, "bold"))
-            lbl_link.grid(row=row_idx, column=0, sticky="w", pady=3, padx=(0, 10))
+            lbl_link.grid(row=r_idx, column=0, sticky="w", pady=3, padx=(0, 10))
             
             btn_link = tk.Label(grid, text=link, font=("Segoe UI", 10), fg="#0078d7", cursor="hand2")
-            btn_link.grid(row=row_idx, column=1, sticky="w", pady=3)
+            btn_link.grid(row=r_idx, column=1, sticky="w", pady=3)
             btn_link.bind("<Button-1>", lambda e: self.open_link(link))
+            r_idx += 1
+            
+        specs = job.get("specs", "").strip()
+        if specs:
+            ttk.Label(frm_details, text="Druckparameter / Vorgaben:", font=("Segoe UI", 10, "bold")).pack(anchor="w", pady=(10, 2))
+            lbl_specs = ttk.Label(frm_details, text=specs, font=("Segoe UI", 10), justify="left", wraplength=350)
+            lbl_specs.pack(anchor="w", pady=2)
             
         notes = job.get("notes", "").strip()
         if notes:
@@ -796,9 +987,18 @@ class ProjectsDialog(tk.Toplevel):
             menu.add_command(label="📁+ Neuer Unterordner", command=self.create_folder)
             menu.add_command(label="✏️ Ordner umbenennen", command=self.rename_folder)
             menu.add_command(label="🗑️ Ordner löschen", command=self.delete_folder)
+            menu.add_separator()
+            menu.add_command(label="🔼 Nach oben verschieben", command=lambda: self.move_folder_order(-1))
+            menu.add_command(label="🔽 Nach unten verschieben", command=lambda: self.move_folder_order(1))
+            menu.add_separator()
+            menu.add_command(label="🔤 Alphabetisch sortieren (A-Z)", command=lambda: self.set_sort_mode("asc"))
+            menu.add_command(label="🔤 Alphabetisch sortieren (Z-A)", command=lambda: self.set_sort_mode("desc"))
         else:
             if iid == "root":
                 menu.add_command(label="📁+ Neuer Ordner", command=self.create_folder)
+                menu.add_separator()
+                menu.add_command(label="🔤 Ordner A-Z sortieren", command=lambda: self.set_sort_mode("asc"))
+                menu.add_command(label="🔤 Ordner Z-A sortieren", command=lambda: self.set_sort_mode("desc"))
             else:
                 return
                 

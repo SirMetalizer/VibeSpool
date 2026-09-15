@@ -137,9 +137,19 @@ class ProjectsDialog(tk.Toplevel):
             self.tree.selection_set(folder_id)
 
     def refresh_tree(self):
-        # Save selection status to restore if possible
+        # Save selection and open states to restore if possible
         selected = self.tree.selection()
         sel_id = selected[0] if selected else None
+        
+        open_states = {}
+        def record_open_states(parent=""):
+            for child in self.tree.get_children(parent):
+                try:
+                    open_states[child] = bool(self.tree.item(child, "open"))
+                except Exception:
+                    pass
+                record_open_states(child)
+        record_open_states()
         
         self.tree.delete(*self.tree.get_children())
         
@@ -157,8 +167,8 @@ class ProjectsDialog(tk.Toplevel):
             else:  # "asc"
                 return sorted(f_list, key=lambda x: x.get("name", "").lower())
         
-        # Add root project node
-        root_node = self.tree.insert("", "end", iid="root", text="📁 Projekte / Ordner", open=True)
+        # Add root project node (open by default so top-level folders are visible)
+        root_node = self.tree.insert("", "end", iid="root", text="📁 Projekte / Ordner", open=open_states.get("root", True))
         
         # Function to add subfolders recursively
         def add_subfolders(parent_id, parent_node):
@@ -167,7 +177,8 @@ class ProjectsDialog(tk.Toplevel):
             
             for sf in sub_folders:
                 sf_id = sf["id"]
-                node = self.tree.insert(parent_node, "end", iid=sf_id, text=f"📁 {sf['name']}", open=True)
+                # Subfolders collapsed by default
+                node = self.tree.insert(parent_node, "end", iid=sf_id, text=f"📁 {sf['name']}", open=open_states.get(sf_id, False))
                 
                 # Add print jobs inside this folder
                 folder_jobs = [j for j in self.jobs if j.get("project_id") == sf_id]
@@ -188,7 +199,8 @@ class ProjectsDialog(tk.Toplevel):
         
         for rf in root_folders:
             rf_id = rf["id"]
-            node = self.tree.insert(root_node, "end", iid=rf_id, text=f"📁 {rf['name']}", open=True)
+            # Top-level folders collapsed by default
+            node = self.tree.insert(root_node, "end", iid=rf_id, text=f"📁 {rf['name']}", open=open_states.get(rf_id, False))
             
             # Add print jobs inside this root folder
             folder_jobs = [j for j in self.jobs if j.get("project_id") == rf_id]
@@ -202,8 +214,8 @@ class ProjectsDialog(tk.Toplevel):
                 
             add_subfolders(rf_id, node)
             
-        # Add unassigned jobs node
-        unassigned_node = self.tree.insert("", "end", iid="unassigned", text="⏳ Unzugeordnete Druckaufträge", open=True)
+        # Add unassigned jobs node (collapsed by default)
+        unassigned_node = self.tree.insert("", "end", iid="unassigned", text="⏳ Unzugeordnete Druckaufträge", open=open_states.get("unassigned", False))
         unassigned_jobs = [j for j in self.jobs if not j.get("project_id")]
         unassigned_jobs.sort(key=lambda x: x.get("date", ""), reverse=True)
         
@@ -214,6 +226,10 @@ class ProjectsDialog(tk.Toplevel):
             self.tree.insert(unassigned_node, "end", iid=f"job_{job['id']}", text=f"{status_emoji} {job_title}")
             
         if sel_id and self.tree.exists(sel_id):
+            curr = self.tree.parent(sel_id)
+            while curr:
+                self.tree.item(curr, open=True)
+                curr = self.tree.parent(curr)
             self.tree.selection_set(sel_id)
 
     def show_default_welcome(self):

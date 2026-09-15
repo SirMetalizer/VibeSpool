@@ -1364,6 +1364,11 @@ class FilamentApp:
                 
                 if is_installer:
                     batch_content = f"""@echo off
+setlocal
+set "_MEIPASS2="
+set "_MEIPASS="
+set "PYI_CHILD_SUBPROCESS="
+cd /d "{exe_dir}"
 :loop
 taskkill /f /im "{running_exe_name}" >nul 2>&1
 timeout /t 1 /nobreak >nul
@@ -1371,27 +1376,47 @@ if exist "{running_exe_name}" (
     del "{running_exe_name}" >nul 2>&1
     if exist "{running_exe_name}" goto loop
 )
-start /wait "" "VibeSpool_new.exe" /SILENT /DIR="{exe_dir}" /SP- /NOICONS
+start /wait "" /D "{exe_dir}" "VibeSpool_new.exe" /SILENT /DIR="{exe_dir}" /SP- /NOICONS
 del "VibeSpool_new.exe" >nul 2>&1
-start "" "{running_exe_name}"
+start "" /D "{exe_dir}" "{running_exe_name}"
 del "%~f0"
 """
                 else:
                     batch_content = f"""@echo off
+setlocal
+set "_MEIPASS2="
+set "_MEIPASS="
+set "PYI_CHILD_SUBPROCESS="
+cd /d "{exe_dir}"
 :loop
 taskkill /f /im "{running_exe_name}" >nul 2>&1
 timeout /t 1 /nobreak >nul
-del "{running_exe_name}"
-if exist "{running_exe_name}" goto loop
+if exist "{running_exe_name}" (
+    del "{running_exe_name}" >nul 2>&1
+    if exist "{running_exe_name}" goto loop
+)
 ren "VibeSpool_new.exe" "{running_exe_name}"
-start "" "{running_exe_name}"
+start "" /D "{exe_dir}" "{running_exe_name}"
 del "%~f0"
 """
                 with open(batch_path, "w", encoding="utf-8") as bf:
                     bf.write(batch_content)
                     
+                # Clean environment variables for PyInstaller
+                clean_env = os.environ.copy()
+                for k in list(clean_env.keys()):
+                    if k.startswith('_MEI') or k.startswith('PYI'):
+                        clean_env.pop(k, None)
+                
+                if sys.platform == "win32":
+                    try:
+                        import ctypes
+                        ctypes.windll.kernel32.SetDllDirectoryW(None)
+                    except Exception:
+                        pass
+                    
                 # Launch batch script detached
-                subprocess.Popen([batch_path], shell=True, creationflags=subprocess.CREATE_NEW_CONSOLE)
+                subprocess.Popen([batch_path], cwd=exe_dir, env=clean_env, shell=True, creationflags=subprocess.CREATE_NEW_CONSOLE)
                 
                 # Exit application
                 self.root.quit()

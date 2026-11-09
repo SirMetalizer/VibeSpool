@@ -22,3 +22,4 @@ Mit **v2.5.1** wird das Abbuchen von Materialverbräuchen über die Bambu Cloud 
 ### 4. 📂 Projektplaner & Auto-Updater Fixes
 * **Übersichtlicher Projektplaner:** Beim Öffnen des Projektverlaufs werden standardmäßig nur die **Oberordner** angezeigt, während Unterordner und unzugeordnete Aufträge eingeklappt starten.
 * **Auto-Updater Fix:** Bereinigt die temporären PyInstaller-Umgebungsvariablen (`_MEIPASS2`, `_MEIPASS`) vor dem Start der aktualisierten EXE und behebt damit den Fehler `Security validation failure: unexpected name of application's home directory`.
+

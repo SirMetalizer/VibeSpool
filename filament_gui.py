@@ -119,9 +119,11 @@ class FilamentApp:
 
         self.var_price, self.var_capacity, self.var_gross = tk.StringVar(value=""), tk.StringVar(value="1000"), tk.StringVar(value="")        
         for v in [self.var_price, self.var_capacity, self.var_gross]: v.trace_add("write", lambda n, i, m: self.update_net_weight_display())
+        self.undo_stack = []
+        self._search_debounce_id = None
 
         # --- MAIN LAYOUT ---
-        top_bar = ttk.Frame(root, padding=10); top_bar.pack(fill="x", side="top"); ttk.Label(top_bar, text="Suche:").pack(side="left"); self.search_var = tk.StringVar(); self.search_var.trace_add("write", lambda n, i, m: self.refresh_table()); ttk.Entry(top_bar, textvariable=self.search_var, width=15).pack(side="left", padx=5)
+        top_bar = ttk.Frame(root, padding=10); top_bar.pack(fill="x", side="top"); ttk.Label(top_bar, text="Suche:").pack(side="left"); self.search_var = tk.StringVar(); self.search_var.trace_add("write", self._on_search_change); self.entry_search = ttk.Entry(top_bar, textvariable=self.search_var, width=15); self.entry_search.pack(side="left", padx=5)
         self.filter_mat_var, self.filter_color_var, self.filter_loc_var = tk.StringVar(value="Alle Materialien"), tk.StringVar(value="Alle Farben"), tk.StringVar(value="Alle Orte")
         self.combo_filter_mat = ttk.Combobox(top_bar, textvariable=self.filter_mat_var, state="readonly", width=15); self.combo_filter_mat.pack(side="left", padx=5); self.combo_filter_mat.bind("<<ComboboxSelected>>", lambda e: self.refresh_table())
         self.combo_filter_color = ttk.Combobox(top_bar, textvariable=self.filter_color_var, state="readonly", width=15); self.combo_filter_color.pack(side="left", padx=5); self.combo_filter_color.bind("<<ComboboxSelected>>", lambda e: self.refresh_table())
@@ -135,13 +137,15 @@ class FilamentApp:
         self.menu_opts = tk.Menu(self.btn_opts, tearoff=0)
         self.menu_opts.add_command(label="⚙ Alle Einstellungen öffnen", command=self.open_settings)
         self.menu_opts.add_separator()
+        self.menu_opts.add_command(label="↩️ Letzte Änderung rückgängig (Strg+Z)", command=self.undo_last_action)
+        self.menu_opts.add_separator()
         self.menu_opts.add_command(label="📦 Lager-Layout planen", command=lambda: self.open_settings(0))
         self.menu_opts.add_command(label="🤖 Drucker & AMS", command=lambda: self.open_settings(1))
         self.menu_opts.add_command(label="💰 Druckkosten-Rechner", command=lambda: self.open_settings(2))
         self.menu_opts.add_command(label="⚙ System-Optionen & Smart Home", command=lambda: self.open_settings(3))
         self.menu_opts.add_command(label="📋 Listen-Verwaltung", command=lambda: self.open_settings(4))
         self.var_ams_fixed_main = tk.BooleanVar(value=self.settings.get("ams_fixed_top", False))
-        self.menu_opts.add_checkbutton(label="🤖 AMS oben fixieren", variable=self.var_ams_fixed_main, command=self.toggle_ams_fixed_main)
+        self.menu_opts.add_checkbutton(label="🤖 AMS & Trockner oben fixieren", variable=self.var_ams_fixed_main, command=self.toggle_ams_fixed_main)
         self.menu_opts.add_separator()
         self.menu_opts.add_command(label="📥 CSV Inventar Importieren", command=self.import_csv)
         self.menu_opts.add_command(label="💾 Datenbank Backup / Restore", command=lambda: BackupDialog(self.root, self.data_manager, self))
@@ -621,6 +625,14 @@ class FilamentApp:
         self.side_panel_open = False
         self.current_panel_title = ""
         
+        # --- NEU: Live-Statusleiste am unteren Tabellenrand ---
+        self.status_bar_frame = ttk.Frame(table_frame, padding=(8, 4))
+        self.status_bar_frame.pack(side="bottom", fill="x")
+        self.lbl_status_bar = ttk.Label(self.status_bar_frame, text="", font=("Segoe UI", 9))
+        self.lbl_status_bar.pack(side="left")
+        self.lbl_shortcut_hint = ttk.Label(self.status_bar_frame, text="⌨️ Strg+F: Suche | Strg+N: Neu | Strg+S: Speichern | Strg+Z: Rückgängig", font=("Segoe UI", 8), foreground="#888888")
+        self.lbl_shortcut_hint.pack(side="right")
+
         cols_all = ("id", "brand", "material", "color", "subtype", "weight", "flow", "location", "shelf_name", "shelf_row", "shelf_slot", "status")
         self.tree = ttk.Treeview(table_frame, columns=cols_all, show="tree headings")
         scrollbar = ttk.Scrollbar(table_frame, orient=tk.VERTICAL, command=self.tree.yview); self.tree.configure(yscrollcommand=scrollbar.set); scrollbar.pack(side="right", fill="y"); self.tree.pack(fill="both", expand=True)
@@ -651,6 +663,16 @@ class FilamentApp:
         self.setup_context_menus()
         # Bindet den Rechtsklick (Button-3 unter Windows, Button-2/Control-Klick unter macOS)
         self.tree.bind("<Button-3>", self.on_tree_right_click)
+        
+        # Globale Tastenkürzel (Shortcuts)
+        self.root.bind("<Control-f>", self._shortcut_focus_search)
+        self.root.bind("<Control-F>", self._shortcut_focus_search)
+        self.root.bind("<Control-n>", self._shortcut_new_spool)
+        self.root.bind("<Control-N>", self._shortcut_new_spool)
+        self.root.bind("<Control-s>", self._shortcut_save_spool)
+        self.root.bind("<Control-S>", self._shortcut_save_spool)
+        self.root.bind("<Control-z>", self.undo_last_action)
+        self.root.bind("<Control-Z>", self.undo_last_action)
         
         def _on_mousewheel(e):
             self.tree.yview_scroll(int(-1*(e.delta/120)), "units")
@@ -1368,7 +1390,12 @@ setlocal
 set "_MEIPASS2="
 set "_MEIPASS="
 set "PYI_CHILD_SUBPROCESS="
+set "TCL_LIBRARY="
+set "TK_LIBRARY="
+set "PYTHONPATH="
+set "PYTHONHOME="
 cd /d "{exe_dir}"
+timeout /t 2 /nobreak >nul
 :loop
 taskkill /f /im "{running_exe_name}" >nul 2>&1
 timeout /t 1 /nobreak >nul
@@ -1387,7 +1414,12 @@ setlocal
 set "_MEIPASS2="
 set "_MEIPASS="
 set "PYI_CHILD_SUBPROCESS="
+set "TCL_LIBRARY="
+set "TK_LIBRARY="
+set "PYTHONPATH="
+set "PYTHONHOME="
 cd /d "{exe_dir}"
+timeout /t 2 /nobreak >nul
 :loop
 taskkill /f /im "{running_exe_name}" >nul 2>&1
 timeout /t 1 /nobreak >nul
@@ -1402,11 +1434,20 @@ del "%~f0"
                 with open(batch_path, "w", encoding="utf-8") as bf:
                     bf.write(batch_content)
                     
-                # Clean environment variables for PyInstaller
+                # Clean environment variables for PyInstaller (including _MEI temp dir in PATH!)
                 clean_env = os.environ.copy()
+                mei_dir = getattr(sys, "_MEIPASS", None)
                 for k in list(clean_env.keys()):
-                    if k.startswith('_MEI') or k.startswith('PYI'):
+                    k_upper = k.upper()
+                    if k_upper.startswith('_MEI') or k_upper.startswith('PYI') or k_upper in ('TCL_LIBRARY', 'TK_LIBRARY', 'PYTHONPATH', 'PYTHONHOME'):
                         clean_env.pop(k, None)
+                if "PATH" in clean_env:
+                    path_parts = clean_env["PATH"].split(os.pathsep)
+                    filtered_parts = [
+                        p for p in path_parts
+                        if "_MEI" not in p and (not mei_dir or os.path.normcase(p) != os.path.normcase(mei_dir))
+                    ]
+                    clean_env["PATH"] = os.pathsep.join(filtered_parts)
                 
                 if sys.platform == "win32":
                     try:
@@ -1964,8 +2005,62 @@ del "%~f0"
         self.combo_filter_loc['values'] = ["Alle Orte"] + locs
         self.combo_filter_brand['values'] = ["Alle Hersteller"] + brands
 
+    def _on_search_change(self, *args):
+        if getattr(self, "_search_debounce_id", None) is not None:
+            try:
+                self.root.after_cancel(self._search_debounce_id)
+            except Exception:
+                pass
+        self._search_debounce_id = self.root.after(150, self.refresh_table)
+
+    def _shortcut_focus_search(self, event=None):
+        if hasattr(self, "entry_search") and self.entry_search.winfo_exists():
+            self.entry_search.focus_set()
+            self.entry_search.selection_range(0, tk.END)
+            return "break"
+
+    def _shortcut_new_spool(self, event=None):
+        self.clear_inputs()
+        if hasattr(self, "entry_brand") and self.entry_brand.winfo_exists():
+            self.entry_brand.focus_set()
+        return "break"
+
+    def _shortcut_save_spool(self, event=None):
+        sel = self.tree.selection() if hasattr(self, "tree") else ()
+        if sel:
+            self.update_filament()
+        else:
+            self.add_filament()
+        return "break"
+
+    def _push_undo_snapshot(self, label="Änderung"):
+        import copy
+        if not hasattr(self, "undo_stack"):
+            self.undo_stack = []
+        self.undo_stack.append((label, copy.deepcopy(self.inventory)))
+        if len(self.undo_stack) > 10:
+            self.undo_stack.pop(0)
+
+    def undo_last_action(self, event=None):
+        if not getattr(self, "undo_stack", None):
+            self.show_custom_toast("↩️ Rückgängig", "Keine weitere Aktion zum Rückgängigmachen vorhanden.")
+            return "break"
+        label, prev_inv = self.undo_stack.pop()
+        self.inventory.clear()
+        self.inventory.extend(prev_inv)
+        self.data_manager.save_inventory(self.inventory)
+        self.refresh_table()
+        self.show_custom_toast("↩️ Rückgängig gemacht", f"Aktion '{label}' wurde wiederhergestellt.")
+        return "break"
+
     def reset_filters(self): 
         # Setzt alle Filter zurück auf Standard und leert die Suche
+        if getattr(self, "_search_debounce_id", None) is not None:
+            try:
+                self.root.after_cancel(self._search_debounce_id)
+            except Exception:
+                pass
+            self._search_debounce_id = None
         self.filter_mat_var.set("Alle Materialien")
         self.filter_color_var.set("Alle Farben")
         self.filter_loc_var.set("Alle Orte")
@@ -1974,6 +2069,7 @@ del "%~f0"
         self.refresh_table()
 
     def refresh_table(self, *args):
+        self._search_debounce_id = None
         self.icon_cache = []
         for row in self.tree.get_children(): 
             self.tree.delete(row)
@@ -1987,6 +2083,7 @@ del "%~f0"
         search_term = self.search_var.get().lower().strip()
         search_words = search_term.split() if search_term else []
         
+        shown_count = 0
         # Wir übergeben "" an den DataManager, da wir die Textsuche jetzt viel mächtiger hier selbst machen!
         for i in self.data_manager.get_filtered_inventory(self.inventory, "", filters):
             # Manueller Hersteller-Filter
@@ -2030,17 +2127,41 @@ del "%~f0"
                 i['id'], i['brand'], i.get('material', '-'), display_color, i.get('subtype', 'Standard'), 
                 f"{net}g", flow_val, loc_s, shelf_name, shelf_row, shelf_slot, stat
             ), tags=(["alert"] if i.get('reorder') else ["grayed"] if i['type'] == "VERBRAUCHT" else []))
+            shown_count += 1
             
-        self.tree.tag_configure("alert", background="#ffe6e6", foreground="#d9534f")
-        self.tree.tag_configure("grayed", foreground="#999999")
+        theme = self.settings.get("theme", "dark")
+        if theme == "dark":
+            self.tree.tag_configure("alert", background="#3D1E1E", foreground="#FF6B6B")
+            self.tree.tag_configure("grayed", foreground="#7C7C80")
+        else:
+            self.tree.tag_configure("alert", background="#FFE5E5", foreground="#D9534F")
+            self.tree.tag_configure("grayed", foreground="#8E8E93")
+
+        # --- NEU: Live-Statusleiste aktualisieren ---
+        if hasattr(self, "lbl_status_bar") and self.lbl_status_bar.winfo_exists():
+            active_spools = [x for x in self.inventory if x.get("type") != "VERBRAUCHT"]
+            total_net_g = 0.0
+            total_val_eur = 0.0
+            reorder_cnt = sum(1 for x in self.inventory if x.get("reorder"))
+            for x in active_spools:
+                n_g = calculate_net_weight(x.get("weight_gross", "0"), x.get("spool_id", -1), self.spools, x.get("empty_weight"))
+                total_net_g += n_g
+                try:
+                    p = float(str(x.get("price", "0")).replace(",", ".") or 0.0)
+                    c = float(str(x.get("capacity", "1000")) or 1000.0)
+                    if c > 0 and p > 0:
+                        total_val_eur += (n_g / c) * p
+                except Exception:
+                    pass
+            filter_info = f" (Gefiltert: {shown_count})" if shown_count != len(self.inventory) else ""
+            self.lbl_status_bar.config(
+                text=f"📦 {len(active_spools)} aktive Spulen{filter_info}   |   ⚖️ {total_net_g / 1000.0:.2f} kg Bestand   |   💰 {total_val_eur:.2f} € Lagerwert   |   🛒 {reorder_cnt} auf Einkaufsliste"
+            )
 
         # --- NEU: Live-Update für ein offenes Finanz-Dashboard (Pylance-sicher!) ---
         dlg = getattr(self, 'stats_dialog', None)
         if dlg is not None and dlg.winfo_exists():
             dlg.build_ui()
-
-        if hasattr(self, 'stats_dialog') and self.stats_dialog and self.stats_dialog.winfo_exists():
-            self.stats_dialog.build_ui()
             
         # --- NEU: Live-Update für ein offenes Regal-Fenster ---
         vis = getattr(self, 'shelf_visualizer', None)
@@ -2156,6 +2277,7 @@ del "%~f0"
                 
         # Zwingend als String (Text) speichern
         d['id'] = str(d['id'])
+        self._push_undo_snapshot(f"Spule #{d['id']} hinzugefügt")
         self.inventory.append(d)
         self.learn_dropdown_values(d)
         self.data_manager.save_inventory(self.inventory); self.broadcast_mqtt()
@@ -2187,6 +2309,7 @@ del "%~f0"
 
         # NEU: Auch hier als Text vergleichen
         idx = next(i for i, item in enumerate(self.inventory) if str(item['id']) == old_id)
+        self._push_undo_snapshot(f"Spule #{old_id} bearbeitet")
         
         # --- FIX 2: Die Schlaue Waage ---
         old_gross = float(self.inventory[idx].get('weight_gross', 0.0))
@@ -2209,6 +2332,7 @@ del "%~f0"
     def delete_filament(self):
         sel = self.tree.selection()
         if not sel or not messagebox.askyesno("Löschen", "Wirklich löschen?"): return
+        self._push_undo_snapshot(f"Spule #{sel[0]} gelöscht")
         # NEU: Text-Vergleich beim Löschen
         self.inventory = [i for i in self.inventory if str(i['id']) != str(sel[0])]
         self.data_manager.save_inventory(self.inventory); self.refresh_table(); self.clear_inputs()
@@ -4203,12 +4327,25 @@ del "%~f0"
                 # --- FIX 1: Menü JEDES MAL neu aufbauen, damit es nie verschwindet! ---
                 menu_row = tk.Menu(self.root, tearoff=0)
                 menu_row.add_command(label="✏️ Filament bearbeiten", command=lambda: self.on_select(None))
+                menu_row.add_command(label="⚖️ Schnell-Wiegen (Brutto-Gewicht)", command=self.quick_weigh_spool)
                 menu_row.add_separator()
                 menu_row.add_command(label="🛒 Im Shop öffnen", command=self.quick_open_shop)
                 # --- NEU: Logbuch Button ---
                 menu_row.add_command(label="📜 Spulen-Logbuch öffnen", command=self.show_spool_history)
                 menu_row.add_separator()
-                menu_row.add_command(label="🔄 Quick-Swap (ins AMS)", command=self.quick_swap_dialog)
+                menu_row.add_command(label="🔄 Quick-Swap (AMS / Trockner)", command=self.quick_swap_dialog)
+                custom_locs = [x.strip() for x in self.settings.get("custom_locs", "").split(",") if x.strip()]
+                if custom_locs:
+                    for c_loc in custom_locs:
+                        menu_row.add_command(
+                            label=f"🔥 In '{c_loc}' legen (Direkt-Tausch)",
+                            command=lambda loc=c_loc: self.quick_move_to_custom_loc(loc)
+                        )
+                else:
+                    menu_row.add_command(
+                        label="🔥 In Filamenttrockner legen",
+                        command=lambda: self.quick_move_to_custom_loc("Filamenttrockner")
+                    )
                 menu_row.add_command(label="🐑 Spule klonen", command=self.clone_filament)
                 menu_row.add_separator()
                 menu_row.add_command(label="📦 Ins Lager verschieben", command=self.send_to_storage)
@@ -4221,11 +4358,91 @@ del "%~f0"
                 menu_row.tk_popup(event.x_root, event.y_root)
 
     # --- HILFSFUNKTIONEN FÜR DAS RECHTSKLICK-MENÜ ---
+    def quick_move_to_custom_loc(self, target_loc):
+        sel = self.tree.selection()
+        if not sel:
+            return
+        s_a = next((i for i in self.inventory if str(i.get('id')) == str(sel[0])), None)
+        if not s_a:
+            return
+
+        # Falls target_loc noch nicht in custom_locs steht, automatisch ergänzen
+        custom_locs = [x.strip() for x in self.settings.get("custom_locs", "").split(",") if x.strip()]
+        if target_loc not in custom_locs:
+            custom_locs.append(target_loc)
+            self.settings["custom_locs"] = ", ".join(custom_locs)
+            self.data_manager.save_settings(self.settings)
+            self.update_locations_dropdown()
+
+        self._push_undo_snapshot(f"Spule #{s_a['id']} in {target_loc}")
+        old_type, old_loc = s_a.get('type', 'LAGER'), s_a.get('loc_id', '-')
+        s_b = next((i for i in self.inventory if i.get('type') == target_loc and str(i.get('id')) != str(s_a.get('id'))), None)
+
+        s_a['type'] = target_loc
+        s_a['loc_id'] = "-"
+        swap_msg = f"#{s_a['id']} ({s_a.get('brand', '')} {s_a.get('color', '')}) liegt jetzt in '{target_loc}'."
+        if s_b:
+            s_b['type'] = old_type
+            s_b['loc_id'] = old_loc
+            swap_msg += f"\nVorherige Spule #{s_b['id']} wurde nach '{old_type} {old_loc}' zurückgelegt."
+
+        self.data_manager.save_inventory(self.inventory)
+        self.refresh_table()
+        self.on_select(None)
+        self.show_custom_toast(f"🔥 {target_loc}", swap_msg)
+
+    def quick_weigh_spool(self):
+        sel = self.tree.selection()
+        if not sel:
+            return
+        item = next((i for i in self.inventory if str(i.get('id')) == str(sel[0])), None)
+        if not item:
+            return
+        old_gross = float(item.get('weight_gross', 0.0) or 0.0)
+        new_str = simpledialog.askstring(
+            "⚖️ Schnell-Wiegen",
+            f"Spule #{item['id']}: {item.get('brand', '')} {item.get('color', '')}\n"
+            f"Aktuelles Brutto-Gewicht: {old_gross:g} g\n\n"
+            f"Neues Brutto-Gewicht auf der Waage (in g):",
+            initialvalue=f"{old_gross:g}",
+            parent=self.root
+        )
+        if not new_str:
+            return
+        try:
+            new_gross = max(0.0, float(new_str.strip().replace(",", ".")))
+        except ValueError:
+            messagebox.showwarning("Ungültige Eingabe", "Bitte eine gültige Zahl in Gramm eingeben.", parent=self.root)
+            return
+
+        self._push_undo_snapshot(f"Spule #{item['id']} gewogen")
+        diff = round(old_gross - new_gross, 1)
+        item['weight_gross'] = round(new_gross, 1)
+        if diff >= 1.0:
+            if messagebox.askyesno(
+                "⚖️ Verbrauch loggen?",
+                f"Die Spule ist um {diff:g}g leichter geworden.\nSoll dieser Verbrauch ins Statistik-Logbuch eingetragen werden?",
+                parent=self.root
+            ):
+                self.log_consumption(diff)
+                if "history" not in item:
+                    item["history"] = []
+                item["history"].append({
+                    "date": datetime.now().strftime("%Y-%m-%d %H:%M"),
+                    "action": "Waage (Schnell-Wiegen)",
+                    "change": f"-{diff:g}g",
+                    "cost": "-"
+                })
+        self.data_manager.save_inventory(self.inventory)
+        self.refresh_table()
+        self.on_select(None)
+
     def quick_mark_empty(self):
         sel = self.tree.selection()
         if not sel: return
         item = next((i for i in self.inventory if str(i.get('id')) == str(sel[0])), None)
         if item:
+            self._push_undo_snapshot(f"Spule #{item['id']} als leer markiert")
             # NEU: Verbrauch loggen, bevor er gelöscht wird!
             self.log_consumption(item.get('weight_gross', 0.0))
             
@@ -4241,6 +4458,7 @@ del "%~f0"
         if not sel: return
         item = next((i for i in self.inventory if str(i.get('id')) == str(sel[0])), None)
         if item:
+            self._push_undo_snapshot(f"Einkaufsliste #{item['id']}")
             item['reorder'] = not item.get('reorder', False)
             self.data_manager.save_inventory(self.inventory)
             self.refresh_table()

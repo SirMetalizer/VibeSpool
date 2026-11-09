@@ -251,10 +251,26 @@ def get_colors_from_text(text, custom_presets=None):
             
     return result_colors if result_colors else ["#FFFFFF"]
 
+_ICON_CACHE = {}
+_ICON_CACHE_ROOT = None
+
 def create_color_icon(hex_list, size=(24, 24), outline_color="#CCCCCC"):
+    global _ICON_CACHE_ROOT
+    current_root = getattr(tk, "_default_root", None)
+    if current_root is not _ICON_CACHE_ROOT:
+        _ICON_CACHE.clear()
+        _ICON_CACHE_ROOT = current_root
+
+    cache_key = (tuple(hex_list) if hex_list else (), tuple(size), str(outline_color))
+    if cache_key in _ICON_CACHE:
+        return _ICON_CACHE[cache_key]
+
     if not hex_list:
         img = Image.new("RGB", size, "#D2B48C") 
-        return ImageTk.PhotoImage(img)
+        photo = ImageTk.PhotoImage(img)
+        if current_root is not None:
+            _ICON_CACHE[cache_key] = photo
+        return photo
     img = Image.new("RGB", size, "#FFFFFF")
     draw = ImageDraw.Draw(img); width, height = size; step = width / len(hex_list)
     for i, color in enumerate(hex_list):
@@ -262,7 +278,10 @@ def create_color_icon(hex_list, size=(24, 24), outline_color="#CCCCCC"):
         if not color.startswith("#"): color = "#333" 
         draw.rectangle([x0, 0, x1, height], fill=color)
     draw.rectangle([0, 0, width-1, height-1], outline=outline_color, width=1)
-    return ImageTk.PhotoImage(img)
+    photo = ImageTk.PhotoImage(img)
+    if current_root is not None:
+        _ICON_CACHE[cache_key] = photo
+    return photo
 
 def center_window(window, parent):
     window.update_idletasks()

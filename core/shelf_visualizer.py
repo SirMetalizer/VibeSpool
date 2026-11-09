@@ -34,7 +34,7 @@ class ShelfVisualizer(tk.Toplevel):
         self.toolbar.pack(side="top", fill="x")
         
         self.var_ams_fixed = tk.BooleanVar(value=self.settings.get("ams_fixed_top", False))
-        chk_fixed = ttk.Checkbutton(self.toolbar, text="🤖 AMS oben fixieren", variable=self.var_ams_fixed, command=self.toggle_ams_fixed)
+        chk_fixed = ttk.Checkbutton(self.toolbar, text="🤖 AMS & Trockner oben fixieren", variable=self.var_ams_fixed, command=self.toggle_ams_fixed)
         chk_fixed.pack(side="left")
         
         ttk.Label(self.toolbar, text="🔍 Symbolgröße:").pack(side="left", padx=(15, 5))
@@ -46,7 +46,7 @@ class ShelfVisualizer(tk.Toplevel):
         self.combo_zoom.pack(side="left")
         self.combo_zoom.bind("<<ComboboxSelected>>", self.on_zoom_change)
         
-        self.fixed_ams_container = ttk.LabelFrame(self, text="📌 Angeheftete AMS-Einheiten", padding=(10, 5))
+        self.fixed_ams_container = ttk.LabelFrame(self, text="📌 Angeheftete AMS-Einheiten & Trockner / Externe Quellen", padding=(10, 5))
         
         self.canvas_container = ttk.Frame(self)
         self.canvas_container.pack(side="top", fill="both", expand=True)
@@ -143,8 +143,9 @@ class ShelfVisualizer(tk.Toplevel):
                     self.other_data[t].append(item)
             except: pass
             
-        # Pinned AMS at the top
-        if self.var_ams_fixed.get() and self.settings.get("num_ams", 1) > 0:
+        # Pinned AMS & Custom Locations (Dryers) at the top
+        custom_list = [x.strip() for x in self.settings.get("custom_locs", "").split(",") if x.strip()]
+        if self.var_ams_fixed.get() and (self.settings.get("num_ams", 1) > 0 or custom_list):
             self.fixed_ams_container.pack(side="top", fill="x", padx=10, pady=(2, 6), before=self.canvas_container)
             ams_wrapper = ttk.Frame(self.fixed_ams_container)
             ams_wrapper.pack(fill="x")
@@ -161,6 +162,23 @@ class ShelfVisualizer(tk.Toplevel):
                     cont.pack(side="left", fill="y", padx=3)
                     ttk.Label(cont, text=f"Slot {i}", foreground="white", background="#444444", font=("Segoe UI", 7)).pack(pady=(0, 1))
                     self.draw_slot(cont, str(i), self.ams_data.get(f"{ams_name}_{i}"), True, int(75 * m), int(55 * m), ams_name, str(i))
+            for c_loc in custom_list:
+                c_unit_frm = ttk.Frame(ams_wrapper)
+                c_unit_frm.pack(side="left", padx=8, anchor="n")
+                ttk.Label(c_unit_frm, text=f"🔥 {c_loc}", font=("Segoe UI", 9, "bold")).pack(anchor="w", pady=(2, 1))
+                c_frame = tk.Frame(c_unit_frm, bg="#3a332c", padx=4, pady=4)
+                c_frame.pack(anchor="w")
+                c_items = self.other_data.get(c_loc, [])
+                for item in c_items:
+                    item_loc_id = item.get("loc_id", "") or "-"
+                    cont = tk.Frame(c_frame, bg="#3a332c")
+                    cont.pack(side="left", fill="y", padx=3)
+                    ttk.Label(cont, text=f"Aktiv", foreground="#ffaa44", background="#3a332c", font=("Segoe UI", 7)).pack(pady=(0, 1))
+                    self.draw_slot(cont, item_loc_id, item, True, int(75 * m), int(55 * m), c_loc, item_loc_id)
+                cont_add = tk.Frame(c_frame, bg="#3a332c")
+                cont_add.pack(side="left", fill="y", padx=3)
+                ttk.Label(cont_add, text="Einlegen", foreground="#cccccc", background="#3a332c", font=("Segoe UI", 7)).pack(pady=(0, 1))
+                self.draw_slot(cont_add, "➕", None, True, int(75 * m), int(55 * m), c_loc, "-")
         else:
             self.fixed_ams_container.pack_forget()
             

@@ -138,11 +138,6 @@ class DataManager:
             print(f"Zeitmaschinen-Fehler: {e}")
         # --- ENDE NEU ---
         
-        # PYLANCE-FIX: Die Variable heißt hier "self.data_file"
-        from core.utils import save_json
-        save_json(self.data_file, inventory)
-        
-        # PYLANCE-FIX: Die Variable heißt hier "self.data_file" und nicht "self.inventory_file"
         from core.utils import save_json
         save_json(self.data_file, inventory)
 

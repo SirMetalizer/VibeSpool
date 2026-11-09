@@ -31,12 +31,14 @@ jobs:
     - name: Pakete installieren
       run: |
         python -m pip install --upgrade pip
-        pip install pillow qrcode pyinstaller paho-mqtt opencv-python pyzbar pystray requests customtkinter
+        python -m pip uninstall -y pillow PIL || true
+        python -m pip install --no-cache-dir --upgrade --force-reinstall "pillow>=11.0.0,<12.4.0" qrcode pyinstaller paho-mqtt opencv-python pyzbar pystray requests customtkinter
+        python -c "from PIL import Image; print('Verified Pillow version:', Image.__version__)"
 
     - name: EXE bauen (Windows)
       if: matrix.os == 'windows-latest'
       # FIX: Alle Bilder (.png, .ico) aus dem core Ordner werden jetzt mit eingepackt!
-      run: pyinstaller --noconsole --windowed --onefile --hidden-import cv2 --hidden-import pystray --collect-all pyzbar --icon="core/vibespool-icon.ico" --add-data "core/*.ico;core" --add-data "core/*.png;core" --name "VibeSpool_Win" filament_gui.py
+      run: pyinstaller --clean --noconsole --windowed --onefile --hidden-import cv2 --hidden-import pystray --collect-all PIL --collect-all pyzbar --icon="core/vibespool-icon.ico" --add-data "core/*.ico;core" --add-data "core/*.png;core" --name "VibeSpool_Win" filament_gui.py
 
     # --- NEU: ECHTER WINDOWS INSTALLER (Inno Setup) ---
     - name: Inno Setup Skript generieren (Windows)
@@ -50,7 +52,7 @@ jobs:
     - name: APP bauen und zippen (Mac)
       if: matrix.os == 'macos-latest'
       run: |
-        pyinstaller --noconsole --windowed --hidden-import cv2 --hidden-import pystray --collect-all pyzbar --name "VibeSpool_Mac" filament_gui.py
+        pyinstaller --clean --noconsole --windowed --hidden-import cv2 --hidden-import pystray --collect-all PIL --collect-all pyzbar --name "VibeSpool_Mac" filament_gui.py
         cd dist
         zip -r VibeSpool_Mac.zip VibeSpool_Mac.app
 

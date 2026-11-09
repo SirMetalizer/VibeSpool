@@ -1,5 +1,18 @@
 # 📋 VibeSpool Development Backlog
 
+## ✅ Abgeschlossen (v2.5.1 / v2.5.2 - "The Dryer, Cloud-Source & Performance Update")
+- [x] **🔥 Filamenttrockner & Externe Spulen im Cloud-Sync:** Direkte Quellen-Auswahl (`🖨️ Drucker / Material-Quelle`) im Smart-Match-Dialog inkl. automatischem Geräte-Gedächtnis (`cloud_device_map`). Erkennt Druckjobs von Druckern ohne AMS (oder mit Slot `254`/`255`) automatisch als externen Spulendruck und schlägt die passende Spule aus dem Trockner vor (inkl. Zeitmaschinen-Historie für `EXT_<Ort>`).
+- [x] **📌 Angeheftete Trockner im Regal-Visualisierer:** Die Option *"🤖 AMS & Trockner oben fixieren"* heftet neben den AMS-Einheiten nun auch alle benutzerdefinierten Lagerorte (z. B. `Filamenttrockner`) oben im Regal-Fenster an – für direktes Drag & Drop ohne Scrollen.
+- [x] **🖱️ Rechtsklick-Direkttausch & Schnell-Wiegen:** Neue Kontextmenü-Aktionen *"🔥 In '<Trockner>' legen (Direkt-Tausch)"* (tauscht die bisherige Spule im Trockner automatisch auf den alten Regalplatz zurück) und *"⚖️ Schnell-Wiegen (Brutto-Gewicht)"*.
+- [x] **⚡ Performance-Turbo & Stabilität:** In-Memory Icon-Caching (`_ICON_CACHE`) für sofortiges Tabellen-Rendering, 150ms Search-Debouncing beim Tippen, atomares JSON-Speichern (`save_json` via `.tmp` + `os.replace` gegen Datenverlust) und Bereinigung doppelter Speicher-/UI-Aufrufe.
+- [x] **🎨 UX, Dark-Mode & Komfort:** Theme-sensitives Highlighting für Nachbestell-Warnungen (`alert`), Live-Statusleiste am unteren Tabellenrand (aktive Spulen, Gesamtgewicht in kg, Lagerwert in €, Einkaufsliste) sowie globale Tastenkürzel (`Strg+F` Suche, `Strg+N` Neu, `Strg+S` Speichern, `Strg+Z` Undo-Stack für bis zu 10 Änderungen).
+- [x] **🛡️ Auto-Updater & PyInstaller Isolation Fix:** Bereinigung aller `_MEI`/`PYI`/`TCL_LIBRARY`-Umgebungsvariablen und `_MEI`-Pfad-Einträge beim Start des Updaters sowie deterministisches Pillow-Packaging im GitHub-Actions-Build (verhindert `Security validation failure` und `ImportError: The _imaging extension was built for another version of Pillow`).
+- [x] **📂 Projektbaum-Übersichtlichkeit:** Beim Öffnen der Projektverwaltung und Projektauswahl sind standardmäßig nur die Oberordner sichtbar (Unterordner eingeklappt).
+
+## ✅ Abgeschlossen (v2.5.0 - "The Multi-Select & Auto-Updater Patch")
+- [x] **🖱️ Mehrfachauswahl im Projektplaner:** Mehrere Druckaufträge gleichzeitig per `Strg`/`Shift` auswählen, verschieben oder löschen.
+- [x] **⚡ Verbesserter Auto-Updater:** Zuverlässige Erkennung und Ausführung von Setup-Installern (`VibeSpool_Setup.exe`) und Standalone-Binaries.
+
 ## ✅ Abgeschlossen (v2.3.0 - "The Custom Label & Project Module Update")
 - [x] **🏷️ Eigene Label-Größe & dynamische Skalierung:** Breite und Höhe in mm im Label Creator konfigurierbar, inklusive proportionaler Skalierung (Schriften und QR-Code), automatischer Orientierungsanpassung (Horizontal/Vertikal) und verzerrungsfreier Live-Vorschau.
 - [x] **👁️ System-Vorschau für Labels:** Neues Feature zum schnellen Öffnen eines hochauflösenden Label-Entwurfs direkt im Standard-Bildbetrachter des Betriebssystems vor dem Drucken.
@@ -60,9 +73,10 @@
 - [x] **Omni-Live-Suche**
 - [x] **🧮 Quick-Cost Rechner**
 
-## 🚀 Priorität 1: Next Steps (v2.2.0)
-- [ ] **📚 Globale Filament-Datenbank (Bake-in):** Integrierte Datenbank für bekannte Hersteller-Filamente, die per Klick (inkl. Leergewicht und Shop-Link) ins eigene Lager kopiert werden können.
-- [ ] **🎨 Custom Label Designer:** Baukasten zum freien Gestalten von Etiketten (Logos hinzufügen, Schriftarten ändern).
+## 🚀 Priorität 1: Next Steps (v2.6+)
+- [ ] **📚 Globale Filament-Datenbank (Bake-in):** Integrierte Datenbank für bekannte Hersteller-Filamente, die per Klick (inkl. Leergewicht, Drucktemperaturen und Shop-Link) ins eigene Lager kopiert werden können.
+- [ ] **🎨 Custom Label Designer:** Baukasten zum freien Gestalten von Etiketten (Logos hinzufügen, Schriftarten ändern, benutzerdefinierte Felder).
+- [ ] **📱 Mobile Companion Action-Mode:** Direkt im Smartphone-Browser Gewicht nach dem Wiegen eintragen oder Spule per 1-Tap in den Filamenttrockner / ins AMS buchen.
 
 ## 🔮 Langzeit-Vision (v3.0)
 - [ ] **📂 3MF Deep-Dive FTP Parsing:** Automatisches Auslesen der Gewichte pro Slot direkt vom Drucker-Speicher.

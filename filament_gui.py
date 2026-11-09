@@ -2447,6 +2447,10 @@ del "%~f0"
             s_b = None
             if t_sl != "-":
                 s_b = next((i for i in self.inventory if i.get('type') == t_am and str(i.get('loc_id')) == t_sl), None)
+            elif t_am != "LAGER":
+                spools_there = [i for i in self.inventory if i.get('type') == t_am and str(i.get('id')) != str(s_a.get('id'))]
+                if len(spools_there) == 1:
+                    s_b = spools_there[0]
                      
             s_a['type'] = t_am
             s_a['loc_id'] = t_sl
@@ -2684,9 +2688,13 @@ del "%~f0"
         if len(tray_ids) == 1 and weight_g > 0:
             raw_slot = tray_ids[0]
             
-            if raw_slot == 255:
-                # Druck von externer Spule!
+            if raw_slot in (254, 255) or not ams_ids:
+                # Druck von externer Spule / Trockner!
                 ext_loc = printer.get("external_loc", "")
+                if not ext_loc:
+                    custom_list = [x.strip() for x in self.settings.get("custom_locs", "").split(",") if x.strip()]
+                    if custom_list:
+                        ext_loc = custom_list[0]
                 if ext_loc:
                     matching_items = [i for i in self.inventory if i.get("type") == ext_loc and i.get("type") != "VERBRAUCHT"]
                     if len(matching_items) == 1:
@@ -2774,9 +2782,13 @@ del "%~f0"
             row.pack(fill="x", pady=5)
             
             item = None
-            if t_id == 255:
-                # Externe Spule
+            if t_id in (254, 255) or not ams_ids:
+                # Externe Spule / Trockner
                 ext_loc = printer.get("external_loc", "")
+                if not ext_loc:
+                    custom_list = [x.strip() for x in self.settings.get("custom_locs", "").split(",") if x.strip()]
+                    if custom_list:
+                        ext_loc = custom_list[0]
                 lbl_text = f"Externer Halter:"
                 if ext_loc:
                     item = next((i for i in self.inventory if i.get('type') == ext_loc and i.get('type') != 'VERBRAUCHT'), None)
@@ -4432,7 +4444,170 @@ del "%~f0"
 
         ttk.Button(frm, text="🌐 Anmelden via MakerWorld / Bambu Lab", command=start_browser_login).pack(fill="x", pady=5)
 
-    def _ask_for_smart_deduction(self, job, parent_win, tree_widget, refresh_tree=None):
+    def _resolve_cloud_job_source(self, job, override_source=None):
+        """Ermittelt für einen Cloud-Druckauftrag den zugehörigen Drucker bzw. externen Lagerort (z.B. Filamenttrockner)."""
+        job_dev_id = str(job.get("deviceId", "")).strip()
+        job_dev_name = str(job.get("deviceName", "")).strip()
+        printers = self.settings.get("printers", [])
+        custom_locs = [x.strip() for x in self.settings.get("custom_locs", "").split(",") if x.strip()]
+        cloud_map = self.settings.get("cloud_device_map", {})
+
+        if override_source:
+            source_key = override_source
+        elif job_dev_id and job_dev_id in cloud_map:
+            source_key = cloud_map[job_dev_id]
+        else:
+            source_key = "AUTO"
+
+        printer = None
+        ams_ids = []
+        ext_loc = ""
+        force_external = False
+        display_label = job_dev_name or "Standard"
+
+        if source_key.startswith("LOC:"):
+            loc_name = source_key[4:]
+            ext_loc = loc_name
+            force_external = True
+            display_label = f"📍 {loc_name}"
+            return printer, ams_ids, ext_loc, force_external, source_key, display_label
+
+        if source_key.startswith("PRN:"):
+            p_id = source_key[4:]
+            printer = next((p for p in printers if str(p.get("id")) == p_id), None)
+            if printer:
+                ams_ids = printer.get("ams_ids", [])
+                ext_loc = printer.get("external_loc", "")
+                if not ams_ids and not ext_loc and custom_locs:
+                    ext_loc = custom_locs[0]
+                force_external = (len(ams_ids) == 0)
+                display_label = f"{printer.get('name', 'Drucker')}" + (f" ({ext_loc})" if force_external and ext_loc else "")
+                return printer, ams_ids, ext_loc, force_external, source_key, display_label
+
+        # AUTO-Erkennung anhand Seriennummer oder Name
+        if job_dev_id:
+            printer = next((p for p in printers if str(p.get("serial", "")).strip().upper() == job_dev_id.upper()), None)
+        if not printer and job_dev_name:
+            printer = next((p for p in printers if str(p.get("name", "")).strip().lower() == job_dev_name.lower()), None)
+
+        if printer:
+            ams_ids = printer.get("ams_ids", [])
+            ext_loc = printer.get("external_loc", "")
+            if not ams_ids and not ext_loc and custom_locs:
+                ext_loc = custom_locs[0]
+            force_external = (len(ams_ids) == 0)
+            source_key = f"PRN:{printer.get('id')}"
+            display_label = f"{printer.get('name', 'Drucker')}" + (f" ({ext_loc})" if force_external and ext_loc else "")
+            return printer, ams_ids, ext_loc, force_external, source_key, display_label
+
+        # Falls job_dev_id vorhanden ist, aber nicht auf Drucker 1 (mit Seriennummer) passt -> Zweitdrucker!
+        printers_with_serial = [p for p in printers if str(p.get("serial", "")).strip()]
+        if job_dev_id and printers_with_serial:
+            unassigned_prn = next((p for p in printers if not str(p.get("serial", "")).strip() and (p.get("external_loc") or not p.get("ams_ids"))), None)
+            if not unassigned_prn:
+                unassigned_prn = next((p for p in printers if not str(p.get("serial", "")).strip()), None)
+            if unassigned_prn:
+                printer = unassigned_prn
+                ams_ids = printer.get("ams_ids", [])
+                ext_loc = printer.get("external_loc", "") or (custom_locs[0] if (not ams_ids and custom_locs) else "")
+                force_external = (len(ams_ids) == 0)
+                source_key = f"PRN:{printer.get('id')}"
+                display_label = f"{printer.get('name', 'Drucker')}" + (f" ({ext_loc})" if force_external and ext_loc else "")
+                return printer, ams_ids, ext_loc, force_external, source_key, display_label
+
+            # Falls alle konfigurierten Drucker andere Seriennummern haben und AMS 1 bereits vergeben ist:
+            if any(1 in p.get("ams_ids", []) for p in printers_with_serial):
+                ext_loc = custom_locs[0] if custom_locs else ""
+                force_external = True
+                source_key = f"LOC:{ext_loc}" if ext_loc else "AUTO"
+                display_label = f"📍 {ext_loc}" if ext_loc else (job_dev_name or "Zweitdrucker (Extern)")
+                return None, [], ext_loc, force_external, source_key, display_label
+
+        # Allgemeiner Fallback
+        if len(printers) == 1:
+            printer = printers[0]
+            ams_ids = printer.get("ams_ids", [])
+            ext_loc = printer.get("external_loc", "") or (custom_locs[0] if (not ams_ids and custom_locs) else "")
+            force_external = (len(ams_ids) == 0)
+            display_label = printer.get("name", "Drucker")
+        else:
+            ext_loc = custom_locs[0] if custom_locs else ""
+            if job_dev_name:
+                display_label = job_dev_name
+            elif len(job_dev_id) >= 4:
+                display_label = f"Gerät ...{job_dev_id[-4:]}"
+            else:
+                display_label = "Standard"
+
+        return printer, ams_ids, ext_loc, force_external, source_key, display_label
+
+    def _find_best_external_spool(self, ext_loc, job_date_str=None, mapping_entry=None):
+        """Sucht die passende Spule im externen Halter / Filamenttrockner (inkl. Zeitmaschine & Material-Abgleich)."""
+        from datetime import datetime
+        import os, json
+
+        custom_locs = [x.strip() for x in self.settings.get("custom_locs", "").split(",") if x.strip()]
+        search_locs = []
+        if ext_loc:
+            search_locs.append(ext_loc)
+        for c in custom_locs:
+            if c not in search_locs:
+                search_locs.append(c)
+
+        # 1. Aktuell dort liegende Spulen prüfen
+        for loc in search_locs:
+            candidates = [s for s in self.inventory if s.get('type') == loc and s.get('type') != 'VERBRAUCHT']
+            if len(candidates) == 1:
+                return candidates[0], loc
+            elif len(candidates) > 1:
+                if mapping_entry:
+                    f_type = str(mapping_entry.get("filamentType", "")).strip().upper()
+                    if f_type:
+                        mat_match = next((s for s in candidates if str(s.get("material", "")).strip().upper() == f_type), None)
+                        if mat_match:
+                            return mat_match, loc
+                return candidates[0], loc
+
+        # 2. Zeitmaschine (ams_snapshots.json) prüfen, falls Spule inzwischen zurück ins Regal gelegt wurde
+        if job_date_str and search_locs:
+            snap_file = os.path.join(getattr(self.data_manager, 'base_dir', ''), "ams_snapshots.json")
+            if os.path.exists(snap_file):
+                try:
+                    with open(snap_file, "r") as f:
+                        snaps = json.load(f)
+                    try:
+                        job_dt = datetime.strptime(job_date_str, "%Y-%m-%d %H:%M:%S")
+                    except Exception:
+                        try:
+                            job_dt = datetime.strptime(job_date_str, "%Y-%m-%d %H:%M")
+                        except Exception:
+                            job_dt = datetime.now()
+
+                    closest_key = None
+                    min_diff = None
+                    for snap_time_str in snaps.keys():
+                        try:
+                            snap_dt = datetime.strptime(snap_time_str, "%Y-%m-%d %H:%M:%S")
+                            diff = abs((job_dt - snap_dt).total_seconds())
+                            if min_diff is None or diff < min_diff:
+                                min_diff = diff
+                                closest_key = snap_time_str
+                        except Exception:
+                            pass
+
+                    if closest_key:
+                        for loc in search_locs:
+                            spool_id = snaps[closest_key].get(f"EXT_{loc}")
+                            if spool_id:
+                                found = next((s for s in self.inventory if str(s.get('id')) == str(spool_id) and s.get('type') != 'VERBRAUCHT'), None)
+                                if found:
+                                    return found, loc
+                except Exception:
+                    pass
+
+        return None, (ext_loc or (custom_locs[0] if custom_locs else ""))
+
+    def _ask_for_smart_deduction(self, job, parent_win, tree_widget, refresh_tree=None, override_source=None):
         job_id = str(job.get('id', ''))
         
         from datetime import datetime
@@ -4460,15 +4635,12 @@ del "%~f0"
         model = job.get('name', 'Unbekannt')
         total_weight = job.get('weight', 0.0)
         mappings = job.get('mapping', [])
+        job_dev_id = str(job.get("deviceId", "")).strip()
 
         ttk.Label(content_frm, text=f"{model}", font=("Segoe UI", 11, "bold"), wraplength=400, justify="center").pack(pady=(5, 5))
         
-        # Drucker anhand deviceId ermitteln
-        job_dev_id = job.get("deviceId", "")
-        printers = self.settings.get("printers", [])
-        printer = next((p for p in printers if p.get("serial") == job_dev_id), None)
-        ams_ids = printer.get("ams_ids", []) if printer else []
-        ext_loc = printer.get("external_loc", "") if printer else ""
+        # Drucker & Quelle (AMS vs. Filamenttrockner / Externe Spule) ermitteln
+        printer, ams_ids, ext_loc, force_external, active_source_key, _ = self._resolve_cloud_job_source(job, override_source=override_source)
 
         try: duration = float(job.get('duration_h', 0.0) or 0.0)
         except: duration = 0.0
@@ -4496,14 +4668,85 @@ del "%~f0"
         if duration > 0: info_str += f"\nZeit: {duration:.1f}h | Strom: {strom_kosten:.2f} €"
         ttk.Label(content_frm, text=info_str, font=("Segoe UI", 9), foreground="#0078D7", justify="center").pack(pady=5)
 
+        # --- NEU: Drucker / Quelle Schnellauswahl (merkt sich Zuordnung für diesen Cloud-Drucker automatisch!) ---
+        src_frm = ttk.LabelFrame(content_frm, text="🖨️ Drucker / Material-Quelle", padding=6)
+        src_frm.pack(fill="x", pady=(4, 10))
+
+        source_options = []
+        source_key_map = {}
+
+        auto_lbl = "🤖 Automatisch erkennen"
+        source_options.append(auto_lbl)
+        source_key_map[auto_lbl] = "AUTO"
+
+        for p in self.settings.get("printers", []):
+            p_ams = p.get("ams_ids", [])
+            p_ext = p.get("external_loc", "")
+            if p_ams:
+                ams_txt = ", ".join(f"AMS {a}" for a in p_ams)
+                desc = f"{ams_txt}" + (f" / {p_ext}" if p_ext else "")
+            elif p_ext:
+                desc = f"Extern: {p_ext}"
+            else:
+                desc = "Ohne AMS / Extern"
+            lbl = f"🖨️ {p.get('name', 'Drucker')} ({desc})"
+            source_options.append(lbl)
+            source_key_map[lbl] = f"PRN:{p.get('id')}"
+
+        custom_locs = [x.strip() for x in self.settings.get("custom_locs", "").split(",") if x.strip()]
+        for loc in custom_locs:
+            lbl = f"📍 Direkt aus: {loc} (Externe Spule)"
+            source_options.append(lbl)
+            source_key_map[lbl] = f"LOC:{loc}"
+
+        combo_src = ttk.Combobox(src_frm, values=source_options, state="readonly", font=("Segoe UI", 9))
+        combo_src.pack(fill="x")
+
+        selected_src_lbl = next((lbl for lbl, k in source_key_map.items() if k == active_source_key), auto_lbl)
+        combo_src.set(selected_src_lbl)
+
+        def on_source_change(event=None):
+            chosen_lbl = combo_src.get()
+            chosen_key = source_key_map.get(chosen_lbl, "AUTO")
+            if job_dev_id:
+                cloud_map = self.settings.get("cloud_device_map", {})
+                if chosen_key == "AUTO":
+                    cloud_map.pop(job_dev_id, None)
+                else:
+                    cloud_map[job_dev_id] = chosen_key
+                self.settings["cloud_device_map"] = cloud_map
+                # Falls ein Drucker ohne bisherige Seriennummer gewählt wurde, Seriennummer gleich hinterlegen
+                if chosen_key.startswith("PRN:"):
+                    p_id = chosen_key[4:]
+                    for p in self.settings.get("printers", []):
+                        if str(p.get("id")) == p_id and not str(p.get("serial", "")).strip():
+                            p["serial"] = job_dev_id
+                self.data_manager.save_settings(self.settings)
+                if refresh_tree:
+                    try: refresh_tree()
+                    except Exception: pass
+            self._ask_for_smart_deduction(job, parent_win, tree_widget, refresh_tree, override_source=chosen_key)
+
+        combo_src.bind("<<ComboboxSelected>>", on_source_change)
+
         from core.logic import calculate_net_weight
-        spool_list = []
-        for s in self.inventory:
-            if s.get('type') == 'VERBRAUCHT': continue
+        import re
+
+        def format_spool_item(s):
             net = calculate_net_weight(s.get('weight_gross', '0'), s.get('spool_id', -1), self.spools, s.get('empty_weight'))
-            import re
             color_clean = re.sub(r'\s*\(\s*#[0-9a-fA-F]{6}\s*\)', '', s.get('color', '')).strip()
-            spool_list.append(f"[{s['id']}] {s.get('brand')} {color_clean} ({net}g übrig)")
+            s_type = str(s.get('type', 'LAGER'))
+            s_loc = str(s.get('loc_id', '-'))
+            if s_type.startswith("AMS"):
+                loc_info = f"{s_type}-{s_loc}"
+            elif s_loc and s_loc != "-":
+                loc_info = f"{s_type} {s_loc}"
+            else:
+                loc_info = s_type
+            return f"[{s['id']}] {s.get('brand')} {color_clean} ({net}g) [{loc_info}]"
+
+        active_spools = [s for s in self.inventory if s.get('type') != 'VERBRAUCHT']
+        spool_list = [format_spool_item(s) for s in active_spools]
 
         if not mappings:
             mappings = [{"ams": -1, "weight": total_weight}]
@@ -4518,11 +4761,23 @@ del "%~f0"
             row.pack(fill="x", pady=5)
             
             raw_ams = m.get('ams', -1)
+            ams_id_field = m.get('amsId', -1)
+            slot_id_field = m.get('slotId', -1)
             weight = round(m.get('weight', 0.0), 1)
             best_match = None
             
-            if raw_ams >= 0 and raw_ams != 255:
-                local_ams_idx = raw_ams // 4
+            local_ams_idx = raw_ams // 4 if raw_ams >= 0 else -1
+            is_external = (
+                force_external
+                or raw_ams in (-1, 254, 255)
+                or ams_id_field in (254, 255)
+                or slot_id_field in (254, 255)
+                or (printer is not None and local_ams_idx >= len(ams_ids))
+            )
+
+            row_spool_list = list(spool_list)
+
+            if not is_external:
                 if printer and local_ams_idx < len(ams_ids):
                     global_ams_id = ams_ids[local_ams_idx]
                 else:
@@ -4531,7 +4786,7 @@ del "%~f0"
                 ams_name = f"AMS {global_ams_id}"
                 lbl_text = f"{ams_name} Slot {slot_num}:"
                 
-                # --- NEU: DIE ZEITMASCHINE (SMART AMS MEMORY) ---
+                # --- DIE ZEITMASCHINE (SMART AMS MEMORY) ---
                 import os, json
                 snap_file = os.path.join(getattr(self.data_manager, 'base_dir', ''), "ams_snapshots.json")
                 if os.path.exists(snap_file):
@@ -4547,7 +4802,6 @@ del "%~f0"
                         closest_key = None
                         min_diff = None
                         
-                        # Wir suchen exakt das Beweisfoto, das am nächsten am Druck-Datum dran ist!
                         for snap_time_str, snap_data in snaps.items():
                             try:
                                 snap_dt = datetime.strptime(snap_time_str, "%Y-%m-%d %H:%M:%S")
@@ -4564,26 +4818,30 @@ del "%~f0"
                                 best_match = next((s for s in self.inventory if str(s.get('id')) == spool_id), None)
                     except: pass
                 
-                # Fallback: Wenn es keinen Snapshot gibt (oder er gelöscht wurde), nehmen wir das, was JETZT im AMS ist
+                # Fallback: Aktuelle Spule im AMS-Slot
                 if not best_match:
                     best_match = next((s for s in self.inventory if s.get('type') == ams_name and str(s.get('loc_id')) == str(slot_num)), None)
-                # --- ENDE ZEITMASCHINE ---
             else:
-                lbl_text = f"Extern ({ext_loc}):" if ext_loc else "Extern/Spule:"
-                if ext_loc:
-                    best_match = next((s for s in self.inventory if s.get('type') == ext_loc and s.get('type') != 'VERBRAUCHT'), None)
+                best_match, matched_loc = self._find_best_external_spool(ext_loc, job_date_str=job_date_str, mapping_entry=m)
+                lbl_text = f"Extern ({matched_loc}):" if matched_loc else "Extern/Trockner:"
+                # Bei externem Druck / Trockner sortieren wir Spulen aus dem Trockner/Zusatz-Orten nach ganz oben im Dropdown!
+                ext_priority = [format_spool_item(s) for s in active_spools if s.get('type') == matched_loc or s.get('type') in custom_locs]
+                ext_rest = [format_spool_item(s) for s in active_spools if not (s.get('type') == matched_loc or s.get('type') in custom_locs)]
+                row_spool_list = ext_priority + ext_rest
 
-            ttk.Label(row, text=lbl_text, width=12, font=("Segoe UI", 9, "bold")).pack(side="left")
+            ttk.Label(row, text=lbl_text, width=16, font=("Segoe UI", 9, "bold")).pack(side="left")
             
-            combo = ttk.Combobox(row, values=spool_list, width=28, font=("Segoe UI", 9))
-            combo.pack(side="left", padx=5)
+            combo = ttk.Combobox(row, values=row_spool_list, width=26, font=("Segoe UI", 9))
+            combo.pack(side="left", padx=5, fill="x", expand=True)
             
             if best_match:
-                net_match = calculate_net_weight(best_match.get('weight_gross', '0'), best_match.get('spool_id', -1), self.spools, best_match.get('empty_weight'))
-                color_match = re.sub(r'\s*\(\s*#[0-9a-fA-F]{6}\s*\)', '', best_match.get('color', '')).strip()
-                match_str = f"[{best_match['id']}] {best_match.get('brand')} {color_match} ({net_match}g übrig)"
-                if match_str in spool_list: combo.set(match_str)
-            elif spool_list: combo.current(0)
+                target_prefix = f"[{best_match['id']}] "
+                for sp_item in row_spool_list:
+                    if sp_item.startswith(target_prefix):
+                        combo.set(sp_item)
+                        break
+            elif row_spool_list:
+                combo.current(0)
                 
             ent_w = ttk.Entry(row, width=6, justify="right", font=("Segoe UI", 9, "bold"))
             ent_w.pack(side="left")
@@ -4594,6 +4852,7 @@ del "%~f0"
 
         def confirm():
             total_deducted = 0
+            total_mat_cost = 0.0
             for e in entries:
                 sel = e["combo"].get()
                 try: w_val = float(e["weight_entry"].get().replace(',', '.'))
@@ -4614,6 +4873,7 @@ del "%~f0"
                             sp_cap = float(str(item.get('capacity', '1000'))) or 1000.0
                             if sp_cap > 0: mat_cost = w_val * (sp_price / sp_cap)
                         except: pass
+                        total_mat_cost += mat_cost
 
                         anteil = w_val / total_weight if total_weight > 0 else 1.0
                         
@@ -4650,7 +4910,7 @@ del "%~f0"
                 anteil = total_deducted / total_weight if total_weight > 0 else 1.0
                 
                 if hasattr(self, "show_custom_toast"):
-                    self.show_custom_toast("💰 Filament verrechnet", f"Verbrauch: {total_deducted:.1f}g\nGesamtkosten: {mat_cost + (strom_kosten * anteil) + ((duration * wear_price) * anteil):.2f} €")
+                    self.show_custom_toast("💰 Filament verrechnet", f"Verbrauch: {total_deducted:.1f}g\nGesamtkosten: {total_mat_cost + (strom_kosten * anteil) + ((duration * wear_price) * anteil):.2f} €")
             else:
                 from tkinter import messagebox
                 messagebox.showerror("Fehler", "Es wurden keine gültigen Gewichte eingetragen.", parent=parent_win)
@@ -4665,12 +4925,7 @@ del "%~f0"
         mappings = job.get('mapping', [])
         job_id = str(job.get('id', ''))
 
-        # Drucker anhand deviceId ermitteln
-        job_dev_id = job.get("deviceId", "")
-        printers = self.settings.get("printers", [])
-        printer = next((p for p in printers if p.get("serial") == job_dev_id), None)
-        ams_ids = printer.get("ams_ids", []) if printer else []
-        ext_loc = printer.get("external_loc", "") if printer else ""
+        printer, ams_ids, ext_loc, force_external, _, _ = self._resolve_cloud_job_source(job)
 
         ttk.Label(content, text=f"Druck: {model}", font=("Segoe UI", 12, "bold"), wraplength=350, justify="center").pack(pady=(10, 5))
         
@@ -4727,12 +4982,21 @@ del "%~f0"
             row.pack(fill="x", pady=5)
             
             raw_ams = m.get('ams', -1)
+            ams_id_field = m.get('amsId', -1)
+            slot_id_field = m.get('slotId', -1)
             weight = round(m.get('weight', 0.0), 1)
             
             best_match = None
+            local_ams_idx = raw_ams // 4 if raw_ams >= 0 else -1
+            is_external = (
+                force_external
+                or raw_ams in (-1, 254, 255)
+                or ams_id_field in (254, 255)
+                or slot_id_field in (254, 255)
+                or (printer is not None and local_ams_idx >= len(ams_ids))
+            )
             
-            if raw_ams >= 0 and raw_ams != 255:
-                local_ams_idx = raw_ams // 4
+            if not is_external:
                 if printer and local_ams_idx < len(ams_ids):
                     global_ams_id = ams_ids[local_ams_idx]
                 else:
@@ -4744,9 +5008,8 @@ del "%~f0"
                 # Wir suchen direkt, was aktuell in VibeSpool auf diesem Slot liegt!
                 best_match = next((s for s in self.inventory if s.get('type') == ams_name and str(s.get('loc_id')) == str(slot_num)), None)
             else:
-                lbl_text = f"Extern ({ext_loc}):" if ext_loc else "Extern/Spule:"
-                if ext_loc:
-                    best_match = next((s for s in self.inventory if s.get('type') == ext_loc and s.get('type') != 'VERBRAUCHT'), None)
+                best_match, matched_loc = self._find_best_external_spool(ext_loc, job_date_str=job.get('date'), mapping_entry=m)
+                lbl_text = f"Extern ({matched_loc}):" if matched_loc else "Extern/Spule:"
 
             ttk.Label(row, text=lbl_text, width=12, font=("Segoe UI", 9, "bold")).pack(side="left")
             
@@ -4755,10 +5018,6 @@ del "%~f0"
             
             # Die vorgeschlagene Spule automatisch eintragen
             if best_match:
-                net_match = calculate_net_weight(best_match.get('weight_gross', '0'), best_match.get('spool_id', -1), self.spools, best_match.get('empty_weight'))
-                color_match = re.sub(r'\s*\(\s*#[0-9a-fA-F]{6}\s*\)', '', best_match.get('color', '')).strip()
-                match_str = f"[{best_match['id']}] {best_match.get('brand')} {color_match} ({net_match}g)"
-                
                 for sp_item in spool_list:
                     if sp_item.startswith(f"[{best_match['id']}]"):
                         combo.set(sp_item)
@@ -4897,15 +5156,17 @@ del "%~f0"
         chk_hide.pack(side="right", padx=10)
         
         # --- Die Tabelle ---
-        columns = ("status", "name", "weight", "date")
+        columns = ("status", "printer", "name", "weight", "date")
         tree = ttk.Treeview(main_content, columns=columns, show="headings", height=15)
         tree.heading("status", text="Status")
+        tree.heading("printer", text="Drucker / Quelle")
         tree.heading("name", text="Modell")
         tree.heading("weight", text="Verbrauch")
         tree.heading("date", text="Datum/Zeit")
         
-        tree.column("status", width=120, anchor="center")
-        tree.column("name", width=380)
+        tree.column("status", width=110, anchor="center")
+        tree.column("printer", width=160, anchor="w")
+        tree.column("name", width=310)
         tree.column("weight", width=80, anchor="e")
         tree.column("date", width=140)
         
@@ -4937,7 +5198,8 @@ del "%~f0"
                 else:
                     stat, tags = "Offen", ()
                 
-                tree.insert("", "end", iid=job_id, values=(stat, job['name'], f"{job['weight']:.1f} g", job['date']), tags=tags)
+                _, _, _, _, _, prn_disp = self._resolve_cloud_job_source(job)
+                tree.insert("", "end", iid=job_id, values=(stat, prn_disp, job['name'], f"{job['weight']:.1f} g", job['date']), tags=tags)
 
         btn_frame = ttk.Frame(main_content)
         btn_frame.pack(fill="x", side="bottom", padx=10, pady=15)

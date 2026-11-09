@@ -1,6 +1,6 @@
 # 🧵 VibeSpool - Das smarte Filament-Management-System
 
-![Version](https://img.shields.io/badge/version-2.5.0-blue.svg)
+![Version](https://img.shields.io/badge/version-2.5.1-blue.svg)
 ![Python](https://img.shields.io/badge/python-3.10%2B-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
@@ -9,10 +9,18 @@
 <img width="1924" height="1044" alt="VibeSpool Main Dashboard" src="https://github.com/user-attachments/assets/7234891c-0458-478b-8c5a-7d9e6cd184cb" />
 ---
 
-## 🆕 Was ist neu in Version 2.5.0? ("Auftragsplaner & Projektverlauf Pro Update")
-Dieses Update erweitert den Auftragsplaner und den Projektverlauf um professionelle Kalkulations- und Verwaltungsfunktionen, verbesserte Bildvorschauen und ergonomische Sortierung!
+## 🆕 Was ist neu in Version 2.5.1? ("Filamenttrockner & Multi-Drucker Cloud Smart-Match Update")
+Dieses Update optimiert das Buchen von Materialverbrauch aus der Bambu Cloud für Zweitdrucker und externe Zuführungen (z. B. Filamenttrockner), verbessert die Übersicht im Projektplaner und behebt einen PyInstaller-Sicherheitsfehler beim Auto-Updater!
 
-### ✨ Die Highlights:
+### ✨ Die Highlights in v2.5.1:
+
+* **🔥 Intelligente Filamenttrockner- & Zweitdrucker-Erkennung (Cloud Smart-Match):** Druckaufträge auf Druckern ohne AMS (oder über externe Zuführung wie den `Filamenttrockner`) werden in der Bambu Cloud nicht mehr fälschlicherweise auf `AMS 1 Slot 1` (Rolle 1-1) gemappt, sondern wählen automatisch die Spule aus dem zugewiesenen Trockner/Lagerort.
+* **🖨️ Schnellauswahl „Drucker / Material-Quelle“ mit Auto-Memory:** Direkt im Cloud Smart-Match kann der Drucker oder ein externer Ort (`📍 Direkt aus: Filamenttrockner`) gewählt werden – VibeSpool merkt sich die Zuordnung anhand der Cloud-Geräte-ID (`deviceId`) dauerhaft für alle künftigen Drucke dieses Druckers!
+* **🕰️ Zeitmaschine & Quick-Swap für den Filamenttrockner:** `ams_snapshots.json` speichert nun auch Belegungswechsel im `Filamenttrockner`, und Quick-Swap tauscht eine im Trockner liegende Spule automatisch zurück auf den alten Regalplatz.
+* **📂 Projektplaner-Übersicht:** Beim Öffnen des Projektverlaufs werden standardmäßig nur die Oberordner angezeigt (Unterordner eingeklappt), um bei vielen Projekten maximale Übersicht zu bieten.
+* **⚡ Auto-Updater Fix:** Behebt den PyInstaller-Fehler (`Security validation failure: unexpected name of application's home directory`) beim Neustart nach einem Auto-Update.
+
+### ✨ Highlights aus Version 2.5.0:
 
 * **🖼️ Modellbilder mit Zoom & System-Viewer:** Große Modellbild-Vorschau (bis 240px) und Klick-Zoom (`JobImageViewerDialog`) mit Vollbild-Betrachtung in der Windows-Fotoanzeige.
 * **🔢 Stückzahl (Quantity) & Batch-Kalkulation:** Automatische Berechnung von Materialgewicht, Druckzeit und Kosten pro Stück sowie für den gesamten Auftrag (`GESAMT`).

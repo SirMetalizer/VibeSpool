@@ -165,7 +165,8 @@ class BambuCloudAPI:
                     "date": date_end,
                     "duration_h": duration_hours,
                     "mapping": job.get("amsDetailMapping", []),
-                    "deviceId": str(job.get("deviceId", ""))
+                    "deviceId": str(job.get("deviceId", "")),
+                    "deviceName": str(job.get("deviceName", job.get("deviceModel", "")))
                 })
                 
             return True, history_list

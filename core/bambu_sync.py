@@ -123,7 +123,10 @@ class BambuBackgroundMonitor:
                 if self.last_gcode_state == "RUNNING" and new_state in ["FINISH", "FAILED"]:
                     print("🎯 Druck-Ende erkannt! Sende Daten an VibeSpool-Popup...")
                     if self.used_trays:
-                        self.on_finish_callback(self.printer_id, list(self.used_trays), self.predicted_weight)
+                        active_trays = [t for t in self.used_trays if t != 255]
+                        if not active_trays:
+                            active_trays = [255]
+                        self.on_finish_callback(self.printer_id, active_trays, self.predicted_weight)
                         self.used_trays.clear() # Korb leeren für den nächsten Druck
                         
                 self.last_gcode_state = new_state

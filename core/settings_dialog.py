@@ -845,11 +845,12 @@ class SettingsDialog(tk.Toplevel):
         ent_acc = ttk.Entry(sf.inner)
         ent_acc.insert(0, existing_data.get("access_code", ""))
         
-        lbl_ser = ttk.Label(sf.inner, text="Seriennummer:")
+        lbl_ser = ttk.Label(sf.inner, text="Seriennummer (für Bambu Cloud & Live-Sync):")
         ent_ser = ttk.Entry(sf.inner)
         ent_ser.insert(0, existing_data.get("serial", ""))
         
         lbl_ams = ttk.Label(sf.inner, text="Zugeordnete AMS Einheiten:", font=FONT_BOLD)
+        lbl_ams_hint = ttk.Label(sf.inner, text="(Kein Haken = Drucker nutzt nur externe Spule / Trockner)", font=("Segoe UI", 8), foreground="gray")
         ams_frame = ttk.Frame(sf.inner)
         
         try: num_ams_global = int(self.ent_ams.get())
@@ -874,7 +875,8 @@ class SettingsDialog(tk.Toplevel):
                 ent_acc.pack(fill="x", pady=(0, 10))
                 lbl_ser.pack(anchor="w")
                 ent_ser.pack(fill="x", pady=(0, 10))
-                lbl_ams.pack(anchor="w", pady=(5, 2))
+                lbl_ams.pack(anchor="w", pady=(5, 0))
+                lbl_ams_hint.pack(anchor="w", pady=(0, 2))
                 ams_frame.pack(fill="x", pady=(0, 10))
                 chk_sync.pack(anchor="w", pady=(5, 15))
             elif sel_type == "Klipper / Moonraker API":
@@ -885,6 +887,7 @@ class SettingsDialog(tk.Toplevel):
                 lbl_ser.pack_forget()
                 ent_ser.pack_forget()
                 lbl_ams.pack_forget()
+                lbl_ams_hint.pack_forget()
                 ams_frame.pack_forget()
                 chk_sync.pack_forget()
             else: # Manuell
@@ -892,24 +895,26 @@ class SettingsDialog(tk.Toplevel):
                 ent_ip.pack_forget()
                 lbl_acc.pack_forget()
                 ent_acc.pack_forget()
-                lbl_ser.pack_forget()
-                ent_ser.pack_forget()
-                lbl_ams.pack_forget()
-                ams_frame.pack_forget()
+                lbl_ser.pack(anchor="w")
+                ent_ser.pack(fill="x", pady=(0, 10))
+                lbl_ams.pack(anchor="w", pady=(5, 0))
+                lbl_ams_hint.pack(anchor="w", pady=(0, 2))
+                ams_frame.pack(fill="x", pady=(0, 10))
                 chk_sync.pack_forget()
                 
         combo_type.bind("<<ComboboxSelected>>", toggle_fields)
         toggle_fields()
         
-        ttk.Label(sf.inner, text="Lagerort für externe Spule:", font=FONT_BOLD).pack(anchor="w", pady=(5, 2))
+        ttk.Label(sf.inner, text="Lagerort für externe Spule / Trockner:", font=FONT_BOLD).pack(anchor="w", pady=(5, 2))
         
         loc_options = ["-", "LAGER"]
         if self.ent_custom.get().strip():
             loc_options.extend([x.strip() for x in self.ent_custom.get().split(",") if x.strip()])
             
         combo_ext_loc = ttk.Combobox(sf.inner, values=loc_options, state="readonly")
-        combo_ext_loc.set(existing_data.get("external_loc", "-"))
-        combo_ext_loc.pack(fill="x", pady=(0, 10))
+        combo_ext_loc.set(existing_data.get("external_loc") or "-")
+        combo_ext_loc.pack(fill="x", pady=(0, 2))
+        ttk.Label(sf.inner, text="(Z.B. Filamenttrockner – wird für Drucke ohne AMS verwendet)", font=("Segoe UI", 8), foreground="gray").pack(anchor="w", pady=(0, 10))
         
         ttk.Label(sf.inner, text="Stromverbrauch (Watt):", font=FONT_BOLD).pack(anchor="w", pady=(5, 2))
         ent_watts = ttk.Entry(sf.inner)
@@ -939,7 +944,7 @@ class SettingsDialog(tk.Toplevel):
                 
             ip = ent_ip.get().strip() if p_type != "custom" else ""
             acc = ent_acc.get().strip() if p_type == "bambu" else ""
-            ser = ent_ser.get().strip() if p_type == "bambu" else ""
+            ser = ent_ser.get().strip() if p_type in ("bambu", "custom") else ""
             ext_loc = combo_ext_loc.get()
             if ext_loc == "-": ext_loc = ""
             
@@ -961,7 +966,7 @@ class SettingsDialog(tk.Toplevel):
                     messagebox.showerror("Fehler", "Verschleiß muss eine Dezimalzahl sein.", parent=self)
                     return
             
-            sel_ams = [a for a, var in ams_vars.items() if var.get()] if p_type == "bambu" else []
+            sel_ams = [a for a, var in ams_vars.items() if var.get()] if p_type in ("bambu", "custom") else []
             
             printer_data = {
                 "id": existing_data["id"],

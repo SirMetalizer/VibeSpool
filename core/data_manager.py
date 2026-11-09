@@ -100,9 +100,14 @@ class DataManager:
         import json
         snapshot = {}
         for item in inventory:
-            if str(item.get("type", "")).startswith("AMS"):
-                key = f"{item.get('type')}_{item.get('loc_id', '')}"
+            t_val = str(item.get("type", ""))
+            if t_val.startswith("AMS"):
+                key = f"{t_val}_{item.get('loc_id', '')}"
                 snapshot[key] = str(item.get("id"))
+            elif t_val and t_val not in ("LAGER", "VERBRAUCHT") and str(item.get("loc_id", "-")) in ("-", ""):
+                key = f"EXT_{t_val}"
+                if key not in snapshot:
+                    snapshot[key] = str(item.get("id"))
                 
         # FIX: "if snapshot:" entfernt! Er speichert jetzt auch, wenn das AMS komplett leer ist.
         snap_file = os.path.join(self.base_dir, "ams_snapshots.json")
